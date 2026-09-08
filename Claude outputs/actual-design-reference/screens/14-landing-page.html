@@ -1,0 +1,158 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#141414; --card:#1e1e1e; --ink:#f2f0ec; --ink-soft:#a8a49c; --ink-faint:#68645c;
+      --accent:#f2f0ec; --accent-dim:rgba(255,255,255,0.08); --line:rgba(255,255,255,0.08);
+    }
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--ink);}
+  </style>
+</head>
+<body style="margin:0;background:#0a0a0a;display:flex;align-items:flex-start;justify-content:center;padding:40px;">
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#141414; --card:#1e1e1e; --ink:#f2f0ec; --ink-soft:#a8a49c; --ink-faint:#68645c;
+      --accent:#f2f0ec; --accent-dim:rgba(255,255,255,0.08); --line:rgba(255,255,255,0.08);
+    }
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--ink);}
+  </style>
+</helmet>
+<div style="width:1440px;height:2620px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;">
+
+  <!-- NAV -->
+  <div style="height:84px;display:flex;align-items:center;justify-content:space-between;padding:0 72px;border-bottom:1px solid var(--line);">
+    <div style="font-size:19px;font-weight:600;letter-spacing:-0.01em;">actual</div>
+    <div style="display:flex;gap:40px;align-items:center;">
+      <div style="font-size:14px;color:var(--ink-soft);">Product</div>
+      <div style="font-size:14px;color:var(--ink-soft);">Privacy</div>
+      <div style="font-size:14px;color:var(--ink-soft);">Download</div>
+      <div style="height:38px;padding:0 22px;border-radius:19px;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:600;">Get started</div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div style="flex:0 0 640px;display:flex;align-items:center;padding:0 72px;gap:80px;">
+    <div style="flex:0 0 620px;display:flex;flex-direction:column;gap:26px;">
+      <div style="font-size:66px;font-weight:600;line-height:1.08;letter-spacing:-0.02em;">Know your<br/>time.</div>
+      <div style="font-size:18px;color:var(--ink-soft);line-height:1.65;max-width:520px;">Actual learns the gap between what you guess something will take and what it actually takes, then quietly corrects your next guess. Not a productivity score. Not a stopwatch app. Just an honest, ongoing record of your own time, built entirely from your own history.</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+        <div style="height:52px;width:180px;border-radius:26px;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;">Get started</div>
+        <div style="font-size:13px;color:var(--ink-faint);">Available on iPhone, Apple Watch, and Mac.</div>
+      </div>
+    </div>
+
+    <div style="flex:0 0 380px;display:flex;justify-content:center;">
+      <div style="width:300px;height:480px;background:#0d0d0d;border:1px solid var(--line);border-radius:38px;padding:22px;display:flex;flex-direction:column;gap:16px;box-shadow:0 40px 80px rgba(0,0,0,0.5);">
+        <div style="font-size:11px;color:var(--ink-faint);">Your guess</div>
+        <div style="font-size:32px;font-weight:700;">2h 00m</div>
+        <div style="background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:10.5px;color:var(--ink-soft);font-weight:600;letter-spacing:0.02em;">BASED ON YOUR HISTORY</div>
+            <div style="font-size:9.5px;color:var(--ink-faint);background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:20px;">32 sessions</div>
+          </div>
+          <div style="font-size:26px;font-weight:700;">2h 40m</div>
+          <div style="font-size:11.5px;color:var(--ink-soft);line-height:1.5;">Your normal work sessions run about 33% longer than your guess recently.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROBLEM -->
+  <div style="flex:0 0 320px;display:flex;align-items:center;justify-content:center;padding:0 72px;">
+    <div style="max-width:680px;text-align:center;font-size:23px;font-weight:500;line-height:1.55;color:var(--ink);">
+      Most people assume they already know how long something takes. They don't, not exactly, and not consistently. The gap between a guess and what actually happens repeats itself for years without anyone noticing, since nothing ever writes it down. Actual writes it down.
+    </div>
+  </div>
+
+  <!-- THREE THINGS -->
+  <div style="flex:0 0 420px;padding:40px 72px 0;display:flex;flex-direction:column;gap:36px;">
+    <div style="font-size:13px;color:var(--ink-faint);text-align:center;letter-spacing:0.04em;">THREE THINGS WORTH KNOWING</div>
+    <div style="display:flex;gap:36px;">
+      <div style="flex:1;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:30px;display:flex;flex-direction:column;gap:14px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="var(--ink)" stroke-width="1.6"/><path d="M12 7v5l3 2" stroke="var(--ink)" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <div style="font-size:17px;font-weight:600;">Built on your own history</div>
+        <div style="font-size:14px;color:var(--ink-soft);line-height:1.6;">Not a generic average pulled from millions of other people. Every number comes entirely from your own logged history.</div>
+      </div>
+      <div style="flex:1;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:30px;display:flex;flex-direction:column;gap:14px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="4" y="7" width="16" height="12" rx="3" stroke="var(--ink)" stroke-width="1.6"/><path d="M9 4h6" stroke="var(--ink)" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <div style="font-size:17px;font-weight:600;">Works without opening the app</div>
+        <div style="font-size:14px;color:var(--ink-soft);line-height:1.6;">A widget, a lock screen glance, a tap from your watch, an icon in the Mac menu bar. Never unlock a phone just to start something.</div>
+      </div>
+      <div style="flex:1;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:30px;display:flex;flex-direction:column;gap:14px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <div style="font-size:17px;font-weight:600;">Private by design</div>
+        <div style="font-size:14px;color:var(--ink-soft);line-height:1.6;">Your history lives in your own private iCloud account, not on a server Actual operates. Nothing is judged or shared unless you choose to.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div style="flex:0 0 380px;padding:56px 72px 0;display:flex;flex-direction:column;gap:40px;align-items:center;">
+    <div style="font-size:13px;color:var(--ink-faint);letter-spacing:0.04em;">HOW IT WORKS</div>
+    <div style="display:flex;align-items:flex-start;gap:0;width:100%;max-width:980px;">
+      <div style="flex:1;display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center;padding:0 20px;">
+        <div style="width:40px;height:40px;border-radius:20px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:var(--ink-soft);">1</div>
+        <div style="font-size:17px;font-weight:600;">Guess</div>
+        <div style="font-size:13.5px;color:var(--ink-soft);line-height:1.6;">A rough number before you start, fifteen minutes, two hours, whatever you honestly think.</div>
+      </div>
+      <div style="width:80px;height:1px;background:var(--line);margin-top:20px;"></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center;padding:0 20px;">
+        <div style="width:40px;height:40px;border-radius:20px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:var(--ink-soft);">2</div>
+        <div style="font-size:17px;font-weight:600;">Live</div>
+        <div style="font-size:13.5px;color:var(--ink-soft);line-height:1.6;">Actual times the real thing, automatically for trips, one tap for everything else.</div>
+      </div>
+      <div style="width:80px;height:1px;background:var(--line);margin-top:20px;"></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center;padding:0 20px;">
+        <div style="width:40px;height:40px;border-radius:20px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:var(--ink-soft);">3</div>
+        <div style="font-size:17px;font-weight:600;">Corrected</div>
+        <div style="font-size:13.5px;color:var(--ink-soft);line-height:1.6;">Next time, the number already accounts for how long this actually tends to take you.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EVERYWHERE -->
+  <div style="flex:0 0 260px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;">
+    <div style="font-size:13px;color:var(--ink-faint);letter-spacing:0.04em;">EVERYWHERE YOU START SOMETHING</div>
+    <div style="display:flex;gap:56px;align-items:center;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="2.5" stroke="var(--ink-soft)" stroke-width="1.5"/><path d="M10 19h4" stroke="var(--ink-soft)" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <div style="font-size:12.5px;color:var(--ink-soft);">iPhone</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="6" y="4" width="12" height="16" rx="4" stroke="var(--ink-soft)" stroke-width="1.5"/></svg>
+        <div style="font-size:12.5px;color:var(--ink-soft);">Apple Watch</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="1.5" stroke="var(--ink-soft)" stroke-width="1.5"/><path d="M9 20h6M12 16v4" stroke="var(--ink-soft)" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <div style="font-size:12.5px;color:var(--ink-soft);">Mac</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLOSING BAND -->
+  <div style="flex:0 0 320px;background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;">
+    <div style="font-size:40px;font-weight:600;letter-spacing:-0.01em;">Know your time.</div>
+    <div style="height:52px;width:180px;border-radius:26px;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;">Get started</div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="flex:0 0 160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
+    <div style="font-size:15px;font-weight:600;">actual</div>
+    <div style="font-size:12.5px;color:var(--ink-faint);">Know your time.</div>
+    <div style="display:flex;gap:24px;margin-top:6px;">
+      <div style="font-size:12px;color:var(--ink-faint);">Privacy</div>
+      <div style="font-size:12px;color:var(--ink-faint);">Terms</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

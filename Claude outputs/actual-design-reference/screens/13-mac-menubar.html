@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#141414; --card:#1e1e1e; --ink:#f2f0ec; --ink-soft:#a8a49c; --ink-faint:#68645c;
+      --accent:#f2f0ec; --accent-dim:rgba(255,255,255,0.08); --line:rgba(255,255,255,0.07);
+    }
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:'Inter',system-ui,sans-serif;background:#0d0d0d;color:var(--ink);}
+  </style>
+</head>
+<body style="margin:0;background:#0a0a0a;display:flex;align-items:flex-start;justify-content:center;padding:40px;">
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#141414; --card:#1e1e1e; --ink:#f2f0ec; --ink-soft:#a8a49c; --ink-faint:#68645c;
+      --accent:#f2f0ec; --accent-dim:rgba(255,255,255,0.08); --line:rgba(255,255,255,0.07);
+    }
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:'Inter',system-ui,sans-serif;background:#0d0d0d;color:var(--ink);}
+  </style>
+</helmet>
+<div style="width:520px;height:360px;background:#0d0d0d;position:relative;overflow:hidden;">
+
+  <div style="height:26px;background:rgba(255,255,255,0.04);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;padding:0 14px;backdrop-filter:blur(6px);">
+    <div style="font-size:12px;font-weight:600;color:var(--ink-soft);">Saturday, 2:41 PM</div>
+    <div style="display:flex;gap:14px;align-items:center;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 15c4-5 12-5 16 0" stroke="var(--ink-faint)" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="18" r="1.3" fill="var(--ink-faint)"/></svg>
+      <div style="display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.06);padding:3px 9px;border-radius:10px;">
+        <div style="width:6px;height:6px;border-radius:3px;background:var(--accent);"></div>
+        <div style="font-size:11.5px;color:var(--ink);font-weight:600;">42:18</div>
+      </div>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="16" height="10" rx="2" stroke="var(--ink-faint)" stroke-width="1.5"/><path d="M19 10v4" stroke="var(--ink-faint)" stroke-width="1.5"/></svg>
+    </div>
+  </div>
+
+  <div style="position:absolute;top:34px;right:66px;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:8px solid var(--card);"></div>
+
+  <div style="position:absolute;top:40px;right:14px;width:270px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 40px rgba(0,0,0,0.4);">
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <div style="font-size:11.5px;color:var(--ink-faint);">Active now</div>
+        <div style="font-size:15px;font-weight:600;">Work session</div>
+      </div>
+      <div style="font-size:10.5px;color:var(--ink-soft);background:rgba(255,255,255,0.06);padding:3px 9px;border-radius:20px;">normal</div>
+    </div>
+
+    <div style="display:flex;align-items:baseline;gap:8px;">
+      <div style="font-size:32px;font-weight:700;letter-spacing:-0.01em;">42:18</div>
+      <div style="font-size:11.5px;color:var(--ink-faint);">of ~2h 40m expected</div>
+    </div>
+
+    <div style="height:4px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;">
+      <div style="height:100%;width:26%;background:var(--accent);border-radius:3px;"></div>
+    </div>
+
+    <div style="height:38px;border-radius:10px;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;">End session</div>
+
+    <div style="height:1px;background:var(--line);"></div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:11px;color:var(--ink-faint);">⌘⇧A to start or end anywhere</div>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>

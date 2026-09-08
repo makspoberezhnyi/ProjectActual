@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Opening a shared reminder link drops straight into the app. Merged with the
+	     keys Xcode generates from the INFOPLIST_KEY_ build settings. -->
+	<!-- A trip has to keep being timed once the phone is in a pocket, or the arrival
+	     is never seen and the session never closes itself. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>app.actual.Actual.reminder</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>actual</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
