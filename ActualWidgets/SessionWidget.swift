@@ -132,7 +132,7 @@ struct QuickStartWidgetView: View {
             } else {
                 ForEach(quickStarts.prefix(limit)) { start in
                     Button(intent: StartSessionIntent(
-                        categoryID: start.categoryID,
+                        category: CategoryEntity(id: start.categoryID, name: start.name),
                         contextTag: start.contextTag,
                         estimatedMinutes: start.expectedMinutes
                     )) {

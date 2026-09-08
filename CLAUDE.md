@@ -163,6 +163,82 @@ reminder-sourced session, generate the resulting ping, open it on the sender's d
 confirm `SentReminder.recipientCompletedAt` updates — is exercised by code review and
 the passing test suite rather than a live device screenshot of that exact final step.
 
+## Route detail from History and Home
+
+`SessionDetailView` is the same guess/route-said/actual layout `SessionEndView` shows
+the instant a session closes, minus the "Done" button — reachable now by tapping any
+closed session on History or Home, not only in the few seconds around it ending. This
+is what makes a trip's route visible again after the fact: previously the map only
+existed transiently, with no way back to it.
+
+Both `HistoryView` and `HomeView` present it as a sheet; each owns its own `@State`
+selection and calls back into `RootView` for the one action inside it that touches
+shared state (`onStartAgain`).
+
+## Start again
+
+`RootView.startAgain(_:)` repeats a past session — same category, same context — with
+the *current* recalibrated estimate rather than freezing in whatever was guessed last
+time. Reachable from the "Start again" button on `SessionDetailView`. Deliberately not
+a duplicate of `start(_:)`: that one exists to turn typed or spoken text into a
+category via `resolveCategory`, this one already has a real `TaskCategory` in hand and
+must not re-run name matching against it. Runs through the same tail as any other
+start — `open`, `announce` (Live Activity), `fetchBaseline`, `beginTripMonitoring` — so
+repeating a trip restarts its GPS watching exactly like starting one fresh would.
+
+## Export and import
+
+`Actual/Data/DataTransfer.swift` is a plain JSON snapshot of every table — categories,
+sessions, received and sent reminders — reachable from Profile → Your data. Import
+upserts by the same unique key each table already enforces (`TaskCategory.id`,
+`Session.uuid`, `shareID`), so importing the same file twice changes nothing the second
+time, and importing an export from another device merges into what's here rather than
+replacing it. Export writes to a temp file and hands it to `UIActivityViewController`
+via a small `UIViewControllerRepresentable` bridge (`ActivityShareSheet`) — SwiftUI's
+own `ShareLink` needs its item ready at render time, and export needs to write the file
+first, so this is Button-triggered like every other action in the app rather than a
+declarative share link.
+
+Six tests cover the merge logic directly against a real in-memory `ModelContext`,
+including the two properties that matter most: a repeat import of the same file adds
+nothing, and importing into a non-empty store merges rather than replacing.
+
+## Siri
+
+`Shared/Data/SessionIntents.swift` now has an `ActualAppShortcutsProvider` alongside
+`StartSessionIntent` / `EndSessionIntent`, discovered automatically — no entitlement,
+no Info.plist key. This is the modern App Intents mechanism (iOS 16+), a different
+system from the older SiriKit `INIntent` domains that needed `com.apple.developer.siri`,
+which is why it works on a free Personal Team the same as a paid one.
+
+`CategoryEntity` (`Shared/Data/CategoryEntity.swift`) makes the person's own categories
+something Siri can resolve or ask about. `StartSessionIntent.category` is optional on
+purpose: Siri asking "which category?" on every single invocation would be exactly the
+friction quick start exists to avoid, so a bare "Hey Siri, start a session in Actual"
+falls through to the same blind-start path the app's own quick start uses. **The model
+is never asked to parse the number** here either, for the same reason as the deterministic
+parser in `Core/Voice/` — Siri's own native duration-parameter resolution is used
+instead of any custom parsing.
+
+Verified live: the Shortcuts app shows "Actual" with both shortcuts discoverable, and
+running "Start a session" from there wrote a real session into the store, visible on
+Home with the correct recalibrated expectation. Real "Hey Siri" wake-word activation
+needs physical hardware to verify; the App Intents themselves do not.
+
+Still not wired: the microphone / `SFSpeechRecognizer` path for free-form speech
+outside a Siri-structured invocation, and the stage 10 transcription echo.
+
+## Dynamic Island sizing
+
+`SessionLiveActivity`'s compact and expanded trailing regions dropped their fixed
+`.frame(maxWidth:)` values in favour of `.minimumScaleFactor` — a guessed pixel width
+is exactly what gets clipped by the island's own rounded cutout on real hardware, which
+the simulator does not render with the same fidelity. The compact region also passes
+`showsHours: false` to `Text(timerInterval:)`, capping the string at "59:59" rather
+than letting "1:23:45" appear the moment a session crosses an hour in the tightest
+space anywhere in the Dynamic Island. Unverified on physical hardware — worth a look
+once running on a device.
+
 ## Substitutions worth knowing
 
 Two places where what is built differs from the concept doc, both for want of an Apple

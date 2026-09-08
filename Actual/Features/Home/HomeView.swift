@@ -16,7 +16,9 @@ struct HomeView: View {
     let onOpenSession: (Session) -> Void
     let onEndSession: (Session) -> Void
     let onResolve: (Session) -> Void
+    let onStartAgain: (Session) -> Void
 
+    @State private var selectedPastSession: Session?
     @AppStorage("passiveTrackingAppIDs") private var passiveTrackingAppIDs = ""
 
     private var isPassivelyTracking: Bool {
@@ -100,6 +102,18 @@ struct HomeView: View {
                 .padding(.bottom, 110)
             }
             .scrollIndicators(.hidden)
+        }
+        .sheet(item: $selectedPastSession) { session in
+            SessionDetailView(
+                session: session,
+                categoryName: categories.first { $0.id == session.categoryID }?.name ?? session.title,
+                history: sessions.records,
+                onDismiss: { selectedPastSession = nil },
+                onStartAgain: session.categoryID != nil ? {
+                    selectedPastSession = nil
+                    onStartAgain(session)
+                } : nil
+            )
         }
     }
 
@@ -190,7 +204,10 @@ struct HomeView: View {
                 Caption("Nothing logged yet today.")
             } else {
                 ForEach(todaysClosed) { session in
-                    LoggedSessionRow(session: session, categories: categories)
+                    Button { selectedPastSession = session } label: {
+                        LoggedSessionRow(session: session, categories: categories)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

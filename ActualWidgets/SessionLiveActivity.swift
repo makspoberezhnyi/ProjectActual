@@ -28,14 +28,20 @@ struct SessionLiveActivity: Widget {
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
+                    // No fixed frame: a guessed pixel width is exactly what gets
+                    // clipped by the island's own rounded cutout on real hardware,
+                    // which the simulator does not render with the same fidelity.
+                    // minimumScaleFactor is the safety net instead of a hand-picked
+                    // width.
                     Text(
                         timerInterval: context.state.startedAt...Date.distantFuture,
                         countsDown: false
                     )
-                    .font(.system(size: 20, weight: .bold).monospacedDigit())
+                    .font(.system(size: 18, weight: .bold).monospacedDigit())
                     .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 90)
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
@@ -62,13 +68,21 @@ struct SessionLiveActivity: Widget {
             } compactLeading: {
                 Circle().fill(Theme.accent).frame(width: 6, height: 6)
             } compactTrailing: {
+                // The compact pill sits directly against the camera cutout, the
+                // tightest space anywhere in the Dynamic Island. showsHours: false
+                // caps the string at "59:59" regardless of session length, rather
+                // than "1:23:45" appearing the moment a session crosses an hour and
+                // getting clipped by the island's edge. No fixed frame, for the same
+                // reason as the expanded region above.
                 Text(
                     timerInterval: context.state.startedAt...Date.distantFuture,
-                    countsDown: false
+                    countsDown: false,
+                    showsHours: false
                 )
                 .font(.system(size: 13, weight: .medium).monospacedDigit())
                 .foregroundStyle(Theme.ink)
-                .frame(maxWidth: 44)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             } minimal: {
                 Circle().fill(Theme.accent).frame(width: 6, height: 6)
             }

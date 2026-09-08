@@ -19,6 +19,11 @@ struct ProfileView: View {
     @AppStorage("passiveTrackingAppIDs") private var passiveTrackingAppIDs = ""
     @State private var isConfirmingDelete = false
     @State private var isViewingPassiveTracking = false
+    @State private var exportFileURL: URL?
+    @State private var isSharingExport = false
+    @State private var isImporting = false
+    @State private var importSummary: DataTransfer.ImportSummary?
+    @State private var importError: String?
 
     private var closed: [Session] { sessions.filter(\.isClosed) }
 
@@ -59,6 +64,7 @@ struct ProfileView: View {
                         sentRemindersSection
                     }
                     screenTime
+                    dataTransfer
                     privacy
                     notConnected
                     dangerZone
@@ -312,6 +318,133 @@ struct ProfileView: View {
         }
     }
 
+    // MARK: - Export and import
+
+    /// Every table, in one file the person actually holds — the same "your data
+    /// belongs to you" premise the rest of the app is built on, extended to getting it
+    /// back out.
+    private var dataTransfer: some View {
+        section("Your data") {
+            VStack(spacing: 0) {
+                Button(action: prepareExport) {
+                    row(
+                        icon: "square.and.arrow.up",
+                        title: "Export everything",
+                        subtitle: "Every session, category and reminder, as one file"
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Hairline()
+
+                Button { isImporting = true } label: {
+                    row(
+                        icon: "square.and.arrow.down",
+                        title: "Import from a file",
+                        subtitle: "Adds to what's already here, never overwrites"
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .sheet(isPresented: $isSharingExport) {
+            if let exportFileURL {
+                ActivityShareSheet(items: [exportFileURL])
+            }
+        }
+        .fileImporter(
+            isPresented: $isImporting,
+            allowedContentTypes: [.json],
+            onCompletion: handleImport
+        )
+        .alert(
+            "Imported",
+            isPresented: Binding(
+                get: { importSummary != nil },
+                set: { if !$0 { importSummary = nil } }
+            )
+        ) {
+            Button("OK") { importSummary = nil }
+        } message: {
+            Text(importSummaryText)
+        }
+        .alert(
+            "Couldn't import that file",
+            isPresented: Binding(
+                get: { importError != nil },
+                set: { if !$0 { importError = nil } }
+            )
+        ) {
+            Button("OK") { importError = nil }
+        } message: {
+            Text(importError ?? "")
+        }
+    }
+
+    private func row(icon: String, title: String, subtitle: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.inkSoft)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(Typeface.body(14))
+                    .foregroundStyle(Theme.ink)
+                Text(subtitle)
+                    .font(Typeface.body(11.5))
+                    .foregroundStyle(Theme.inkFaint)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 12)
+    }
+
+    private var importSummaryText: String {
+        guard let importSummary else { return "" }
+        guard importSummary.totalChanged > 0 else {
+            return "Nothing new in that file — everything in it was already here."
+        }
+        var parts: [String] = []
+        let categories = importSummary.categoriesAdded + importSummary.categoriesUpdated
+        if categories > 0 { parts.append("\(categories) \(categories == 1 ? "category" : "categories")") }
+        let sessions = importSummary.sessionsAdded + importSummary.sessionsUpdated
+        if sessions > 0 { parts.append("\(sessions) \(sessions == 1 ? "session" : "sessions")") }
+        if importSummary.remindersAdded > 0 {
+            parts.append("\(importSummary.remindersAdded) \(importSummary.remindersAdded == 1 ? "reminder" : "reminders")")
+        }
+        return parts.joined(separator: ", ") + " added or updated."
+    }
+
+    private func prepareExport() {
+        let export = DataTransfer.export(from: context)
+        exportFileURL = try? DataTransfer.writeToTemporaryFile(export)
+        isSharingExport = exportFileURL != nil
+    }
+
+    private func handleImport(_ result: Result<URL, Error>) {
+        switch result {
+        case .failure(let error):
+            importError = error.localizedDescription
+
+        case .success(let url):
+            // A file picked from Files or iCloud Drive is security-scoped: reading it
+            // needs an explicit start/stop around the access, or it silently fails.
+            let didStartAccessing = url.startAccessingSecurityScopedResource()
+            defer { if didStartAccessing { url.stopAccessingSecurityScopedResource() } }
+
+            do {
+                let data = try Data(contentsOf: url)
+                let export = try DataTransfer.decode(data)
+                importSummary = DataTransfer.merge(export, into: context)
+            } catch {
+                importError = "That file isn't a recognizable Actual export."
+            }
+        }
+    }
+
     // MARK: - Deleting
 
     private var dangerZone: some View {
@@ -354,4 +487,17 @@ struct ProfileView: View {
             }
         }
     }
+}
+
+/// A thin bridge to the system share sheet. SwiftUI's own `ShareLink` needs its item
+/// ready at render time; export needs to write the file first, so this is driven from
+/// a Button instead, the same way the rest of the app treats every other action.
+struct ActivityShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

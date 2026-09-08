@@ -9,8 +9,10 @@ import SwiftUI
 struct HistoryView: View {
     let sessions: [Session]
     let categories: [TaskCategory]
+    let onStartAgain: (Session) -> Void
 
     @State private var scope: Scope = .everything
+    @State private var selected: Session?
 
     enum Scope: String, CaseIterable {
         case everything = "Everything"
@@ -63,6 +65,18 @@ struct HistoryView: View {
                 }
                 .scrollIndicators(.hidden)
             }
+        }
+        .sheet(item: $selected) { session in
+            SessionDetailView(
+                session: session,
+                categoryName: categories.first { $0.id == session.categoryID }?.name ?? session.title,
+                history: sessions.records,
+                onDismiss: { selected = nil },
+                onStartAgain: session.categoryID != nil ? {
+                    selected = nil
+                    onStartAgain(session)
+                } : nil
+            )
         }
     }
 
@@ -142,7 +156,10 @@ struct HistoryView: View {
             .padding(.bottom, 2)
 
             ForEach(sessions) { session in
-                HistoryRow(session: session, categories: categories)
+                Button { selected = session } label: {
+                    HistoryRow(session: session, categories: categories)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, Theme.Padding.screen)

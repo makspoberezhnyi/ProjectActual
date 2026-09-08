@@ -236,12 +236,13 @@ struct MainShell: View {
                         onComposeReminder: { isComposingReminder = true },
                         onOpenSession: { open($0) },
                         onEndSession: end,
-                        onResolve: { awaitingResolution = $0 }
+                        onResolve: { awaitingResolution = $0 },
+                        onStartAgain: startAgain
                     )
                 case .insights:
                     InsightsView(sessions: sessions, categories: categories)
                 case .log:
-                    HistoryView(sessions: sessions, categories: categories)
+                    HistoryView(sessions: sessions, categories: categories, onStartAgain: startAgain)
                 case .profile:
                     ProfileView(sessions: sessions, categories: categories, sentReminders: sentReminders)
                 case .capture:
@@ -258,7 +259,8 @@ struct MainShell: View {
                         onComposeReminder: { isComposingReminder = true },
                         onOpenSession: { open($0) },
                         onEndSession: end,
-                        onResolve: { awaitingResolution = $0 }
+                        onResolve: { awaitingResolution = $0 },
+                        onStartAgain: startAgain
                     )
                 }
             }
@@ -421,6 +423,40 @@ struct MainShell: View {
         try? context.save()
 
         isCapturing = false
+        open(session)
+        announce(session)
+        fetchBaseline(for: session, category: category)
+        beginTripMonitoring(for: session, category: category)
+    }
+
+    /// Repeats a past session: same category, same context, started now, with the
+    /// current recalibrated estimate rather than whatever was guessed last time — the
+    /// point is skipping the category picker, not freezing the estimate in the past.
+    ///
+    /// Not a duplicate of `start(_:)`: that one exists to turn typed or spoken text
+    /// into a category, this one already has a real `TaskCategory` in hand and should
+    /// never re-run name matching against it.
+    private func startAgain(_ past: Session) {
+        guard let categoryID = past.categoryID,
+              let category = categories.first(where: { $0.id == categoryID })
+        else { return }
+
+        let estimate = BiasEngine().recalibratedEstimate(
+            rawGuessMinutes: nil,
+            for: CategoryKey(categoryID: categoryID, contextTag: past.contextTag),
+            from: sessions.records
+        )
+
+        let session = Session(
+            categoryID: category.id,
+            title: category.name,
+            contextTag: past.contextTag,
+            estimatedMinutes: estimate?.minutes,
+            startedAt: .now
+        )
+        context.insert(session)
+        try? context.save()
+
         open(session)
         announce(session)
         fetchBaseline(for: session, category: category)
