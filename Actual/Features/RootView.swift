@@ -35,7 +35,6 @@ struct RootView: View {
                 }
             }
         }
-        .preferredColorScheme(appearanceMode.colorScheme)
         .onAppear {
             guard !hasClearedData else { return }
             SeedData.populateIfEmpty(context)
@@ -52,13 +51,22 @@ struct RootView: View {
         }
     }
 
-    /// `.preferredColorScheme` sets the environment value SwiftUI's own semantic
-    /// colours read, but a `sheet` or `fullScreenCover` gets its own presentation
-    /// controller, and this app's `Theme` tokens resolve against the actual
-    /// `UITraitCollection` of whatever window is drawing them — which that
-    /// environment override does not reliably reach. Setting it directly on every
-    /// connected window is what actually makes a manual light/dark choice hold
-    /// everywhere a sheet can open, not just on the screen underneath it.
+    /// The single source of truth for appearance. `.preferredColorScheme` alone isn't
+    /// enough — a `sheet` or `fullScreenCover` gets its own presentation controller
+    /// this app's `Theme` tokens resolve their `UITraitCollection` against directly,
+    /// which that environment modifier doesn't reliably reach — so this walks every
+    /// connected window by hand instead.
+    ///
+    /// "System" traced back to something upstream of any of this: the project had
+    /// `INFOPLIST_KEY_UIUserInterfaceStyle = Dark` baked in from when the app was
+    /// dark-only, which sets the *app-wide default* a window falls back to whenever
+    /// nothing overrides it — exactly what `.unspecified` is. An explicit `.light` or
+    /// `.dark` override here always won, which is why only "System" looked broken:
+    /// logging every layer (`UIScreen.main`, `UITraitCollection.current`, the window's
+    /// own resolved trait, even a fresh window that had never been touched) all
+    /// agreed on dark, and the one thing they had in common was that plist default.
+    /// Removed from the project settings — this function is what decides appearance
+    /// now, not a static build setting left over from before the toggle existed.
     private func applyWindowAppearance() {
         let style: UIUserInterfaceStyle
         switch appearanceMode.colorScheme {

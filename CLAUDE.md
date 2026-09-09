@@ -296,17 +296,31 @@ picker in Profile → Appearance (System/Light/Dark, `AppearanceMode`, stored un
 setting exists. Defaults to Dark, matching how the app looked before this existed, so
 nobody's screen changes underneath them without asking.
 
-Two things had to be true together for this to actually hold, not just on the screen
-under a sheet: `RootView` applies `.preferredColorScheme(appearanceMode.colorScheme)`
-for SwiftUI's own semantic colours, *and* separately walks every connected
-`UIWindowScene`'s windows setting `overrideUserInterfaceStyle` directly
-(`applyWindowAppearance()`). The first alone was not enough — a `sheet` or
-`fullScreenCover` gets its own presentation controller, and this app's dynamic
-`UIColor`-backed tokens resolve against the real window trait collection, which the
-environment modifier does not reliably reach on its own. Skipping the window-level part
-reproduces as a sheet or the active-session cover rendering completely blank: correct
-background, but every `Theme.ink` text token resolving to the same value as the
-background it sits on.
+`RootView.applyWindowAppearance()` is the single source of truth, walking every
+connected `UIWindowScene`'s windows and setting `overrideUserInterfaceStyle` directly,
+deliberately not paired with `.preferredColorScheme`. That modifier only sets an
+environment value — a `sheet` or `fullScreenCover` gets its own presentation controller
+this app's dynamic `UIColor`-backed tokens resolve their `UITraitCollection` against
+directly, which the environment override does not reliably reach on its own; skipping
+the window-level walk reproduces as a sheet or the active-session cover rendering
+completely blank, correct background but every `Theme.ink` text token resolving to the
+same value as the background it sits on.
+
+"System" specifically stayed broken after that fix, always forcing dark regardless of
+the device's real setting. The cause was upstream of any of this code: the project had
+`INFOPLIST_KEY_UIUserInterfaceStyle = Dark` baked into both build configurations from
+when the app was dark-only, which sets the *app-wide default* a window falls back to
+whenever nothing overrides it — exactly what choosing "System" resolves to
+(`.unspecified`). An explicit `.light` or `.dark` selection always won regardless, which
+is exactly why only "System" looked broken while the other two didn't. Confirmed by
+logging every layer at once — `UIScreen.main`, `UITraitCollection.current`, a window's
+own resolved trait, even one that had never been touched by any of this code — and
+finding them all agreeing on dark, with that plist default as the one thing they had in
+common. `INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent` sat right next
+to it, the same dark-only assumption applied to the status bar specifically; removed for
+the same reason. Both are gone from the project settings now — `applyWindowAppearance`
+is what decides appearance, not a static build setting left over from before the toggle
+existed.
 
 The translucent washes (`line`, `track`, `badge`, `pill`, `accentDim`) needed their own
 light values rather than a blanket flip — they're white-at-low-opacity in dark mode,
