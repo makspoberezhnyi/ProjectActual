@@ -7,6 +7,7 @@ struct RootView: View {
     /// Set when the person clears their data from the profile screen, so the seed does
     /// not quietly put it back on the next launch.
     @AppStorage("hasClearedData") private var hasClearedData = false
+    @AppStorage("appearanceMode") private var appearanceModeRaw = AppearanceMode.dark.rawValue
     @Environment(\.modelContext) private var context
 
     /// A reminder opened from a link before the app was ready to show it.
@@ -15,6 +16,14 @@ struct RootView: View {
     /// onboarding, when the shell does not exist yet. Dropping it there would lose the
     /// very thing the person tapped.
     @State private var pendingReminder: SharedReminder?
+
+    /// Applied once, here, rather than read separately by every screen — every
+    /// `Theme` colour already switches on the rendering trait collection, so this one
+    /// modifier at the root is what actually flips them, and nothing below needs to
+    /// know the setting exists.
+    private var appearanceMode: AppearanceMode {
+        AppearanceMode(rawValue: appearanceModeRaw) ?? .dark
+    }
 
     var body: some View {
         Group {
@@ -26,10 +35,13 @@ struct RootView: View {
                 }
             }
         }
+        .preferredColorScheme(appearanceMode.colorScheme)
         .onAppear {
             guard !hasClearedData else { return }
             SeedData.populateIfEmpty(context)
         }
+        .onAppear { applyWindowAppearance() }
+        .onChange(of: appearanceModeRaw) { _, _ in applyWindowAppearance() }
         .onOpenURL { url in
             if let shareID = PingLink.shareID(from: url) {
                 markSentReminderDone(shareID: shareID)
@@ -37,6 +49,28 @@ struct RootView: View {
             }
             guard let reminder = SharedReminderLink.reminder(from: url) else { return }
             pendingReminder = reminder
+        }
+    }
+
+    /// `.preferredColorScheme` sets the environment value SwiftUI's own semantic
+    /// colours read, but a `sheet` or `fullScreenCover` gets its own presentation
+    /// controller, and this app's `Theme` tokens resolve against the actual
+    /// `UITraitCollection` of whatever window is drawing them — which that
+    /// environment override does not reliably reach. Setting it directly on every
+    /// connected window is what actually makes a manual light/dark choice hold
+    /// everywhere a sheet can open, not just on the screen underneath it.
+    private func applyWindowAppearance() {
+        let style: UIUserInterfaceStyle
+        switch appearanceMode.colorScheme {
+        case .light: style = .light
+        case .dark: style = .dark
+        default: style = .unspecified
+        }
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                window.overrideUserInterfaceStyle = style
+            }
         }
     }
 
@@ -157,6 +191,8 @@ struct MainShell: View {
     private var categoryNames: [String: String] {
         Dictionary(uniqueKeysWithValues: categories.map { ($0.id, $0.name) })
     }
+
+    private var categoriesByID: [String: TaskCategory] { categories.indexedByID() }
 
     private var suggestions: [Suggestion] {
         guard let freeWindow else { return [] }
@@ -338,9 +374,9 @@ struct MainShell: View {
         }
         .task {
             reconcileLiveActivity()
-            closeAbandonedSessions()
+            SessionOperations.closeAbandoned(sessions, context: context)
             await schedule.refresh()
-            expireLapsedReminders()
+            SessionOperations.expireLapsed(receivedReminders, context: context)
         }
         .sheet(item: $pendingReminder) { reminder in
             ReceiveReminderView(
@@ -394,20 +430,10 @@ struct MainShell: View {
             }
         }
         .sheet(item: $justEnded) { ended in
-            SessionEndView(session: ended, history: sessions.records, pingURL: pingURL(for: ended)) {
+            SessionEndView(session: ended, history: sessions.records, pingURL: SessionOperations.pingURL(for: ended, receivedReminders: receivedReminders)) {
                 justEnded = nil
             }
         }
-    }
-
-    /// A ping link, only when this session came from a reminder whose sender asked to
-    /// be told, off by default.
-    private func pingURL(for session: Session) -> URL? {
-        guard let shareID = session.sourceReminderShareID,
-              let reminder = receivedReminders.first(where: { $0.shareID == shareID }),
-              reminder.sharesCompletion
-        else { return nil }
-        return PingLink.url(shareID: shareID)
     }
 
     // MARK: - The loop
@@ -449,20 +475,8 @@ struct MainShell: View {
         beginTripMonitoring(for: session, category: category)
     }
 
-    /// Repeats a past session: same category, same context, started now, with the
-    /// current recalibrated estimate rather than whatever was guessed last time — the
-    /// point is skipping the category picker, not freezing the estimate in the past.
-    ///
-    /// Not a duplicate of `start(_:)`: that one exists to turn typed or spoken text
-    /// into a category, this one already has a real `TaskCategory` in hand and should
-    /// never re-run name matching against it.
-    /// Removes one session: from the day's list, and from the weighted average the
-    /// category it belonged to is built from. A session logged in error, or one the
-    /// person simply does not want counted, should not have to survive forever just
-    /// because there is no delete-all-history-sized way to remove one entry.
     private func deleteSession(_ session: Session) {
-        context.delete(session)
-        try? context.save()
+        SessionOperations.deleteSession(session, context: context)
     }
 
     /// Opens the same review screen a fresh capture uses, pre-filled with the
@@ -470,39 +484,30 @@ struct MainShell: View {
     /// silent instant start. Starting immediately would leave no moment to catch an
     /// estimate that has since drifted, or simply to change one's mind about the
     /// number before the clock is actually running.
+    ///
+    /// Repeats a past session: same category, same context, started now, with the
+    /// current recalibrated estimate rather than whatever was guessed last time — the
+    /// point is skipping the category picker, not freezing the estimate in the past.
+    /// Not a duplicate of `start(_:)`: that one exists to turn typed or spoken text
+    /// into a category, this one already has a real `TaskCategory` in hand and should
+    /// never re-run name matching against it.
     private func startAgain(_ past: Session) {
-        guard let categoryID = past.categoryID,
-              let category = categories.first(where: { $0.id == categoryID })
+        guard let categoryID = past.categoryID, let category = categoriesByID[categoryID]
         else { return }
 
-        let estimate = BiasEngine().recalibratedEstimate(
-            rawGuessMinutes: nil,
-            for: CategoryKey(categoryID: categoryID, contextTag: past.contextTag),
-            from: sessions.records
-        )
+        let estimate = SessionOperations.expectedMinutes(for: past, history: sessions.records)
 
         captureRequest = CaptureRequest(
             prefill: EstimateCaptureView.Prefill(
                 title: category.name,
                 contextTag: past.contextTag,
-                estimatedMinutes: estimate?.minutes ?? past.estimatedMinutes ?? 30
+                estimatedMinutes: estimate ?? past.estimatedMinutes ?? 30
             )
         )
     }
 
-    /// How long a category usually takes, from history alone.
     private func isTrip(_ session: Session) -> Bool {
-        guard let categoryID = session.categoryID else { return false }
-        return categories.first { $0.id == categoryID }?.isTrip ?? false
-    }
-
-    private func expectedMinutes(for session: Session) -> Int? {
-        guard let categoryID = session.categoryID else { return nil }
-        return BiasEngine().recalibratedEstimate(
-            rawGuessMinutes: nil,
-            for: CategoryKey(categoryID: categoryID, contextTag: session.contextTag),
-            from: sessions.records
-        )?.minutes
+        SessionOperations.isTrip(session, categoriesByID: categoriesByID)
     }
 
     /// Puts a newly started session on the lock screen and refreshes the widget.
@@ -510,13 +515,7 @@ struct MainShell: View {
         guard let start = session.clockStart else { return }
 
         // History alone, never the stored guess re-multiplied. See HomeView for why.
-        let expected = session.categoryID.flatMap { categoryID in
-            BiasEngine().recalibratedEstimate(
-                rawGuessMinutes: nil,
-                for: CategoryKey(categoryID: categoryID, contextTag: session.contextTag),
-                from: sessions.records
-            )?.minutes
-        }
+        let expected = SessionOperations.expectedMinutes(for: session, history: sessions.records)
 
         LiveActivityController.shared.start(
             sessionID: session.uuid,
@@ -557,7 +556,7 @@ struct MainShell: View {
             try? context.save()
             LiveActivityController.shared.update(
                 startedAt: departed,
-                expectedMinutes: expectedMinutes(for: session)
+                expectedMinutes: SessionOperations.expectedMinutes(for: session, history: sessions.records)
             )
 
             // The baseline fetched at the tap can already be stale by the time the
@@ -609,25 +608,6 @@ struct MainShell: View {
             return
         }
         announce(running)
-    }
-
-    /// A trip that never resolves an arrival, or a task started and never stopped, is
-    /// closed against a ceiling and flagged rather than left open forever or silently
-    /// treated as normal data.
-    private func closeAbandonedSessions() {
-        let ceiling: TimeInterval = 12 * 3600
-        let stale = sessions.filter {
-            $0.isRunning && ($0.clockStart.map { Date.now.timeIntervalSince($0) > ceiling } ?? false)
-        }
-        guard !stale.isEmpty else { return }
-
-        for session in stale {
-            session.endedAt = session.clockStart?.addingTimeInterval(ceiling)
-            // Visible as an outlier in history, and withheld from the weighted average,
-            // rather than deleted or quietly averaged in.
-            session.isFlaggedLowConfidence = true
-        }
-        try? context.save()
     }
 
     /// One call, at the moment the trip starts, and never on a poll.
@@ -712,35 +692,13 @@ struct MainShell: View {
         open(session)
     }
 
-    /// A window that closed without the reminder being acted on is marked expired, not
-    /// deleted. It stays visible as a plain, undone item: a factual record that this one
-    /// did not happen, with no judgement attached.
-    private func expireLapsedReminders() {
-        let lapsed = receivedReminders.filter { $0.hasExpired() }
-        guard !lapsed.isEmpty else { return }
-        lapsed.forEach { $0.state = .expired }
-        try? context.save()
-    }
-
     private func open(_ session: Session) {
         activeSessionID = session.uuid
         isViewingActiveSession = true
     }
 
-    /// Categories are the person's own, named in whatever language they typed. A title
-    /// that matches one they already have reuses it, so history keeps accumulating
-    /// against the same key rather than fragmenting across near-identical names.
     private func resolveCategory(named title: String) -> TaskCategory {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let existing = categories.first(where: {
-            $0.name.compare(trimmed, options: .caseInsensitive) == .orderedSame
-        }) {
-            return existing
-        }
-
-        let created = TaskCategory(name: trimmed)
-        context.insert(created)
-        return created
+        SessionOperations.resolveCategory(named: title, categories: categories, context: context)
     }
 
     /// Closing writes the actual duration immediately. No confirmation prompt, no
@@ -793,21 +751,15 @@ struct BottomBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            tab(.home, symbol: "house.fill")
-            tab(.log, symbol: "line.3.horizontal")
+            tab(.home, symbol: "house.fill", label: "Home")
+            tab(.log, symbol: "line.3.horizontal", label: "History")
 
-            Button(action: onCapture) {
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Theme.bg)
-                    .frame(width: 46, height: 46)
-                    .background(Theme.accent, in: .circle)
-            }
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity)
+            captureButton
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel("Start a session")
 
-            tab(.insights, symbol: "chart.bar.fill")
-            tab(.profile, symbol: "person")
+            tab(.insights, symbol: "chart.bar.fill", label: "Insights")
+            tab(.profile, symbol: "person", label: "Profile")
         }
         .padding(.horizontal, 12)
         .padding(.top, 14)
@@ -821,7 +773,38 @@ struct BottomBar: View {
         }
     }
 
-    private func tab(_ target: Destination, symbol: String) -> some View {
+    /// Liquid Glass where it fits best: the one floating, un-anchored control in the
+    /// whole app, the same kind of accessory a system tab bar puts glass on. Older
+    /// OSes keep the plain filled-circle look — there is nothing to fall back *to*,
+    /// glass is additive polish on a control that already works without it.
+    @ViewBuilder
+    private var captureButton: some View {
+        if #available(iOS 26.0, *) {
+            // Plain `.glass`, not `.glassProminent`: prominent fills with the tint and
+            // always draws white content on top, which on this app's near-white dark-mode
+            // accent left the "+" nearly invisible against its own background. Plain
+            // glass draws the icon in the colour it's actually given instead.
+            Button(action: onCapture) {
+                Image(systemName: "plus")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 46, height: 46)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+        } else {
+            Button(action: onCapture) {
+                Image(systemName: "plus")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Theme.bg)
+                    .frame(width: 46, height: 46)
+                    .background(Theme.accent, in: .circle)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func tab(_ target: Destination, symbol: String, label: String) -> some View {
         Button {
             destination = target
         } label: {
@@ -832,5 +815,7 @@ struct BottomBar: View {
                 .frame(height: 26)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(destination == target ? .isSelected : [])
     }
 }

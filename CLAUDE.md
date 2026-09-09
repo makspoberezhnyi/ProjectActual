@@ -99,17 +99,26 @@ multiplier as of every instance, oldest to newest, using the exact same math as
 number, and every earlier point is what the person would genuinely have seen at that
 time, not a smoothed reconstruction.
 
-## Passive app tracking
+## Passive app tracking — pulled from the UI
 
-`Shared/Core/Passive/` holds the real, tested half: `AppUsageInterval` (open/close, on
-device, nothing about content), `PassiveUsageAnalyzer` (buckets into `DayPart` —
-morning/afternoon/evening/night — and finds a dominant part only when one genuinely
-holds a majority, never manufacturing a pattern that is not there), and
-`SeededAppUsageProvider` for demo data.
+There is no reachable "Screen time" screen right now. There was one
+(`Actual/Features/Passive/PassiveTrackingView.swift`), and it looked real — an opt-in
+per-app toggle, a persistent Home indicator, "Mostly morning today" trend text — but
+every number behind it came from `SeededAppUsageProvider`, a deterministic fake
+generator, not anything actually observed on the device. That is indistinguishable from
+real tracking by looking at it, which is exactly the problem: it was pulled the moment
+that was noticed, rather than left running under the excuse that the OS hook will
+land eventually. `Actual/Features/Profile/ProfileView.swift`'s "Not connected yet" list
+now names it in plain text alongside iCloud sync and Siri, the same honest-line
+treatment the rest of that list already uses for things that are not wired up.
 
-`Actual/Features/Passive/PassiveTrackingView.swift` is the opt-in UI: every app starts
-unselected, a persistent indicator appears on Home the moment any app is on, and the
-trend renders as "Mostly morning today" style text plus a day-part bar.
+`Shared/Core/Passive/AppUsageInterval.swift` (the `AppUsageProviding` protocol and the
+plain interval type) and `PassiveUsageAnalyzer.swift` (day-part bucketing, dominant-part
+detection) are untouched and still covered by `PassiveUsageTests` — that half was never
+the dishonest part, it is real, tested logic with nothing to plug into it yet.
+`SeededAppUsageProvider.swift` and `TrackableApp` (the fake generator and the
+hand-picked candidate list) are deleted, not just disconnected, since nothing honest
+was ever going to read from them.
 
 **The OS hook is the one piece not built, and cannot be — not just "not yet Apple
 Developer."** Detecting that an app is open without inspecting its content is exactly
@@ -118,9 +127,10 @@ app picker itself — needs the `com.apple.developer.family-controls` entitlemen
 Apple grants by manual review through a request form, separately from and not
 guaranteed by a paid Developer Program membership. It also cannot be tested in the
 simulator even once granted; it needs a physical device with Screen Time configured.
-`Actual/Features/Passive/DeviceActivityUsageProvider.swift` documents the exact adapter
-shape to write once that entitlement lands — conforming it to `AppUsageProviding` is
-the entire remaining integration, nothing above that protocol changes.
+`Actual/Features/Passive/DeviceActivityUsageProvider.swift` still documents the exact
+adapter shape to write once that entitlement lands and a real `PassiveTrackingView`
+gets rebuilt against it — conforming it to `AppUsageProviding` is the entire remaining
+integration, nothing in the analyzer changes.
 
 ## Live trip map and route baseline refresh
 
@@ -274,6 +284,50 @@ the simulator does not render with the same fidelity. The compact region also pa
 than letting "1:23:45" appear the moment a session crosses an hour in the tightest
 space anywhere in the Dynamic Island. Unverified on physical hardware — worth a look
 once running on a device.
+
+## Appearance: light, dark, or system
+
+Every `Theme` colour (`Shared/DesignSystem/Theme.swift`) is a `Color` built from
+`UIColor { traitCollection in ... }` rather than a fixed hex value, so it resolves
+against whatever trait collection is actually drawing it — light and dark are two
+values on the same token, not two themes maintained in parallel. That is what lets the
+picker in Profile → Appearance (System/Light/Dark, `AppearanceMode`, stored under
+`appearanceMode`) flip every screen at once: nothing below `RootView` needs to know the
+setting exists. Defaults to Dark, matching how the app looked before this existed, so
+nobody's screen changes underneath them without asking.
+
+Two things had to be true together for this to actually hold, not just on the screen
+under a sheet: `RootView` applies `.preferredColorScheme(appearanceMode.colorScheme)`
+for SwiftUI's own semantic colours, *and* separately walks every connected
+`UIWindowScene`'s windows setting `overrideUserInterfaceStyle` directly
+(`applyWindowAppearance()`). The first alone was not enough — a `sheet` or
+`fullScreenCover` gets its own presentation controller, and this app's dynamic
+`UIColor`-backed tokens resolve against the real window trait collection, which the
+environment modifier does not reliably reach on its own. Skipping the window-level part
+reproduces as a sheet or the active-session cover rendering completely blank: correct
+background, but every `Theme.ink` text token resolving to the same value as the
+background it sits on.
+
+The translucent washes (`line`, `track`, `badge`, `pill`, `accentDim`) needed their own
+light values rather than a blanket flip — they're white-at-low-opacity in dark mode,
+which would render as a literal white smear on a light background rather than a subtle
+wash. Light mode uses the same washes in black instead, via `Color.dynamicOpacity`.
+
+Typography got a modest across-the-board bump at the same time — `Typeface`'s functions
+apply a fixed 1.08× scale to whatever size they're called with, so every screen reads
+slightly larger without a per-call-site pass through the whole design system.
+
+## Liquid Glass
+
+The one floating, un-anchored control in the app — the centre "+" in `BottomBar` — uses
+the real iOS 26 `.glass` button style on iOS 26+, with the original filled-circle look
+kept as the `#available` fallback below it. Deliberately plain `.glass`, not
+`.glassProminent`: prominent fills with the tint colour and always draws its content in
+white, which on this app's near-white dark-mode `Theme.accent` left the "+" almost
+invisible against its own background. Plain glass draws the icon in whatever colour
+it's actually given (`Theme.ink`), so contrast holds in both themes. Nowhere else in the
+app has an unanchored floating control the same way, which is why this is the one glass
+surface rather than a system-wide swap.
 
 ## Substitutions worth knowing
 

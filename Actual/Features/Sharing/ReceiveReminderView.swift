@@ -66,6 +66,7 @@ struct ReceiveReminderView: View {
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Decline")
         }
         .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
@@ -112,7 +113,7 @@ struct ReceiveReminderView: View {
                     .foregroundStyle(Theme.inkFaint)
             }
         }
-        .tint(Theme.accent)
+        .tint(Theme.inkSoft)
     }
 
     private var actions: some View {

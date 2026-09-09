@@ -64,6 +64,7 @@ struct ShareReminderView: View {
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close")
             Spacer()
             Caption("Send a reminder")
             Spacer()

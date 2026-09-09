@@ -27,6 +27,7 @@ struct DestinationPickerView: View {
                             .frame(width: 22, height: 22)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
                     Spacer()
                     Caption("Where to")
                     Spacer()

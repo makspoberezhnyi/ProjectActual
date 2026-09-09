@@ -37,6 +37,9 @@ struct InsightsView: View {
     private var drifted: [BiasEngineOutput] { ranking.filter(\.driftFlag) }
     private var steady: [BiasEngineOutput] { ranking.filter { !$0.driftFlag } }
 
+    /// Built once per body evaluation rather than scanned per ranked row.
+    private var categoriesByID: [String: TaskCategory] { categories.indexedByID() }
+
     var body: some View {
         VStack(spacing: 0) {
             // Title and range stay put, so the ranked list scrolls beneath them rather
@@ -156,7 +159,7 @@ struct InsightsView: View {
 
     /// Category and context together, since that pairing is what the engine measured.
     private func name(for key: CategoryKey) -> String {
-        let base = categories.first { $0.id == key.categoryID }?.name ?? key.categoryID
+        let base = categoriesByID[key.categoryID]?.name ?? key.categoryID
         return key.contextTag == .normal ? base : "\(base), \(key.contextTag.rawValue)"
     }
 }

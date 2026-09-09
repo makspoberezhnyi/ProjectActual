@@ -20,13 +20,11 @@ struct HomeView: View {
     let onDeleteSession: (Session) -> Void
 
     @State private var selectedPastSession: Session?
-    @AppStorage("passiveTrackingAppIDs") private var passiveTrackingAppIDs = ""
-
-    private var isPassivelyTracking: Bool {
-        !passiveTrackingAppIDs.isEmpty
-    }
 
     private let engine = BiasEngine()
+
+    /// Built once per body evaluation rather than scanned per row.
+    private var categoriesByID: [String: TaskCategory] { categories.indexedByID() }
 
     /// More than one thing can legitimately be running at once, so this is a list, not
     /// a single session. Newest first.
@@ -107,7 +105,7 @@ struct HomeView: View {
         .sheet(item: $selectedPastSession) { session in
             SessionDetailView(
                 session: session,
-                categoryName: categories.first { $0.id == session.categoryID }?.name ?? session.title,
+                categoryName: session.categoryID.flatMap { categoriesByID[$0] }?.name ?? session.title,
                 history: sessions.records,
                 onDismiss: { selectedPastSession = nil },
                 // See the matching comment in HistoryView: dismissing this sheet and
@@ -147,19 +145,7 @@ struct HomeView: View {
                         .frame(width: 30, height: 30)
                 }
                 .buttonStyle(.plain)
-            }
-            .padding(.bottom, isPassivelyTracking ? 4 : 0)
-
-            // Non-negotiable per the concept: whenever tracking is active, this stays
-            // visible on the one screen everyone actually opens, rather than running
-            // silently in the background or waiting three menus deep to be noticed.
-            if isPassivelyTracking {
-                HStack(spacing: 6) {
-                    Circle().fill(Theme.accent).frame(width: 5, height: 5)
-                    Text("Screen time tracking is on")
-                        .font(Typeface.body(11.5))
-                        .foregroundStyle(Theme.inkFaint)
-                }
+                .accessibilityLabel("Send a reminder")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -214,7 +200,7 @@ struct HomeView: View {
             } else {
                 ForEach(todaysClosed) { session in
                     Button { selectedPastSession = session } label: {
-                        LoggedSessionRow(session: session, categories: categories)
+                        LoggedSessionRow(session: session, categoriesByID: categoriesByID)
                     }
                     .buttonStyle(.plain)
                 }
@@ -350,10 +336,10 @@ struct ActiveSessionCard: View {
 /// One closed session in the Today list: what it was, what was guessed, what it took.
 struct LoggedSessionRow: View {
     let session: Session
-    let categories: [TaskCategory]
+    let categoriesByID: [String: TaskCategory]
 
     private var symbol: String {
-        categories.first { $0.id == session.categoryID }?.symbolName ?? "circle"
+        session.categoryID.flatMap { categoriesByID[$0] }?.symbolName ?? "circle"
     }
 
     var body: some View {

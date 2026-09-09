@@ -52,6 +52,7 @@ struct CategoryTrendView: View {
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close")
             Spacer()
             Caption("Trend")
             Spacer()

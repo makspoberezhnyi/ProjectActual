@@ -108,6 +108,8 @@ struct SessionActiveView: View {
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Minimize")
+            .accessibilityHint("The session keeps running in the background")
 
             Spacer()
 

@@ -70,6 +70,7 @@ struct GapFillerView: View {
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
         }
         .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)

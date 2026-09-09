@@ -42,6 +42,15 @@ final class TaskCategory {
     }
 }
 
+extension Array where Element == TaskCategory {
+    /// Built once and reused, rather than a fresh linear scan for every session row
+    /// that needs its category's name, symbol, or trip status — `id` is unique, so
+    /// this is a lossless O(1) index rather than an approximation.
+    func indexedByID() -> [String: TaskCategory] {
+        Dictionary(uniqueKeysWithValues: map { ($0.id, $0) })
+    }
+}
+
 /// One thing that happened, or is happening now.
 ///
 /// A session exists from the moment it is created and carries its guess from the

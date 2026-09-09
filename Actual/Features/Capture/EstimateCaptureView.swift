@@ -165,6 +165,7 @@ struct EstimateCaptureView: View {
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close")
 
             Spacer()
             Caption("New task")

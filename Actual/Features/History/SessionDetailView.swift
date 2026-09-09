@@ -94,6 +94,7 @@ struct SessionDetailView: View {
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close")
             Spacer()
             Caption(session.endedAt?.formatted(.dateTime.weekday(.wide).month(.wide).day()) ?? "")
             Spacer()

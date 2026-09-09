@@ -15,6 +15,9 @@ struct HistoryView: View {
     @State private var scope: Scope = .everything
     @State private var selected: Session?
 
+    /// Built once per body evaluation rather than scanned per row.
+    private var categoriesByID: [String: TaskCategory] { categories.indexedByID() }
+
     enum Scope: String, CaseIterable {
         case everything = "Everything"
         case estimated = "With a guess"
@@ -70,7 +73,7 @@ struct HistoryView: View {
         .sheet(item: $selected) { session in
             SessionDetailView(
                 session: session,
-                categoryName: categories.first { $0.id == session.categoryID }?.name ?? session.title,
+                categoryName: session.categoryID.flatMap { categoriesByID[$0] }?.name ?? session.title,
                 history: sessions.records,
                 onDismiss: { selected = nil },
                 // Dismissing this sheet and presenting the capture sheet in the very
@@ -170,7 +173,7 @@ struct HistoryView: View {
 
             ForEach(sessions) { session in
                 Button { selected = session } label: {
-                    HistoryRow(session: session, categories: categories)
+                    HistoryRow(session: session, categoriesByID: categoriesByID)
                 }
                 .buttonStyle(.plain)
             }
@@ -200,10 +203,10 @@ struct HistoryView: View {
 /// as the home list, plus how far off it was, which is the thing this screen is for.
 struct HistoryRow: View {
     let session: Session
-    let categories: [TaskCategory]
+    let categoriesByID: [String: TaskCategory]
 
     private var symbol: String {
-        categories.first { $0.id == session.categoryID }?.symbolName ?? "circle"
+        session.categoryID.flatMap { categoriesByID[$0] }?.symbolName ?? "circle"
     }
 
     /// Only meaningful where a guess exists to have been wrong about.

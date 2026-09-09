@@ -72,6 +72,7 @@ struct TripMapView: View {
                     .background(Theme.bg.opacity(0.85), in: .circle)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close map")
             Spacer()
         }
         .padding(.horizontal, Theme.Padding.screen)

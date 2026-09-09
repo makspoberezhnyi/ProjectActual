@@ -16,15 +16,15 @@ struct ProfileView: View {
 
     @Environment(\.modelContext) private var context
     @AppStorage("hasClearedData") private var hasClearedData = false
-    @AppStorage("passiveTrackingAppIDs") private var passiveTrackingAppIDs = ""
+    @AppStorage("appearanceMode") private var appearanceModeRaw = AppearanceMode.dark.rawValue
     @State private var isConfirmingDelete = false
-    @State private var isViewingPassiveTracking = false
     @State private var exportFileURL: URL?
     @State private var isSharingExport = false
     @State private var isImporting = false
     @State private var importSummary: DataTransfer.ImportSummary?
     @State private var importError: String?
     @State private var reminderPendingDeletion: SentReminder?
+    @State private var deleteError: String?
 
     private var closed: [Session] { sessions.filter(\.isClosed) }
 
@@ -64,7 +64,7 @@ struct ProfileView: View {
                     if !sentReminders.isEmpty {
                         sentRemindersSection
                     }
-                    screenTime
+                    appearanceSection
                     dataTransfer
                     privacy
                     notConnected
@@ -87,6 +87,17 @@ struct ProfileView: View {
             Button("Delete", role: .destructive, action: deleteEverything)
         } message: {
             Text("Every session, category and context tag. This cannot be undone, and nothing will be seeded back.")
+        }
+        .alert(
+            "Couldn't delete",
+            isPresented: Binding(
+                get: { deleteError != nil },
+                set: { if !$0 { deleteError = nil } }
+            )
+        ) {
+            Button("OK") { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "")
         }
     }
 
@@ -247,6 +258,7 @@ struct ProfileView: View {
                                 .frame(width: 26, height: 26)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Delete record of \"\(sent.title)\"")
                     }
                     .padding(.vertical, 12)
                 }
@@ -282,33 +294,31 @@ struct ProfileView: View {
         return "pending"
     }
 
-    // MARK: - Screen time
+    // MARK: - Appearance
 
-    private var screenTimeAppCount: Int {
-        passiveTrackingAppIDs.split(separator: ",").count
-    }
-
-    private var screenTime: some View {
-        Button { isViewingPassiveTracking = true } label: {
-            section("Screen time") {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(screenTimeAppCount == 0 ? "Not tracking any apps" : "Tracking \(screenTimeAppCount) \(screenTimeAppCount == 1 ? "app" : "apps")")
-                            .font(Typeface.body(13.5))
-                            .foregroundStyle(Theme.ink)
-                        Text("Opt in per app, on-device only")
-                            .font(Typeface.body(11.5))
-                            .foregroundStyle(Theme.inkFaint)
+    private var appearanceSection: some View {
+        section("Appearance") {
+            HStack(spacing: 8) {
+                ForEach(AppearanceMode.allCases) { mode in
+                    Button {
+                        appearanceModeRaw = mode.rawValue
+                    } label: {
+                        Text(mode.label)
+                            .font(mode.rawValue == appearanceModeRaw ? Typeface.medium(13) : Typeface.body(13))
+                            .foregroundStyle(mode.rawValue == appearanceModeRaw ? Theme.bg : Theme.inkFaint)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .background {
+                                if mode.rawValue == appearanceModeRaw {
+                                    Capsule().fill(Theme.ink)
+                                }
+                            }
                     }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.inkFaint)
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(mode.rawValue == appearanceModeRaw ? .isSelected : [])
                 }
             }
         }
-        .buttonStyle(.plain)
-        .sheet(isPresented: $isViewingPassiveTracking) { PassiveTrackingView() }
     }
 
     // MARK: - Privacy
@@ -329,6 +339,7 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 9) {
                 ForEach(
                     [
+                        "Screen time tracking, needs an entitlement Apple grants by manual review",
                         "iCloud sync, so your history reaches your other devices",
                         "Apple Watch and the Mac menu bar",
                         "Voice's microphone and Siri"
@@ -497,10 +508,18 @@ struct ProfileView: View {
     private func deleteEverything() {
         for session in sessions { context.delete(session) }
         for category in categories { context.delete(category) }
-        try? context.save()
 
-        // Remembered, so the seed does not quietly reinstate what was just deleted the
-        // next time the app opens.
+        // Flipped only once the delete genuinely lands. Setting it unconditionally
+        // would mean a failed save — the one place in the app where that would
+        // actually matter — leaves the data behind with nothing on screen saying so,
+        // and nothing left to ever restore it, since the seed only reinstates once.
+        do {
+            try context.save()
+        } catch {
+            deleteError = "Something went wrong deleting your history. Nothing was removed — try again."
+            return
+        }
+
         hasClearedData = true
     }
 
