@@ -317,17 +317,52 @@ Typography got a modest across-the-board bump at the same time — `Typeface`'s 
 apply a fixed 1.08× scale to whatever size they're called with, so every screen reads
 slightly larger without a per-call-site pass through the whole design system.
 
+## Editable profile
+
+Name and photo are real settings now rather than the seed's fixed "Marta" — Profile's
+header is a button that opens `EditProfileView` (`Actual/Features/Profile/`), and both
+fields bind straight to `@AppStorage` (`displayName`, `profilePhotoData`) and apply
+live, the same no-separate-save-step pattern the appearance picker already uses.
+`displayName` was already there, quietly unreachable — `ShareReminderView` has read it
+as the sender's name on every reminder link since before this existed, just with
+nothing in the app ever writing to it. Home's greeting reads the same key, so a name
+changed once updates both places without needing to know about each other.
+
+A photo is picked via `PhotosPicker`, then square-cropped and compressed to a 240×240
+JPEG (`ProfilePhoto.processed(_:)`) before it ever reaches `UserDefaults` — a
+straight-from-the-library photo can run several megabytes, and `@AppStorage` is not the
+place for that. No photo falls back to the first letter of `displayName`
+(`ProfilePhoto.initial(for:)`), shared between the small header avatar and the larger
+one in the edit screen rather than duplicated.
+
 ## Liquid Glass
 
-The one floating, un-anchored control in the app — the centre "+" in `BottomBar` — uses
-the real iOS 26 `.glass` button style on iOS 26+, with the original filled-circle look
-kept as the `#available` fallback below it. Deliberately plain `.glass`, not
-`.glassProminent`: prominent fills with the tint colour and always draws its content in
-white, which on this app's near-white dark-mode `Theme.accent` left the "+" almost
-invisible against its own background. Plain glass draws the icon in whatever colour
-it's actually given (`Theme.ink`), so contrast holds in both themes. Nowhere else in the
-app has an unanchored floating control the same way, which is why this is the one glass
-surface rather than a system-wide swap.
+`BottomBar` floats now rather than spanning edge-to-edge: a `Capsule` filled with
+`.ultraThinMaterial`, inset from both the screen edges and the safe area, so content
+scrolls visibly behind it instead of disappearing under an opaque strip — the same
+footprint reduction a system Liquid Glass tab bar gets for free. This app's bar is a
+hand-built `HStack`, not a real `TabView`, so there is no single modifier that turns the
+whole thing into system chrome; `.ultraThinMaterial` is what stands in for the
+container's own glass on every iOS version this app supports.
+
+On top of that, every icon inside it — all four tabs and the centre "+" — is its own
+real iOS 26 `.glass` button on iOS 26+, each in its own small glass circle, falling back
+to a plain tinted icon below that. Deliberately plain `.glass`, never `.glassProminent`:
+prominent fills with the tint colour and always draws its content in white, which on
+this app's near-white dark-mode `Theme.accent` left the "+" almost invisible against its
+own background in testing. Plain glass draws each icon in whatever colour it's actually
+given (`Theme.ink` / `Theme.inkFaint` for selection), so contrast holds in both themes
+and selection state is still legible glass-on-glass.
+
+Checked directly against this project's exact Xcode/SDK build (`strings` on the compiled
+`SwiftUI.swiftmodule`) before relying on any of this: `.glass` and `.glassProminent`
+button styles are real and present, but `.glassEffect()` and `GlassEffectContainer` are
+not — so nothing here calls either of those. A real `TabView` would get the full native
+Liquid Glass tab bar chrome (including `tabBarMinimizeBehavior`, confirmed present in
+this SDK) for free, but this app's centre "+" is not a real tab — it always opens a
+sheet, never a destination — which is what a genuine `TabView`/`Tab` migration would
+have to solve first. Worth revisiting if that migration ever happens; not attempted
+here given how load-bearing `RootView`'s existing sheet-timing logic already is.
 
 ## Substitutions worth knowing
 

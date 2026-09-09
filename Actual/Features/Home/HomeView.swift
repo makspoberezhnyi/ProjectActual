@@ -20,6 +20,7 @@ struct HomeView: View {
     let onDeleteSession: (Session) -> Void
 
     @State private var selectedPastSession: Session?
+    @AppStorage("displayName") private var displayName = "Marta"
 
     private let engine = BiasEngine()
 
@@ -131,7 +132,7 @@ struct HomeView: View {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 2) {
                     Caption(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                    Text("\(timeOfDayGreeting), Marta")
+                    Text("\(timeOfDayGreeting), \(displayName)")
                         .font(Typeface.title(22))
                         .foregroundStyle(Theme.ink)
                 }

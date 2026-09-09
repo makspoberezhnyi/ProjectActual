@@ -750,7 +750,7 @@ struct BottomBar: View {
     let onCapture: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 2) {
             tab(.home, symbol: "house.fill", label: "Home")
             tab(.log, symbol: "line.3.horizontal", label: "History")
 
@@ -761,16 +761,20 @@ struct BottomBar: View {
             tab(.insights, symbol: "chart.bar.fill", label: "Insights")
             tab(.profile, symbol: "person", label: "Profile")
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 14)
-        .padding(.bottom, 8)
-        .background(alignment: .top) {
-            VStack(spacing: 0) {
-                Hairline()
-                Theme.bg
-            }
-            .ignoresSafeArea(edges: .bottom)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background {
+            // A floating capsule rather than an edge-to-edge bar, so it reads as one
+            // object sitting over the content instead of a strip claiming the bottom
+            // of every screen — the same footprint reduction a system Liquid Glass
+            // tab bar gets for free, done by hand since this bar is a custom HStack
+            // rather than a real `TabView`.
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
         }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 6)
     }
 
     /// Liquid Glass where it fits best: the one floating, un-anchored control in the
@@ -786,35 +790,55 @@ struct BottomBar: View {
             // glass draws the icon in the colour it's actually given instead.
             Button(action: onCapture) {
                 Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(Theme.ink)
-                    .frame(width: 46, height: 46)
+                    .frame(width: 42, height: 42)
             }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
         } else {
             Button(action: onCapture) {
                 Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(Theme.bg)
-                    .frame(width: 46, height: 46)
+                    .frame(width: 42, height: 42)
                     .background(Theme.accent, in: .circle)
             }
             .buttonStyle(.plain)
         }
     }
 
+    /// Each tab gets its own small glass capsule on iOS 26+, the same treatment as
+    /// the capture button — the whole bar reads as glass, not just its centre piece.
+    /// Selection is still read from the icon's own colour, never the glass tint, for
+    /// the same contrast reason `captureButton` avoids `.glassProminent`.
+    @ViewBuilder
     private func tab(_ target: Destination, symbol: String, label: String) -> some View {
-        Button {
-            destination = target
-        } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 19, weight: .regular))
-                .foregroundStyle(destination == target ? Theme.ink : Theme.inkFaint)
-                .frame(maxWidth: .infinity)
-                .frame(height: 26)
+        Group {
+            if #available(iOS 26.0, *) {
+                Button {
+                    destination = target
+                } label: {
+                    Image(systemName: symbol)
+                        .font(.system(size: 18, weight: .regular))
+                        .foregroundStyle(destination == target ? Theme.ink : Theme.inkFaint)
+                        .frame(width: 40, height: 40)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+            } else {
+                Button {
+                    destination = target
+                } label: {
+                    Image(systemName: symbol)
+                        .font(.system(size: 19, weight: .regular))
+                        .foregroundStyle(destination == target ? Theme.ink : Theme.inkFaint)
+                        .frame(height: 40)
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
         .accessibilityLabel(label)
         .accessibilityAddTraits(destination == target ? .isSelected : [])
     }

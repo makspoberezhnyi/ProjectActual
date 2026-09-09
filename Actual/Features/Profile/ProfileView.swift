@@ -17,6 +17,9 @@ struct ProfileView: View {
     @Environment(\.modelContext) private var context
     @AppStorage("hasClearedData") private var hasClearedData = false
     @AppStorage("appearanceMode") private var appearanceModeRaw = AppearanceMode.dark.rawValue
+    @AppStorage("displayName") private var displayName = "Marta"
+    @AppStorage("profilePhotoData") private var profilePhotoData: Data?
+    @State private var isEditingProfile = false
     @State private var isConfirmingDelete = false
     @State private var exportFileURL: URL?
     @State private var isSharingExport = false
@@ -104,27 +107,51 @@ struct ProfileView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 12) {
-            Text("M")
-                .font(Typeface.semibold(15))
-                .foregroundStyle(Theme.inkSoft)
-                .frame(width: 38, height: 38)
-                .background(Theme.card, in: .circle)
-                .overlay { Circle().strokeBorder(Theme.line, lineWidth: 1) }
+        Button { isEditingProfile = true } label: {
+            HStack(spacing: 12) {
+                headerAvatar
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Marta")
-                    .font(Typeface.title(20))
-                    .foregroundStyle(Theme.ink)
-                Caption("Know your time.", size: 12)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(displayName)
+                        .font(Typeface.title(20))
+                        .foregroundStyle(Theme.ink)
+                    Caption("Know your time.", size: 12)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.inkFaint)
             }
-
-            Spacer()
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Edit profile")
         .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
         .padding(.bottom, 6)
         .background(Theme.bg)
+        .sheet(isPresented: $isEditingProfile) { EditProfileView() }
+    }
+
+    @ViewBuilder
+    private var headerAvatar: some View {
+        Group {
+            if let profilePhotoData, let uiImage = UIImage(data: profilePhotoData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 38, height: 38)
+            } else {
+                Text(ProfilePhoto.initial(for: displayName))
+                    .font(Typeface.semibold(15))
+                    .foregroundStyle(Theme.inkSoft)
+                    .frame(width: 38, height: 38)
+                    .background(Theme.card)
+            }
+        }
+        .clipShape(.circle)
+        .overlay { Circle().strokeBorder(Theme.line, lineWidth: 1) }
     }
 
     // MARK: - What has been recorded
