@@ -345,14 +345,27 @@ hand-built `HStack`, not a real `TabView`, so there is no single modifier that t
 whole thing into system chrome; `.ultraThinMaterial` is what stands in for the
 container's own glass on every iOS version this app supports.
 
-On top of that, every icon inside it — all four tabs and the centre "+" — is its own
-real iOS 26 `.glass` button on iOS 26+, each in its own small glass circle, falling back
-to a plain tinted icon below that. Deliberately plain `.glass`, never `.glassProminent`:
-prominent fills with the tint colour and always draws its content in white, which on
-this app's near-white dark-mode `Theme.accent` left the "+" almost invisible against its
-own background in testing. Plain glass draws each icon in whatever colour it's actually
-given (`Theme.ink` / `Theme.inkFaint` for selection), so contrast holds in both themes
-and selection state is still legible glass-on-glass.
+The centre "+" is the one circle in the bar, deliberately, using the real iOS 26
+`.glass` button style on iOS 26+ (falling back to a plain filled circle below that).
+Deliberately plain `.glass`, never `.glassProminent`: prominent fills with the tint
+colour and always draws its content in white, which on this app's near-white dark-mode
+`Theme.accent` left the "+" almost invisible against its own background in testing.
+Plain glass draws the icon in whatever colour it's actually given (`Theme.ink`).
+
+The four tabs went through a second pass after first shipping each one in its own small
+glass circle too, matching the "+" — visually it read as too heavy, the icons ended up
+small relative to their bubbles, and five circles of near-identical size buried the one
+that's actually an action rather than a destination. They're flat now: icon over a small
+label, sitting directly on the bar's shared glass with no circle of their own, tinted
+`Theme.ink` when selected and `Theme.inkFaint` otherwise — closer to a standard tab bar,
+and the label is a real accessibility and legibility win a bare icon row didn't have.
+The "+" stays the one circle precisely because everything else stopped being one.
+
+History's icon changed from `line.3.horizontal` to `clock.arrow.circlepath` in the same
+pass — a hamburger glyph reads as "menu," not "a log of what already happened," and the
+label alone shouldn't have to carry a mismatch the icon could just not have. Profile
+moved to `person.crop.circle.fill`, closer in shape to the actual avatar circle now
+sitting above it in the Profile header.
 
 Checked directly against this project's exact Xcode/SDK build (`strings` on the compiled
 `SwiftUI.swiftmodule`) before relying on any of this: `.glass` and `.glassProminent`

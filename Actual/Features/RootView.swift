@@ -750,19 +750,19 @@ struct BottomBar: View {
     let onCapture: () -> Void
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 0) {
             tab(.home, symbol: "house.fill", label: "Home")
-            tab(.log, symbol: "line.3.horizontal", label: "History")
+            tab(.log, symbol: "clock.arrow.circlepath", label: "History")
 
             captureButton
                 .frame(maxWidth: .infinity)
                 .accessibilityLabel("Start a session")
 
             tab(.insights, symbol: "chart.bar.fill", label: "Insights")
-            tab(.profile, symbol: "person", label: "Profile")
+            tab(.profile, symbol: "person.crop.circle.fill", label: "Profile")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 8)
         .background {
             // A floating capsule rather than an edge-to-edge bar, so it reads as one
             // object sitting over the content instead of a strip claiming the bottom
@@ -777,10 +777,11 @@ struct BottomBar: View {
         .padding(.bottom, 6)
     }
 
-    /// Liquid Glass where it fits best: the one floating, un-anchored control in the
-    /// whole app, the same kind of accessory a system tab bar puts glass on. Older
-    /// OSes keep the plain filled-circle look — there is nothing to fall back *to*,
-    /// glass is additive polish on a control that already works without it.
+    /// The one circle in the bar, deliberately: everything else reads flat so the "+"
+    /// stands out as the action it is, rather than a fifth tab among five identical
+    /// bubbles. Liquid Glass where it fits best on iOS 26+ — the one floating,
+    /// un-anchored control in the app, the same kind of accessory a system tab bar
+    /// puts glass on. Older OSes keep the plain filled-circle look.
     @ViewBuilder
     private var captureButton: some View {
         if #available(iOS 26.0, *) {
@@ -790,56 +791,45 @@ struct BottomBar: View {
             // glass draws the icon in the colour it's actually given instead.
             Button(action: onCapture) {
                 Image(systemName: "plus")
-                    .font(.system(size: 19, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Theme.ink)
-                    .frame(width: 42, height: 42)
+                    .frame(width: 40, height: 40)
             }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
         } else {
             Button(action: onCapture) {
                 Image(systemName: "plus")
-                    .font(.system(size: 19, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Theme.bg)
-                    .frame(width: 42, height: 42)
+                    .frame(width: 40, height: 40)
                     .background(Theme.accent, in: .circle)
             }
             .buttonStyle(.plain)
         }
     }
 
-    /// Each tab gets its own small glass capsule on iOS 26+, the same treatment as
-    /// the capture button — the whole bar reads as glass, not just its centre piece.
-    /// Selection is still read from the icon's own colour, never the glass tint, for
-    /// the same contrast reason `captureButton` avoids `.glassProminent`.
-    @ViewBuilder
+    /// Icon over a small label, flat against the bar's own glass rather than a bubble
+    /// of its own — the label carries the accessibility win a bare icon-only row
+    /// didn't have, and reads it visually as well as to VoiceOver.
     private func tab(_ target: Destination, symbol: String, label: String) -> some View {
-        Group {
-            if #available(iOS 26.0, *) {
-                Button {
-                    destination = target
-                } label: {
-                    Image(systemName: symbol)
-                        .font(.system(size: 18, weight: .regular))
-                        .foregroundStyle(destination == target ? Theme.ink : Theme.inkFaint)
-                        .frame(width: 40, height: 40)
-                }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
-            } else {
-                Button {
-                    destination = target
-                } label: {
-                    Image(systemName: symbol)
-                        .font(.system(size: 19, weight: .regular))
-                        .foregroundStyle(destination == target ? Theme.ink : Theme.inkFaint)
-                        .frame(height: 40)
-                }
-                .buttonStyle(.plain)
+        let isSelected = destination == target
+        return Button {
+            destination = target
+        } label: {
+            VStack(spacing: 3) {
+                Image(systemName: symbol)
+                    .font(.system(size: 20, weight: .regular))
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
             }
+            .foregroundStyle(isSelected ? Theme.ink : Theme.inkFaint)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .contentShape(.rect)
         }
-        .frame(maxWidth: .infinity)
+        .buttonStyle(.plain)
         .accessibilityLabel(label)
-        .accessibilityAddTraits(destination == target ? .isSelected : [])
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
