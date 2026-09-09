@@ -163,6 +163,42 @@ reminder-sourced session, generate the resulting ping, open it on the sender's d
 confirm `SentReminder.recipientCompletedAt` updates — is exercised by code review and
 the passing test suite rather than a live device screenshot of that exact final step.
 
+## Deleting
+
+Two deletions, both from where the thing being deleted actually lives: "Delete this
+session" on `SessionDetailView` (`RootView.deleteSession`), and a small "x" on each row
+of Profile's "Reminders you've sent" (`ProfileView`, confirmed via alert). Neither
+cascades — deleting a session does not touch a `ReceivedReminder` that pointed at it via
+`sourceReminderShareID`, and deleting a `SentReminder` just means a future completion
+ping for that link finds no match and quietly does nothing, the same graceful-absence
+behaviour the ping already relies on elsewhere.
+
+## Capture as a review step, not an instant start
+
+`startAgain` used to create and open a session immediately — no chance to look at the
+guess before the clock started, which is exactly backwards from every other capture
+path in the app. It now opens the same `EstimateCaptureView` a fresh "+" does,
+pre-filled via `EstimateCaptureView.Prefill`, so the estimate is something to confirm
+or edit, not something already committed.
+
+This surfaced two real SwiftUI bugs worth knowing about if a similar prefill pattern
+gets used elsewhere:
+
+- **A custom `init` seeding `@State` only takes effect on a genuinely new view
+  identity.** Re-presenting a `.sheet` can reuse the previous presentation's `@State`
+  storage rather than re-running `init`, so a new `prefill` value silently never lands
+  — the fields keep whatever was there last time. `.sheet(item:)`, keyed on a fresh
+  `Identifiable` value per presentation, sidesteps this by construction: a new identity
+  is definitionally a new presentation.
+- **Dismissing one sheet and presenting another in the same synchronous action is not
+  guaranteed ordering.** The capture sheet's content closure was directly observed
+  (via logging) evaluating with a stale, nil prefill a few milliseconds after the
+  correct value had already been written — moving the second sheet's presentation onto
+  the next run loop tick did not fix it either. What actually fixed it was not having
+  two separate pieces of state (`isPresented: Bool` + a prefill read inside the
+  closure) that could disagree about timing at all: `RootView.CaptureRequest` folds
+  both into one `Identifiable` value, so there is nothing left to race.
+
 ## Route detail from History and Home
 
 `SessionDetailView` is the same guess/route-said/actual layout `SessionEndView` shows

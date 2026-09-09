@@ -24,6 +24,7 @@ struct ProfileView: View {
     @State private var isImporting = false
     @State private var importSummary: DataTransfer.ImportSummary?
     @State private var importError: String?
+    @State private var reminderPendingDeletion: SentReminder?
 
     private var closed: [Session] { sessions.filter(\.isClosed) }
 
@@ -236,10 +237,42 @@ struct ProfileView: View {
                         Spacer()
 
                         Caption(sentStatus(sent), size: 12)
+
+                        Button {
+                            reminderPendingDeletion = sent
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Theme.inkFaint)
+                                .frame(width: 26, height: 26)
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(.vertical, 12)
                 }
             }
+        }
+        // Only a record of having sent it, not the reminder itself sitting on the
+        // recipient's device — deleting here means a future completion ping for it
+        // finds no match and quietly does nothing, the same graceful-absence behaviour
+        // the app already relies on everywhere else.
+        .alert(
+            "Delete this record?",
+            isPresented: Binding(
+                get: { reminderPendingDeletion != nil },
+                set: { if !$0 { reminderPendingDeletion = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { reminderPendingDeletion = nil }
+            Button("Delete", role: .destructive) {
+                if let sent = reminderPendingDeletion {
+                    context.delete(sent)
+                    try? context.save()
+                }
+                reminderPendingDeletion = nil
+            }
+        } message: {
+            Text("This only removes your own record of having sent it. It cannot be undone.")
         }
     }
 

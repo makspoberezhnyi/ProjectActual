@@ -74,12 +74,29 @@ struct MainShell: View {
 
     #if DEBUG
     @State private var destination: Destination = LaunchOptions.destination
-    @State private var isCapturing = LaunchOptions.opensCapture
     @State private var isViewingActiveSession = false
     #else
     @State private var destination: Destination = .home
-    @State private var isCapturing = false
     @State private var isViewingActiveSession = false
+    #endif
+    /// The capture sheet, keyed on one Identifiable value rather than a Bool plus a
+    /// separately-read prefill. Reading `capturePrefill` as its own @State var inside
+    /// a `.sheet(isPresented:)` closure genuinely raced in testing — the closure was
+    /// observed evaluating with a stale nil prefill a few milliseconds after the
+    /// variable had already been set to a real value, most likely because presenting
+    /// this sheet from inside the very action that dismisses another one is exactly
+    /// the ordering SwiftUI does not guarantee. `.sheet(item:)` sidesteps the question
+    /// entirely: a new identity is a new presentation, full stop, with everything the
+    /// sheet needs carried inside that one value instead of read separately.
+    private struct CaptureRequest: Identifiable {
+        let id = UUID()
+        var prefill: EstimateCaptureView.Prefill?
+    }
+    #if DEBUG
+    @State private var captureRequest: CaptureRequest? = LaunchOptions.opensCapture
+        ? CaptureRequest(prefill: nil) : nil
+    #else
+    @State private var captureRequest: CaptureRequest?
     #endif
 
     /// The session just closed, held so the end screen can show its outcome.
@@ -237,12 +254,13 @@ struct MainShell: View {
                         onOpenSession: { open($0) },
                         onEndSession: end,
                         onResolve: { awaitingResolution = $0 },
-                        onStartAgain: startAgain
+                        onStartAgain: startAgain,
+                        onDeleteSession: deleteSession
                     )
                 case .insights:
                     InsightsView(sessions: sessions, categories: categories)
                 case .log:
-                    HistoryView(sessions: sessions, categories: categories, onStartAgain: startAgain)
+                    HistoryView(sessions: sessions, categories: categories, onStartAgain: startAgain, onDeleteSession: deleteSession)
                 case .profile:
                     ProfileView(sessions: sessions, categories: categories, sentReminders: sentReminders)
                 case .capture:
@@ -260,7 +278,8 @@ struct MainShell: View {
                         onOpenSession: { open($0) },
                         onEndSession: end,
                         onResolve: { awaitingResolution = $0 },
-                        onStartAgain: startAgain
+                        onStartAgain: startAgain,
+                        onDeleteSession: deleteSession
                     )
                 }
             }
@@ -268,13 +287,14 @@ struct MainShell: View {
 
             BottomBar(
                 destination: $destination,
-                onCapture: { isCapturing = true }
+                onCapture: { captureRequest = CaptureRequest(prefill: nil) }
             )
         }
-        .sheet(isPresented: $isCapturing) {
+        .sheet(item: $captureRequest) { request in
             EstimateCaptureView(
                 categories: categories,
                 history: sessions.records,
+                prefill: request.prefill,
                 onStart: start
             )
         }
@@ -338,7 +358,7 @@ struct MainShell: View {
         }
         .sheet(isPresented: $isComposingReminder) { ShareReminderView() }
         .overlay(alignment: .bottom) {
-            if let promptable = promptableReminder, !isViewingGapFiller, !isCapturing {
+            if let promptable = promptableReminder, !isViewingGapFiller, captureRequest == nil {
                 ZStack(alignment: .bottom) {
                     Color.black.opacity(0.45)
                         .ignoresSafeArea()
@@ -422,7 +442,7 @@ struct MainShell: View {
 
         try? context.save()
 
-        isCapturing = false
+        captureRequest = nil
         open(session)
         announce(session)
         fetchBaseline(for: session, category: category)
@@ -436,6 +456,20 @@ struct MainShell: View {
     /// Not a duplicate of `start(_:)`: that one exists to turn typed or spoken text
     /// into a category, this one already has a real `TaskCategory` in hand and should
     /// never re-run name matching against it.
+    /// Removes one session: from the day's list, and from the weighted average the
+    /// category it belonged to is built from. A session logged in error, or one the
+    /// person simply does not want counted, should not have to survive forever just
+    /// because there is no delete-all-history-sized way to remove one entry.
+    private func deleteSession(_ session: Session) {
+        context.delete(session)
+        try? context.save()
+    }
+
+    /// Opens the same review screen a fresh capture uses, pre-filled with the
+    /// category and context already settled — a second look at the guess, not a
+    /// silent instant start. Starting immediately would leave no moment to catch an
+    /// estimate that has since drifted, or simply to change one's mind about the
+    /// number before the clock is actually running.
     private func startAgain(_ past: Session) {
         guard let categoryID = past.categoryID,
               let category = categories.first(where: { $0.id == categoryID })
@@ -447,20 +481,13 @@ struct MainShell: View {
             from: sessions.records
         )
 
-        let session = Session(
-            categoryID: category.id,
-            title: category.name,
-            contextTag: past.contextTag,
-            estimatedMinutes: estimate?.minutes,
-            startedAt: .now
+        captureRequest = CaptureRequest(
+            prefill: EstimateCaptureView.Prefill(
+                title: category.name,
+                contextTag: past.contextTag,
+                estimatedMinutes: estimate?.minutes ?? past.estimatedMinutes ?? 30
+            )
         )
-        context.insert(session)
-        try? context.save()
-
-        open(session)
-        announce(session)
-        fetchBaseline(for: session, category: category)
-        beginTripMonitoring(for: session, category: category)
     }
 
     /// How long a category usually takes, from history alone.

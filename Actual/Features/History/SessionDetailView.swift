@@ -14,7 +14,9 @@ struct SessionDetailView: View {
     let onDismiss: () -> Void
     /// Nil for a session with no category to repeat, or an unresolved quick start.
     let onStartAgain: (() -> Void)?
+    let onDelete: () -> Void
 
+    @State private var isConfirmingDelete = false
     private let engine = BiasEngine()
 
     private var estimate: RecalibratedEstimate? {
@@ -57,12 +59,29 @@ struct SessionDetailView: View {
                 }
                 .scrollIndicators(.hidden)
 
-                if let onStartAgain {
-                    PrimaryButton(title: "Start again", action: onStartAgain)
-                        .padding(.horizontal, Theme.Padding.focused)
-                        .padding(.bottom, 40)
+                VStack(spacing: 12) {
+                    if let onStartAgain {
+                        PrimaryButton(title: "Start again", action: onStartAgain)
+                    }
+
+                    Button {
+                        isConfirmingDelete = true
+                    } label: {
+                        Text("Delete this session")
+                            .font(Typeface.body(13))
+                            .foregroundStyle(Theme.inkFaint)
+                    }
+                    .buttonStyle(.plain)
                 }
+                .padding(.horizontal, Theme.Padding.focused)
+                .padding(.bottom, 40)
             }
+        }
+        .alert("Delete this session?", isPresented: $isConfirmingDelete) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive, action: onDelete)
+        } message: {
+            Text("Removes it from your history and from the numbers this category is based on. This cannot be undone.")
         }
     }
 

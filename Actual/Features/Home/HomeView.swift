@@ -17,6 +17,7 @@ struct HomeView: View {
     let onEndSession: (Session) -> Void
     let onResolve: (Session) -> Void
     let onStartAgain: (Session) -> Void
+    let onDeleteSession: (Session) -> Void
 
     @State private var selectedPastSession: Session?
     @AppStorage("passiveTrackingAppIDs") private var passiveTrackingAppIDs = ""
@@ -109,10 +110,18 @@ struct HomeView: View {
                 categoryName: categories.first { $0.id == session.categoryID }?.name ?? session.title,
                 history: sessions.records,
                 onDismiss: { selectedPastSession = nil },
+                // See the matching comment in HistoryView: dismissing this sheet and
+                // presenting the capture sheet in the same action can race.
                 onStartAgain: session.categoryID != nil ? {
                     selectedPastSession = nil
-                    onStartAgain(session)
-                } : nil
+                    DispatchQueue.main.async {
+                        onStartAgain(session)
+                    }
+                } : nil,
+                onDelete: {
+                    selectedPastSession = nil
+                    onDeleteSession(session)
+                }
             )
         }
     }

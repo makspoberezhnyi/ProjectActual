@@ -17,19 +17,24 @@ struct SessionDraft {
 /// two forty is what produces the recognition; hiding the raw guess afterward would
 /// turn an honest mirror into a corrections notice.
 struct EstimateCaptureView: View {
+    /// What to open the screen already knowing — repeating a past session, say, where
+    /// the category and context are already settled and only the guess is worth a
+    /// second look, not a fresh trip through the category field.
+    struct Prefill {
+        var title: String
+        var contextTag: ContextTag
+        var estimatedMinutes: Int
+    }
+
     let categories: [TaskCategory]
     let history: [SessionRecord]
     let onStart: (SessionDraft) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
-    #if DEBUG
-    @State private var title: String = LaunchOptions.captureTitle
-    #else
-    @State private var title: String = ""
-    #endif
-    @State private var contextTag: ContextTag = .normal
-    @State private var guessMinutes: Int = 120
+    @State private var title: String
+    @State private var contextTag: ContextTag
+    @State private var guessMinutes: Int
     @State private var customTagName: String = ""
     @State private var isAddingCustomTag = false
     @State private var isPickingCustomDuration = false
@@ -38,6 +43,31 @@ struct EstimateCaptureView: View {
 
     private let engine = BiasEngine()
     private let presets: [Int] = [30, 60, 120, 180]
+
+    init(
+        categories: [TaskCategory],
+        history: [SessionRecord],
+        prefill: Prefill? = nil,
+        onStart: @escaping (SessionDraft) -> Void
+    ) {
+        self.categories = categories
+        self.history = history
+        self.onStart = onStart
+
+        if let prefill {
+            _title = State(initialValue: prefill.title)
+            _contextTag = State(initialValue: prefill.contextTag)
+            _guessMinutes = State(initialValue: prefill.estimatedMinutes)
+        } else {
+            #if DEBUG
+            _title = State(initialValue: LaunchOptions.captureTitle)
+            #else
+            _title = State(initialValue: "")
+            #endif
+            _contextTag = State(initialValue: .normal)
+            _guessMinutes = State(initialValue: 120)
+        }
+    }
 
     /// The context tags on offer: the fixed defaults, plus any custom tag the person
     /// has already used often enough to have earned a place beside them.

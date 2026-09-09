@@ -10,6 +10,7 @@ struct HistoryView: View {
     let sessions: [Session]
     let categories: [TaskCategory]
     let onStartAgain: (Session) -> Void
+    let onDeleteSession: (Session) -> Void
 
     @State private var scope: Scope = .everything
     @State private var selected: Session?
@@ -72,10 +73,22 @@ struct HistoryView: View {
                 categoryName: categories.first { $0.id == session.categoryID }?.name ?? session.title,
                 history: sessions.records,
                 onDismiss: { selected = nil },
+                // Dismissing this sheet and presenting the capture sheet in the very
+                // same action can race: SwiftUI has been seen to hand the new sheet's
+                // content closure a stale snapshot of state set in that same call,
+                // which showed up here as "Start again" opening a blank capture screen
+                // instead of the pre-filled one. Deferring to the next run loop tick
+                // lets this sheet's dismissal finish first.
                 onStartAgain: session.categoryID != nil ? {
                     selected = nil
-                    onStartAgain(session)
-                } : nil
+                    DispatchQueue.main.async {
+                        onStartAgain(session)
+                    }
+                } : nil,
+                onDelete: {
+                    selected = nil
+                    onDeleteSession(session)
+                }
             )
         }
     }
