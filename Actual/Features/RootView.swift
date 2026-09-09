@@ -820,10 +820,18 @@ struct BottomBar: View {
     /// Icon over a small label, flat against the bar's own glass rather than a bubble
     /// of its own — the label carries the accessibility win a bare icon-only row
     /// didn't have, and reads it visually as well as to VoiceOver.
+    /// A glass pill behind whichever tab is current, fading and scaling in on switch
+    /// rather than just popping — colour alone (`Theme.ink` vs `Theme.inkFaint`) turned
+    /// out too subtle a signal for which tab is actually active once every icon sat
+    /// flat against the same shared bar. `.regularMaterial`, not the bar's own
+    /// `.ultraThinMaterial`, so the indicator actually reads as a distinct shape on top
+    /// of the bar's glass rather than blending into it.
     private func tab(_ target: Destination, symbol: String, label: String) -> some View {
         let isSelected = destination == target
         return Button {
-            destination = target
+            withAnimation(.snappy(duration: 0.25)) {
+                destination = target
+            }
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: symbol)
@@ -835,6 +843,16 @@ struct BottomBar: View {
             .frame(maxWidth: .infinity)
             .frame(height: 44)
             .contentShape(.rect)
+            .background {
+                if isSelected {
+                    Capsule()
+                        .fill(.regularMaterial)
+                        .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
+                        .padding(.horizontal, 2)
+                        .padding(.vertical, 5)
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                }
+            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)

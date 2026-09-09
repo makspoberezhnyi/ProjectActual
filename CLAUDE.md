@@ -369,11 +369,20 @@ Plain glass draws the icon in whatever colour it's actually given (`Theme.ink`).
 The four tabs went through a second pass after first shipping each one in its own small
 glass circle too, matching the "+" — visually it read as too heavy, the icons ended up
 small relative to their bubbles, and five circles of near-identical size buried the one
-that's actually an action rather than a destination. They're flat now: icon over a small
-label, sitting directly on the bar's shared glass with no circle of their own, tinted
-`Theme.ink` when selected and `Theme.inkFaint` otherwise — closer to a standard tab bar,
-and the label is a real accessibility and legibility win a bare icon row didn't have.
-The "+" stays the one circle precisely because everything else stopped being one.
+that's actually an action rather than a destination. They went flat: icon over a small
+label, sitting directly on the bar's shared glass with no circle of their own, and the
+label is a real accessibility and legibility win a bare icon row didn't have.
+
+A third pass added a `.regularMaterial` capsule back in, but only behind whichever tab
+is actually selected, fading and scaling in on switch (`.snappy` animation) rather than
+popping. Colour alone — `Theme.ink` versus `Theme.inkFaint` — turned out too subtle a
+signal once every tab sat equally flat against the bar; going fully flat traded away
+legibility of *which* tab is current for the sake of not looking heavy. The `.regularMaterial`
+choice is deliberate too: the bar's own background is `.ultraThinMaterial`, and stacking
+the same material on top of itself barely reads as a distinct shape, whereas
+`.regularMaterial` is visibly its own pill sitting on the bar's glass rather than
+blending into it. The "+" stays the one circle that's always present regardless of
+selection, since it isn't a destination toggling on and off, it's a constant action.
 
 History's icon changed from `line.3.horizontal` to `clock.arrow.circlepath` in the same
 pass — a hamburger glyph reads as "menu," not "a log of what already happened," and the
