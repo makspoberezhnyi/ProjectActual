@@ -769,7 +769,7 @@ struct BottomBar: View {
             tab(.insights, symbol: "chart.bar.fill", label: "Insights")
             tab(.profile, symbol: "person.crop.circle.fill", label: "Profile")
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background {
             // A floating capsule rather than an edge-to-edge bar, so it reads as one
@@ -845,12 +845,19 @@ struct BottomBar: View {
             .contentShape(.rect)
             .background {
                 if isSelected {
-                    Capsule()
+                    // A fixed, smaller radius rather than `Capsule()` — at this height a
+                    // capsule's ends round so aggressively they crowd the label at the
+                    // sides, and the curve sits close enough to the bar's own edge on the
+                    // first and last tab to look pinched rather than simply rounded.
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(.regularMaterial)
-                        .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 5)
-                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(Theme.line, lineWidth: 1)
+                        }
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 4)
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
                 }
             }
         }
