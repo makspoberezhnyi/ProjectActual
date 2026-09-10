@@ -204,7 +204,7 @@ struct ProfileView: View {
                     ForEach(Array(categoryCounts.enumerated()), id: \.element.category.id) { index, entry in
                         if index > 0 { Hairline() }
                         HStack(spacing: 12) {
-                            Image(systemName: entry.category.symbolName)
+                            CategoryIconView(symbolName: entry.category.symbolName)
                                 .font(.system(size: 14))
                                 .foregroundStyle(Theme.inkSoft)
                                 .frame(width: 18)

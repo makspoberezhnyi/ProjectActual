@@ -114,7 +114,7 @@ struct SuggestionRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 14) {
-                Image(systemName: suggestion.symbolName)
+                CategoryIconView(symbolName: suggestion.symbolName)
                     .font(.system(size: 16, weight: .regular))
                     .foregroundStyle(Theme.accent)
                     .frame(width: 40, height: 40)

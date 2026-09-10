@@ -345,7 +345,7 @@ struct LoggedSessionRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol)
+            CategoryIconView(symbolName: symbol)
                 .font(.system(size: 15, weight: .regular))
                 .foregroundStyle(Theme.inkSoft)
                 .frame(width: 18, height: 18)

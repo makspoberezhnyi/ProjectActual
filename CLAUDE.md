@@ -349,6 +349,20 @@ what the caller passes. `SessionDraft.symbolName` and `SessionResolutionView.onR
 extra parameter carry the choice from each screen down to that one call, `nil` whenever
 the typed name matched something existing and the picker never appeared to begin with.
 
+`CategoryIconPicker` also has an emoji entry slot ahead of the curated SF Symbol row: a
+plain `TextField` whose displayed and accepted value is only ever whatever the person's
+own emoji keyboard produces, reached through the system's own keyboard switcher exactly
+like typing an emoji into Messages — there is no public, supported way to force the
+emoji keyboard open on its own, so this doesn't try. `symbolName` on `TaskCategory` holds
+either kind of icon in the same field; `String.isEmojiIcon` (`Shared/DesignSystem/CategoryIcon.swift`)
+is what tells them apart at render time, and `CategoryIconView` — shared with the widget
+target, since a quick-start button there shows the same icon — draws an `Image(systemName:)`
+or a plain `Text` accordingly. There is no way to make an emoji match the SF Symbols'
+monochrome line style: an SF Symbol is a vector path this app can recolour and weight to
+fit `Theme`, an emoji is fixed, pre-rendered colour artwork (Apple's Color Emoji font)
+with no path to restyle, so a picked emoji renders exactly as picked, full colour,
+everywhere `CategoryIconView` is used.
+
 ## Editable profile
 
 Name and photo are real settings now rather than the seed's fixed "Marta" — Profile's

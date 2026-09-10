@@ -137,7 +137,7 @@ struct QuickStartWidgetView: View {
                         estimatedMinutes: start.expectedMinutes
                     )) {
                         HStack(spacing: 8) {
-                            Image(systemName: start.symbolName)
+                            CategoryIconView(symbolName: start.symbolName)
                                 .font(.system(size: 11))
                                 .foregroundStyle(Theme.inkSoft)
                                 .frame(width: 14)
