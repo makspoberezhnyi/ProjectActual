@@ -101,38 +101,38 @@ struct ProfileView: View {
 
     // MARK: - Hero
 
-    /// The profile's own hero: photo and name on the left, what Actual has recorded on
-    /// the right, one row rather than a stack of internally-separated blocks — and the
-    /// tap target to edit it, all one card and one action. A placeholder for whatever
-    /// the real hero design becomes, not that design itself.
+    /// The profile's own hero: name, join date and stats stacked on the left, photo on
+    /// the right — the same shape a social profile header uses, name-first rather than
+    /// photo-first, with the numbers read as a tight row rather than spread edge to
+    /// edge. One card, one tap target to edit it.
     private var heroCard: some View {
         Button { isEditingProfile = true } label: {
-            CardSurface(radius: 20, padding: 20) {
-                HStack(alignment: .center, spacing: 16) {
-                    VStack(spacing: 8) {
-                        heroAvatar
+            CardSurface(radius: 20, padding: 16) {
+                HStack(alignment: .center, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text(displayName)
-                            .font(Typeface.title(17))
+                            .font(Typeface.display(24))
                             .foregroundStyle(Theme.ink)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .frame(width: 84)
+                            .minimumScaleFactor(0.7)
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 0) {
+                        if let firstLogged {
+                            Caption(
+                                "Joined \(firstLogged.formatted(.dateTime.month(.wide).year()))",
+                                size: 13
+                            )
+                        }
+
+                        HStack(spacing: 14) {
                             figure("\(closed.count)", "sessions")
                             figure("\(categoryCounts.count)", categoryCounts.count == 1 ? "category" : "categories")
                             figure(totalTracked, "logged")
                         }
-
-                        if let firstLogged {
-                            Caption(
-                                "Since \(firstLogged.formatted(.dateTime.month(.wide).day().year()))",
-                                size: 12
-                            )
-                        }
                     }
+
+                    Spacer(minLength: 8)
+
+                    heroAvatar
                 }
             }
         }
@@ -148,12 +148,12 @@ struct ProfileView: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 72, height: 72)
+                    .frame(width: 104, height: 104)
             } else {
                 Text(ProfilePhoto.initial(for: displayName))
-                    .font(Typeface.title(26))
+                    .font(Typeface.title(36))
                     .foregroundStyle(Theme.inkSoft)
-                    .frame(width: 72, height: 72)
+                    .frame(width: 104, height: 104)
                     .background(Theme.card)
             }
         }
@@ -169,8 +169,10 @@ struct ProfileView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Caption(label, size: 10.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize()
     }
 
     private var totalTracked: String {
