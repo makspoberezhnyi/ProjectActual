@@ -42,7 +42,12 @@ struct PrimaryButton: View {
     }
 }
 
-/// The outlined pill, for the secondary choice sitting beside a primary one.
+/// The filled-but-quiet pill, for the secondary choice sitting beside a primary one.
+/// A hairline-only outline against `Theme.bg` read as barely there — no fill meant
+/// almost no contrast, so this stood out as text with a border rather than a tappable
+/// surface. A `Theme.card` fill gives it the same raised quality every other surface
+/// in the design already has, while staying visibly quieter than `PrimaryButton`'s
+/// solid ink fill.
 struct SecondaryButton: View {
     let title: String
     var height: CGFloat = 52
@@ -51,10 +56,11 @@ struct SecondaryButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(Typeface.body(14))
-                .foregroundStyle(Theme.inkSoft)
+                .font(Typeface.medium(14))
+                .foregroundStyle(Theme.ink)
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
+                .background(Theme.card, in: .capsule)
                 .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
         }
         .buttonStyle(.plain)

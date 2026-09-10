@@ -191,15 +191,21 @@ struct EstimateCaptureView: View {
 
     private var titleField: some View {
         VStack(spacing: 16) {
-            TextField(
-                "",
-                text: $title,
-                prompt: Text("What are you about to do").foregroundStyle(Theme.inkFaint)
-            )
-            .font(Typeface.title(22))
-            .foregroundStyle(Theme.ink)
-            .textInputAutocapitalization(.sentences)
-            .autocorrectionDisabled()
+            HStack(spacing: 12) {
+                if isNewCategory {
+                    EmojiIconButton(selection: $iconName)
+                }
+
+                TextField(
+                    "",
+                    text: $title,
+                    prompt: Text("What are you about to do").foregroundStyle(Theme.inkFaint)
+                )
+                .font(Typeface.title(22))
+                .foregroundStyle(Theme.ink)
+                .textInputAutocapitalization(.sentences)
+                .autocorrectionDisabled()
+            }
 
             Hairline()
         }
@@ -209,7 +215,8 @@ struct EstimateCaptureView: View {
 
     /// Only shown while typing something new — an existing category already has an
     /// icon, and this is about giving a fresh one something better than the plain
-    /// circle it would otherwise be stuck with.
+    /// circle it would otherwise be stuck with. The emoji option lives up in
+    /// `titleField` instead, next to the name it's naming.
     @ViewBuilder
     private var iconSection: some View {
         if isNewCategory {

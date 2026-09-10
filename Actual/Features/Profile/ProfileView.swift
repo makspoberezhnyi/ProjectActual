@@ -56,29 +56,24 @@ struct ProfileView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    record
-                    categoriesSection
-                    tagsSection
-                    if !sentReminders.isEmpty {
-                        sentRemindersSection
-                    }
-                    appearanceSection
-                    dataTransfer
-                    privacy
-                    notConnected
-                    dangerZone
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                heroCard
+                categoriesSection
+                tagsSection
+                if !sentReminders.isEmpty {
+                    sentRemindersSection
                 }
-                .padding(.horizontal, Theme.Padding.screen)
-                .padding(.top, 20)
-                .padding(.bottom, 110)
+                appearanceSection
+                dataTransfer
+                privacy
+                dangerZone
             }
-            .scrollIndicators(.hidden)
+            .padding(.horizontal, Theme.Padding.screen)
+            .padding(.top, 20)
+            .padding(.bottom, 110)
         }
+        .scrollIndicators(.hidden)
         // An alert rather than a confirmation dialog: the dialog rendered the
         // destructive button without a visible way to back out, which is the wrong
         // shape for the one irreversible action in the app.
@@ -104,49 +99,61 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Hero
 
-    private var header: some View {
+    /// The profile's own hero: photo and name on the left, what Actual has recorded on
+    /// the right, one row rather than a stack of internally-separated blocks — and the
+    /// tap target to edit it, all one card and one action. A placeholder for whatever
+    /// the real hero design becomes, not that design itself.
+    private var heroCard: some View {
         Button { isEditingProfile = true } label: {
-            HStack(spacing: 12) {
-                headerAvatar
+            CardSurface(radius: 20, padding: 20) {
+                HStack(alignment: .center, spacing: 16) {
+                    VStack(spacing: 8) {
+                        heroAvatar
+                        Text(displayName)
+                            .font(Typeface.title(17))
+                            .foregroundStyle(Theme.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .frame(width: 84)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(displayName)
-                        .font(Typeface.title(20))
-                        .foregroundStyle(Theme.ink)
-                    Caption("Know your time.", size: 12)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 0) {
+                            figure("\(closed.count)", "sessions")
+                            figure("\(categoryCounts.count)", categoryCounts.count == 1 ? "category" : "categories")
+                            figure(totalTracked, "logged")
+                        }
+
+                        if let firstLogged {
+                            Caption(
+                                "Since \(firstLogged.formatted(.dateTime.month(.wide).day().year()))",
+                                size: 12
+                            )
+                        }
+                    }
                 }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.inkFaint)
             }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Edit profile")
-        .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 22)
-        .padding(.bottom, 6)
-        .background(Theme.bg)
         .sheet(isPresented: $isEditingProfile) { EditProfileView() }
     }
 
     @ViewBuilder
-    private var headerAvatar: some View {
+    private var heroAvatar: some View {
         Group {
             if let profilePhotoData, let uiImage = UIImage(data: profilePhotoData) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 38, height: 38)
+                    .frame(width: 72, height: 72)
             } else {
                 Text(ProfilePhoto.initial(for: displayName))
-                    .font(Typeface.semibold(15))
+                    .font(Typeface.title(26))
                     .foregroundStyle(Theme.inkSoft)
-                    .frame(width: 38, height: 38)
+                    .frame(width: 72, height: 72)
                     .background(Theme.card)
             }
         }
@@ -154,37 +161,14 @@ struct ProfileView: View {
         .overlay { Circle().strokeBorder(Theme.line, lineWidth: 1) }
     }
 
-    // MARK: - What has been recorded
-
-    private var record: some View {
-        CardSurface(radius: 20, padding: 20) {
-            VStack(alignment: .leading, spacing: 14) {
-                Caption("What Actual has recorded")
-
-                HStack(spacing: 0) {
-                    figure("\(closed.count)", "sessions")
-                    figure("\(categoryCounts.count)", categoryCounts.count == 1 ? "category" : "categories")
-                    figure(totalTracked, "logged")
-                }
-
-                if let firstLogged {
-                    Caption(
-                        "Since \(firstLogged.formatted(.dateTime.month(.wide).day().year()))",
-                        size: 12
-                    )
-                }
-            }
-        }
-    }
-
     private func figure(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
-                .font(Typeface.display(24))
+                .font(Typeface.display(17))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Caption(label, size: 11.5)
+            Caption(label, size: 10.5)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -360,35 +344,6 @@ struct ProfileView: View {
         }
     }
 
-    /// Named plainly rather than shown as switches that would do nothing.
-    private var notConnected: some View {
-        section("Not connected yet") {
-            VStack(alignment: .leading, spacing: 9) {
-                ForEach(
-                    [
-                        "Screen time tracking, needs an entitlement Apple grants by manual review",
-                        "iCloud sync, so your history reaches your other devices",
-                        "Apple Watch and the Mac menu bar",
-                        "Voice's microphone and Siri"
-                    ],
-                    id: \.self
-                ) { line in
-                    HStack(alignment: .top, spacing: 9) {
-                        Circle()
-                            .fill(Theme.inkFaint)
-                            .frame(width: 3, height: 3)
-                            .padding(.top, 7)
-                        Text(line)
-                            .font(Typeface.body(13))
-                            .foregroundStyle(Theme.inkSoft)
-                            .lineSpacing(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-        }
-    }
-
     // MARK: - Export and import
 
     /// Every table, in one file the person actually holds — the same "your data
@@ -455,22 +410,22 @@ struct ProfileView: View {
     private func row(icon: String, title: String, subtitle: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 14))
+                .font(.system(size: 13))
                 .foregroundStyle(Theme.inkSoft)
-                .frame(width: 18)
+                .frame(width: 16)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(Typeface.body(14))
+                    .font(Typeface.body(13.5))
                     .foregroundStyle(Theme.ink)
                 Text(subtitle)
-                    .font(Typeface.body(11.5))
+                    .font(Typeface.body(11))
                     .foregroundStyle(Theme.inkFaint)
             }
 
             Spacer()
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
     }
 
     private var importSummaryText: String {
@@ -519,17 +474,9 @@ struct ProfileView: View {
     // MARK: - Deleting
 
     private var dangerZone: some View {
-        Button {
+        SecondaryButton(title: "Delete all history") {
             isConfirmingDelete = true
-        } label: {
-            Text("Delete all history")
-                .font(Typeface.body(14))
-                .foregroundStyle(Theme.inkSoft)
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
         }
-        .buttonStyle(.plain)
     }
 
     private func deleteEverything() {

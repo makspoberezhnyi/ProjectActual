@@ -17,17 +17,17 @@ enum CategoryIcon {
     ]
 }
 
-/// A horizontal row of selectable icons — an emoji entry slot first, then the curated
-/// SF Symbol set. Shown only while the typed title doesn't match an existing category —
-/// an existing one already has a picture, and this is about giving a new one a
-/// reasonable one rather than editing what's already there.
+/// A horizontal row of the curated SF Symbol set. Shown only while the typed title
+/// doesn't match an existing category — an existing one already has a picture, and
+/// this is about giving a new one a reasonable one rather than editing what's already
+/// there. The custom-emoji option lives separately in `EmojiIconButton`, not in this
+/// row — it isn't one of the curated choices, it's a different kind of input.
 struct CategoryIconPicker: View {
     @Binding var selection: String
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                emojiSlot
                 ForEach(CategoryIcon.choices, id: \.self) { symbol in
                     let isSelected = selection == symbol
                     Button {
@@ -53,34 +53,55 @@ struct CategoryIconPicker: View {
             .padding(.horizontal, 1)
         }
     }
+}
 
-    /// Whatever the system's own emoji keyboard produces becomes the icon directly —
-    /// reached the same way the title field's keyboard already offers one, through the
-    /// globe key, just aimed at a one-character field instead of free text. Nothing
-    /// beyond a plain `TextField` is needed: there is no public, supported way to force
-    /// the emoji keyboard open on its own, so this leans on the ordinary keyboard
-    /// switcher exactly like typing an emoji into Messages or Notes.
-    private var emojiSlot: some View {
+/// A dedicated button for picking a custom emoji icon, meant to sit beside a title
+/// field rather than inside the curated `CategoryIconPicker` row — it was there
+/// before, but reading and behaving like a second, half-broken text field next to a
+/// row of tappable icons was exactly the confusing part. This still opens the
+/// system's own emoji keyboard (the globe key) the same way as before — there is no
+/// public, supported way to force it open on its own — but the tappable surface now
+/// reads unambiguously as a button: an emoji once one is picked, a plain placeholder
+/// glyph until then, never a blinking cursor or a field that looks like it swallowed
+/// what was typed.
+struct EmojiIconButton: View {
+    @Binding var selection: String
+
+    var body: some View {
         let isSelected = selection.isEmojiIcon
-        return TextField("🙂", text: emojiBinding)
-            .multilineTextAlignment(.center)
-            .font(.system(size: 18))
-            .frame(width: 40, height: 40)
-            .background {
-                Circle().fill(isSelected ? Theme.ink : Theme.card)
+        ZStack {
+            if isSelected {
+                Text(selection).font(.system(size: 18))
+            } else {
+                Image(systemName: "face.smiling")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Theme.inkSoft)
             }
-            .overlay {
-                Circle().strokeBorder(Theme.line, lineWidth: isSelected ? 0 : 1)
-            }
-            .accessibilityLabel("Type an emoji")
+
+            // Invisible but tappable/typable: it never displays its own draft, so
+            // there is nothing on screen that looks like text-field chrome. Typed
+            // input still reaches `emojiBinding`, which only ever keeps an emoji.
+            TextField("", text: emojiBinding)
+                .tint(.clear)
+                .foregroundStyle(.clear)
+        }
+        .frame(width: 40, height: 40)
+        .background {
+            Circle().fill(isSelected ? Theme.ink : Theme.card)
+        }
+        .overlay {
+            Circle().strokeBorder(Theme.line, lineWidth: isSelected ? 0 : 1)
+        }
+        .accessibilityLabel(isSelected ? "Emoji icon, \(selection)" : "Pick an emoji icon")
     }
 
-    /// Only ever shows or accepts an emoji — the last character typed is what counts,
-    /// so pasting text or switching back to a letter keyboard mid-edit doesn't leave a
+    /// Never echoes a draft back — the display above is driven entirely by `selection`
+    /// — and only ever accepts an emoji: the last character typed is what counts, so
+    /// pasting text or switching back to a letter keyboard mid-edit doesn't leave a
     /// stray non-emoji character sitting in what is meant to be a one-glyph icon.
     private var emojiBinding: Binding<String> {
         Binding(
-            get: { selection.isEmojiIcon ? selection : "" },
+            get: { "" },
             set: { newValue in
                 guard let last = newValue.unicodeScalars.last else { return }
                 let lastString = String(last)
