@@ -1,5 +1,20 @@
 import SwiftUI
 
+// MARK: - List rows that don't look like List rows
+
+extension View {
+    /// Strips a `List` row down to plain content: no inset, no background, no
+    /// separator. For a row that already carries its own padding and its own card
+    /// background — used wherever a screen needs `List`'s native `.swipeActions` on
+    /// *some* rows but the rest of the screen still reads as the plain stacked layout
+    /// it was before `List` existed there.
+    func plainRow() -> some View {
+        listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+    }
+}
+
 // MARK: - Surfaces
 
 /// The raised card the design uses everywhere: card fill, hairline border, generous radius.

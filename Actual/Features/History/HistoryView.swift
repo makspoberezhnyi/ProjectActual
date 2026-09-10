@@ -11,9 +11,12 @@ struct HistoryView: View {
     let categories: [TaskCategory]
     let onStartAgain: (Session) -> Void
     let onDeleteSession: (Session) -> Void
+    let onEditSession: (Session, EditSessionView.Edit) -> Void
 
     @State private var scope: Scope = .everything
     @State private var selected: Session?
+    @State private var sessionPendingEdit: Session?
+    @State private var pendingDelete: Session?
 
     /// Built once per body evaluation rather than scanned per row.
     private var categoriesByID: [String: TaskCategory] { categories.indexedByID() }
@@ -59,16 +62,47 @@ struct HistoryView: View {
             if days.isEmpty {
                 empty
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                        ForEach(days, id: \.date) { day in
-                            daySection(day.date, day.sessions)
+                List {
+                    ForEach(days, id: \.date) { day in
+                        Section {
+                            ForEach(day.sessions) { session in
+                                row(for: session)
+                            }
+                        } header: {
+                            dayHeader(day.date, day.sessions)
                         }
                     }
-                    .padding(.bottom, 110)
+                    Color.clear.frame(height: 110).plainRow()
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .background(Theme.bg)
                 .scrollIndicators(.hidden)
+                .environment(\.defaultMinListRowHeight, 0)
             }
+        }
+        .sheet(item: $sessionPendingEdit) { session in
+            EditSessionView(
+                session: session,
+                history: sessions.records,
+                onSave: { edit in
+                    onEditSession(session, edit)
+                    sessionPendingEdit = nil
+                },
+                onCancel: { sessionPendingEdit = nil }
+            )
+        }
+        .alert(
+            "Delete this session?",
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
+        ) {
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let session = pendingDelete { onDeleteSession(session) }
+                pendingDelete = nil
+            }
+        } message: {
+            Text("Removes it from your history and from the numbers this category is based on. This cannot be undone.")
         }
         .sheet(item: $selected) { session in
             SessionDetailView(
@@ -159,27 +193,46 @@ struct HistoryView: View {
 
     // MARK: - One day
 
-    private func daySection(_ date: Date, _ sessions: [Session]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(dayLabel(date))
-                    .font(Typeface.title(15))
-                    .foregroundStyle(Theme.ink)
-                Spacer()
-                // A factual total for the day. No target, nothing to be under or over.
-                Caption(DurationFormatting.compact(minutes: totalMinutes(sessions)))
-            }
-            .padding(.bottom, 2)
-
-            ForEach(sessions) { session in
-                Button { selected = session } label: {
-                    HistoryRow(session: session, categoriesByID: categoriesByID)
-                }
-                .buttonStyle(.plain)
-            }
+    private func dayHeader(_ date: Date, _ sessions: [Session]) -> some View {
+        HStack {
+            Text(dayLabel(date))
+                .font(Typeface.title(15))
+                .foregroundStyle(Theme.ink)
+            Spacer()
+            // A factual total for the day. No target, nothing to be under or over.
+            Caption(DurationFormatting.compact(minutes: totalMinutes(sessions)))
         }
-        .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 22)
+        .textCase(nil)
+        .listRowInsets(EdgeInsets(top: 22, leading: Theme.Padding.screen, bottom: 8, trailing: Theme.Padding.screen))
+        .listRowBackground(Color.clear)
+    }
+
+    /// One row, with a trailing swipe for the two things worth doing to a logged
+    /// session without opening it first: fixing a mistake, or removing it entirely.
+    /// Delete sits at the very edge — the same short swipe Mail and Reminders use for
+    /// their own primary action — safe here because it still asks before it commits.
+    private func row(for session: Session) -> some View {
+        Button { selected = session } label: {
+            HistoryRow(session: session, categoriesByID: categoriesByID)
+        }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 5, leading: Theme.Padding.screen, bottom: 5, trailing: Theme.Padding.screen))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                pendingDelete = session
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+
+            Button {
+                sessionPendingEdit = session
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            .tint(Theme.accent)
+        }
     }
 
     private func totalMinutes(_ sessions: [Session]) -> Int {

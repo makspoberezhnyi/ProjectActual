@@ -299,12 +299,19 @@ struct MainShell: View {
                         onEndSession: end,
                         onResolve: { awaitingResolution = $0 },
                         onStartAgain: startAgain,
-                        onDeleteSession: deleteSession
+                        onDeleteSession: deleteSession,
+                        onEditSession: editSession
                     )
                 case .insights:
                     InsightsView(sessions: sessions, categories: categories)
                 case .log:
-                    HistoryView(sessions: sessions, categories: categories, onStartAgain: startAgain, onDeleteSession: deleteSession)
+                    HistoryView(
+                        sessions: sessions,
+                        categories: categories,
+                        onStartAgain: startAgain,
+                        onDeleteSession: deleteSession,
+                        onEditSession: editSession
+                    )
                 case .profile:
                     ProfileView(sessions: sessions, categories: categories, sentReminders: sentReminders)
                 case .capture:
@@ -323,7 +330,8 @@ struct MainShell: View {
                         onEndSession: end,
                         onResolve: { awaitingResolution = $0 },
                         onStartAgain: startAgain,
-                        onDeleteSession: deleteSession
+                        onDeleteSession: deleteSession,
+                        onEditSession: editSession
                     )
                 }
             }
@@ -491,6 +499,28 @@ struct MainShell: View {
 
     private func deleteSession(_ session: Session) {
         SessionOperations.deleteSession(session, context: context)
+    }
+
+    /// Applies a correction to a session already closed — a typo, the wrong context,
+    /// a guess that was never entered, or start/end times that drifted from what
+    /// actually happened.
+    ///
+    /// `startedAt` writes to `departedAt` when the session already has one, since
+    /// `clockStart` — what every duration on screen is actually computed from — reads
+    /// that field in preference to `startedAt` for any trip with a real GPS departure.
+    /// Writing the correction to `startedAt` instead would compile, save, and then be
+    /// silently ignored everywhere the session's length is shown.
+    private func editSession(_ session: Session, with edit: EditSessionView.Edit) {
+        session.title = edit.title
+        session.contextTag = edit.contextTag
+        session.estimatedMinutes = edit.estimatedMinutes
+        if session.departedAt != nil {
+            session.departedAt = edit.startedAt
+        } else {
+            session.startedAt = edit.startedAt
+        }
+        session.endedAt = edit.endedAt
+        try? context.save()
     }
 
     /// Opens the same review screen a fresh capture uses, pre-filled with the

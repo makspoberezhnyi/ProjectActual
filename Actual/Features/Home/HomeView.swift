@@ -18,8 +18,11 @@ struct HomeView: View {
     let onResolve: (Session) -> Void
     let onStartAgain: (Session) -> Void
     let onDeleteSession: (Session) -> Void
+    let onEditSession: (Session, EditSessionView.Edit) -> Void
 
     @State private var selectedPastSession: Session?
+    @State private var sessionPendingEdit: Session?
+    @State private var pendingDelete: Session?
     @AppStorage("displayName") private var displayName = "Marta"
 
     private let engine = BiasEngine()
@@ -54,54 +57,100 @@ struct HomeView: View {
             // status bar with nothing behind it, which reads as a glitch on a dark app.
             greeting
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if running.isEmpty {
-                        if let freeWindow {
-                            FreeWindowCard(
-                                window: freeWindow,
-                                nextCommitment: nextCommitment,
-                                onOpen: onOpenGapFiller
-                            )
-                            .padding(.horizontal, Theme.Padding.screen)
-                            .padding(.top, 18)
-                        } else {
-                            idleCard
-                                .padding(.horizontal, Theme.Padding.screen)
-                                .padding(.top, 18)
-                        }
-                    } else {
-                        VStack(spacing: 12) {
-                            ForEach(running) { session in
-                                ActiveSessionCard(
-                                    session: session,
-                                    expectedMinutes: expectedMinutes(for: session),
-                                    onOpen: { onOpenSession(session) },
-                                    onEnd: { onEndSession(session) }
-                                )
-                            }
-                        }
+            // A List, not a ScrollView, so today's log can carry the same native
+            // trailing swipe (edit, delete) History's does — that gesture only exists
+            // on List rows. Every other section keeps its old look via zeroed row
+            // insets, a clear row background and hidden separators, so a List row
+            // reads exactly like the plain stacked view it replaced.
+            List {
+                if running.isEmpty {
+                    if let freeWindow {
+                        FreeWindowCard(
+                            window: freeWindow,
+                            nextCommitment: nextCommitment,
+                            onOpen: onOpenGapFiller
+                        )
                         .padding(.horizontal, Theme.Padding.screen)
                         .padding(.top, 18)
-                    }
-
-                    if !unresolved.isEmpty {
-                        UnresolvedSessionsCard(sessions: unresolved, onResolve: onResolve)
+                        .plainRow()
+                    } else {
+                        idleCard
                             .padding(.horizontal, Theme.Padding.screen)
-                            .padding(.top, 24)
+                            .padding(.top, 18)
+                            .plainRow()
                     }
-
-                    if !reminders.isEmpty {
-                        remindersSection
-                            .padding(.horizontal, Theme.Padding.screen)
-                            .padding(.top, 24)
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(running) { session in
+                            ActiveSessionCard(
+                                session: session,
+                                expectedMinutes: expectedMinutes(for: session),
+                                onOpen: { onOpenSession(session) },
+                                onEnd: { onEndSession(session) }
+                            )
+                        }
                     }
-
-                    todaySection
+                    .padding(.horizontal, Theme.Padding.screen)
+                    .padding(.top, 18)
+                    .plainRow()
                 }
-                .padding(.bottom, 110)
+
+                if !unresolved.isEmpty {
+                    UnresolvedSessionsCard(sessions: unresolved, onResolve: onResolve)
+                        .padding(.horizontal, Theme.Padding.screen)
+                        .padding(.top, 24)
+                        .plainRow()
+                }
+
+                if !reminders.isEmpty {
+                    remindersSection
+                        .padding(.horizontal, Theme.Padding.screen)
+                        .padding(.top, 24)
+                        .plainRow()
+                }
+
+                todayHeader
+
+                if todaysClosed.isEmpty {
+                    Caption("Nothing logged yet today.")
+                        .padding(.horizontal, Theme.Padding.screen)
+                        .plainRow()
+                } else {
+                    ForEach(todaysClosed) { session in
+                        row(for: session)
+                    }
+                }
+
+                Color.clear.frame(height: 110).plainRow()
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Theme.bg)
             .scrollIndicators(.hidden)
+            .environment(\.defaultMinListRowHeight, 0)
+        }
+        .sheet(item: $sessionPendingEdit) { session in
+            EditSessionView(
+                session: session,
+                history: sessions.records,
+                onSave: { edit in
+                    onEditSession(session, edit)
+                    sessionPendingEdit = nil
+                },
+                onCancel: { sessionPendingEdit = nil }
+            )
+        }
+        .alert(
+            "Delete this session?",
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
+        ) {
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let session = pendingDelete { onDeleteSession(session) }
+                pendingDelete = nil
+            }
+        } message: {
+            Text("Removes it from your history and from the numbers this category is based on. This cannot be undone.")
         }
         .sheet(item: $selectedPastSession) { session in
             SessionDetailView(
@@ -185,30 +234,45 @@ struct HomeView: View {
 
     // MARK: - Today
 
-    private var todaySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Today")
-                    .font(Typeface.title(16))
-                    .foregroundStyle(Theme.ink)
-                Spacer()
-                Caption("\(todaysClosed.count) logged")
-            }
-            .padding(.bottom, 4)
-
-            if todaysClosed.isEmpty {
-                Caption("Nothing logged yet today.")
-            } else {
-                ForEach(todaysClosed) { session in
-                    Button { selectedPastSession = session } label: {
-                        LoggedSessionRow(session: session, categoriesByID: categoriesByID)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+    private var todayHeader: some View {
+        HStack {
+            Text("Today")
+                .font(Typeface.title(16))
+                .foregroundStyle(Theme.ink)
+            Spacer()
+            Caption("\(todaysClosed.count) logged")
         }
         .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 24)
+        .padding(.bottom, 4)
+        .plainRow()
+    }
+
+    /// One row, with the same trailing edit/delete swipe as History — this is the
+    /// same session data, just filtered down to today, so fixing a mistake or pulling
+    /// something out shouldn't require a trip to the other tab.
+    private func row(for session: Session) -> some View {
+        Button { selectedPastSession = session } label: {
+            LoggedSessionRow(session: session, categoriesByID: categoriesByID)
+        }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 5, leading: Theme.Padding.screen, bottom: 5, trailing: Theme.Padding.screen))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                pendingDelete = session
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+
+            Button {
+                sessionPendingEdit = session
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            .tint(Theme.accent)
+        }
     }
 
     /// Reminders other people sent. An expired one stays listed as a plain, undone
