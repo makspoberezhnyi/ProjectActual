@@ -757,6 +757,12 @@ struct BottomBar: View {
     @Binding var destination: Destination
     let onCapture: () -> Void
 
+    /// What makes the selection pill slide between tabs instead of fading out in one
+    /// place and back in at another — the same identity, matched across two different
+    /// positions in the view tree on either side of a `withAnimation`, is what SwiftUI
+    /// needs to interpolate the frame between them rather than cross-dissolve.
+    @Namespace private var tabSelection
+
     var body: some View {
         HStack(spacing: 0) {
             tab(.home, symbol: "house.fill", label: "Home")
@@ -829,7 +835,7 @@ struct BottomBar: View {
     private func tab(_ target: Destination, symbol: String, label: String) -> some View {
         let isSelected = destination == target
         return Button {
-            withAnimation(.snappy(duration: 0.25)) {
+            withAnimation(.bouncy(duration: 0.34)) {
                 destination = target
             }
         } label: {
@@ -857,7 +863,7 @@ struct BottomBar: View {
                         }
                         .padding(.horizontal, 4)
                         .padding(.vertical, 4)
-                        .transition(.scale(scale: 0.85).combined(with: .opacity))
+                        .matchedGeometryEffect(id: "tabSelection", in: tabSelection)
                 }
             }
         }

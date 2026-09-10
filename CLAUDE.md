@@ -373,16 +373,27 @@ that's actually an action rather than a destination. They went flat: icon over a
 label, sitting directly on the bar's shared glass with no circle of their own, and the
 label is a real accessibility and legibility win a bare icon row didn't have.
 
-A third pass added a `.regularMaterial` capsule back in, but only behind whichever tab
-is actually selected, fading and scaling in on switch (`.snappy` animation) rather than
-popping. Colour alone — `Theme.ink` versus `Theme.inkFaint` — turned out too subtle a
+A third pass added a `.regularMaterial` pill back in behind whichever tab is actually
+selected — colour alone (`Theme.ink` versus `Theme.inkFaint`) turned out too subtle a
 signal once every tab sat equally flat against the bar; going fully flat traded away
-legibility of *which* tab is current for the sake of not looking heavy. The `.regularMaterial`
-choice is deliberate too: the bar's own background is `.ultraThinMaterial`, and stacking
-the same material on top of itself barely reads as a distinct shape, whereas
-`.regularMaterial` is visibly its own pill sitting on the bar's glass rather than
-blending into it. The "+" stays the one circle that's always present regardless of
-selection, since it isn't a destination toggling on and off, it's a constant action.
+legibility of *which* tab is current for the sake of not looking heavy. `.regularMaterial`
+specifically, not the bar's own `.ultraThinMaterial`: stacking the same material on top
+of itself barely reads as a distinct shape, where the more opaque one visibly sits on
+the bar's glass rather than blending into it. A fixed-radius `RoundedRectangle`, not
+`Capsule()` — at this height a capsule's ends round so aggressively they crowd the
+label, and on the first and last tab the curve sits close enough to the bar's own edge
+to look pinched.
+
+The pill slides between tabs now rather than fading out in one place and back in at
+another, via `matchedGeometryEffect` — the same shared namespace `id` on either side of
+a `withAnimation` change is what tells SwiftUI to interpolate the frame between two
+positions instead of cross-dissolving, stretching briefly across whatever tab sits
+between the old and new selection along the way. Modelled on a reference video of
+another app's tab bar the person sent — matched the pill shape, the stretch-through-the-
+middle motion, and the `.bouncy` spring, deliberately not the reference's blue selected-
+state colour, which stayed `Theme.ink` to match the rest of the app's monochrome
+palette. The "+" stays the one circle that's always present regardless of selection,
+since it isn't a destination toggling on and off, it's a constant action.
 
 History's icon changed from `line.3.horizontal` to `clock.arrow.circlepath` in the same
 pass — a hamburger glyph reads as "menu," not "a log of what already happened," and the
