@@ -71,15 +71,50 @@ without driving anywhere.
 API, not entitlements. CloudKit and associated domains are the things that do need one.
 
 Widgets and the Live Activity are built. The widget shows a live timer with a one-tap
-End when something is running, and the person's most-used starts when nothing is. Both
-buttons are App Intents that write to the shared store directly, so neither opens the
-app. The Live Activity puts the same timer on the lock screen and in the Dynamic Island.
+End when something is running. When nothing is, the primary control is one big blind
+"Start" button — `StartSessionIntent()` with no category, the same "start now, label it
+when you're done" path the app's own quick start uses — with the person's most-used
+categories as smaller secondary shortcuts beside it on `.systemMedium` (there's no room
+for both on `.systemSmall`, so the blind start is the whole widget there). All three
+buttons are App Intents that write to the shared store directly, so none of them open
+the app. The Live Activity puts the same timer on the lock screen and in the Dynamic
+Island.
 
 Two things worth knowing about widget timers. Use `Text(date, style: .timer)` in the
 widget but `Text(timerInterval:countsDown:)` in the Live Activity — on iOS 26 the
 `.timer` style renders as "2 minutes" there rather than a ticking clock. And neither
 needs waking every second: the text draws itself from a date, so the timeline only
 refreshes when the *content* could change.
+
+## Starting from outside the app: Control Center, Lock Screen, Action Button
+
+Three different mechanisms, not one, because iOS draws a real line between them:
+
+- **Control Center and the Lock Screen's two customizable slots** (the ones that
+  default to Flashlight and Camera) are both populated by the same thing: a
+  `ControlWidget`, iOS 18's Controls API. `ActualWidgets/StartSessionControl.swift`
+  adds one — `StartSessionControl`, a single stateless button wired to the same
+  `StartSessionIntent()` blind start the widget's own button and Siri use. It needs no
+  new extension, entitlement, or Info.plist key: Controls run in the same
+  `com.apple.widgetkit-extension` point the widget already declares, so it's just
+  another member of `ActualWidgetBundle`. Verified live in the simulator: "Actual" and
+  "Start a session" show up correctly in the system's own Control gallery (Control
+  Center's "+" → Add a Control), the same picker that also feeds the Lock Screen's
+  customization screen — placing it in either spot is the person's own drag-and-drop
+  choice in system UI, not something the app can do on their behalf.
+- **The Action Button** (iPhone 15 Pro and later) needs no app-side code at all. It's
+  configured in Settings → Action Button → Shortcut, and `ActualAppShortcuts`
+  (`Shared/Data/SessionIntents.swift`) already registers "Start a session in Actual" as
+  a real Shortcut — that's what made Siri and the Shortcuts app work, and it's the same
+  registration the Action Button's shortcut picker reads from. Nothing new to build
+  here; worth telling people the capability already exists.
+- **Camera Control** (the iPhone 16 series' dedicated hardware button) is not one of
+  these. Its public API, `AVCaptureEventInteraction`, only delivers press events to a
+  view that is already on screen and frontmost in the app that adopts it — there is no
+  supported way for a third-party app to have it launch or trigger an action system-wide
+  the way Controls or the Action Button do. It's built for a camera-style shutter
+  gesture inside an already-open app, not a global shortcut, so it isn't a path to
+  "start a session without opening the app" and nothing here tries to use it as one.
 
 Not built yet: voice's microphone and Siri layers, widgets and Live Activities, the
 Watch and Mac targets, CloudKit sync, procrastination nudges, passive app tracking,

@@ -62,7 +62,7 @@ struct SessionWidgetView: View {
         } else {
             QuickStartWidgetView(
                 quickStarts: snapshot.quickStarts,
-                limit: family == .systemSmall ? 2 : 4
+                isCompact: family == .systemSmall
             )
         }
     }
@@ -113,57 +113,85 @@ struct RunningWidgetView: View {
     }
 }
 
-/// Nothing running: the person's most used starts, one tap each.
+/// Nothing running: one tap to start blind — the same "start now, label it when
+/// you're done" path the app's own quick start uses, `StartSessionIntent()` with no
+/// category. This is the widget's main job; the most-used categories are a secondary
+/// shortcut alongside it when there's room, not the primary surface.
 struct QuickStartWidgetView: View {
     let quickStarts: [WidgetSnapshot.QuickStart]
-    let limit: Int
+    let isCompact: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Start")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.inkFaint)
+        if isCompact {
+            blindStartButton
+        } else {
+            HStack(alignment: .top, spacing: 14) {
+                blindStartButton
+                    .frame(maxWidth: .infinity)
 
-            if quickStarts.isEmpty {
-                Text("Log a few sessions and your most used will appear here.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.inkSoft)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                ForEach(quickStarts.prefix(limit)) { start in
-                    Button(intent: StartSessionIntent(
-                        category: CategoryEntity(id: start.categoryID, name: start.name),
-                        contextTag: start.contextTag,
-                        estimatedMinutes: start.expectedMinutes
-                    )) {
-                        HStack(spacing: 8) {
-                            CategoryIconView(symbolName: start.symbolName)
-                                .font(.system(size: 11))
-                                .foregroundStyle(Theme.inkSoft)
-                                .frame(width: 14)
+                if !quickStarts.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Or start again")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Theme.inkFaint)
 
-                            Text(start.name)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Theme.ink)
-                                .lineLimit(1)
-
-                            Spacer(minLength: 4)
-
-                            if let minutes = start.expectedMinutes {
-                                Text(DurationFormatting.compact(minutes: minutes))
-                                    .font(.system(size: 10.5))
-                                    .foregroundStyle(Theme.inkFaint)
-                            }
+                        ForEach(quickStarts.prefix(3)) { start in
+                            quickStartRow(start)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(Theme.card, in: .rect(cornerRadius: 10))
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-
-            Spacer(minLength: 0)
         }
+    }
+
+    private var blindStartButton: some View {
+        Button(intent: StartSessionIntent()) {
+            VStack(spacing: 8) {
+                Image(systemName: "play.fill")
+                    .font(.system(size: isCompact ? 20 : 22, weight: .semibold))
+                    .foregroundStyle(Theme.bg)
+                    .frame(width: isCompact ? 46 : 50, height: isCompact ? 46 : 50)
+                    .background(Theme.ink, in: .circle)
+
+                Text("Start")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.ink)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func quickStartRow(_ start: WidgetSnapshot.QuickStart) -> some View {
+        Button(intent: StartSessionIntent(
+            category: CategoryEntity(id: start.categoryID, name: start.name),
+            contextTag: start.contextTag,
+            estimatedMinutes: start.expectedMinutes
+        )) {
+            HStack(spacing: 8) {
+                CategoryIconView(symbolName: start.symbolName)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.inkSoft)
+                    .frame(width: 14)
+
+                Text(start.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+
+                Spacer(minLength: 4)
+
+                if let minutes = start.expectedMinutes {
+                    Text(DurationFormatting.compact(minutes: minutes))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(Theme.inkFaint)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Theme.card, in: .rect(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
     }
 }

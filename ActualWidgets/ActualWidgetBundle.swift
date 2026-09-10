@@ -6,5 +6,6 @@ struct ActualWidgetBundle: WidgetBundle {
     var body: some Widget {
         SessionWidget()
         SessionLiveActivity()
+        StartSessionControl()
     }
 }
