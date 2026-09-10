@@ -5,6 +5,9 @@ import os
 #if canImport(WidgetKit)
 import WidgetKit
 #endif
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
 
 private let intentLogger = Logger(subsystem: "app.actual.Actual", category: "SessionIntents")
 
@@ -51,12 +54,33 @@ public struct EndSessionIntent: AppIntent {
         // The same rule as everywhere else: closing writes immediately, with nothing to
         // confirm. A quick start still owes a label, and the app asks for it next open.
         let title = session.title
+        let uuidString = session.uuid.uuidString
         session.endedAt = .now
         do {
             try context.save()
         } catch {
             intentLogger.error("EndSessionIntent failed to save: \(error.localizedDescription, privacy: .public)")
         }
+
+        // Closing the session in the store doesn't by itself end the Live Activity —
+        // that's a separate ActivityKit object, and this intent may be running from
+        // inside the Live Activity itself (or the widget) rather than the app process
+        // that started it. Without this, the row closes but the lock screen timer
+        // just keeps ticking, which reads as the tap having done nothing.
+        #if canImport(ActivityKit)
+        for activity in Activity<SessionActivityAttributes>.activities
+        where activity.attributes.sessionID == uuidString {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        // `end(_:dismissalPolicy:)` can return before the system has actually finished
+        // tearing the activity's UI down — a documented ActivityKit race, not specific
+        // to this app — and an App Intents extension process is short-lived enough to
+        // be gone before that finishes, which is what leaves a frozen, undismissed
+        // activity on the lock screen even though the end request genuinely went
+        // through. A brief pause here keeps the process alive long enough for the
+        // removal to actually land before `perform()` hands control back.
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        #endif
 
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()
@@ -115,6 +139,41 @@ public struct StartSessionIntent: AppIntent {
         } catch {
             intentLogger.error("StartSessionIntent failed to save: \(error.localizedDescription, privacy: .public)")
         }
+
+        // A session started from the widget or the lock screen deserves the same live
+        // timer a session started in-app gets — `LiveActivityController` only runs
+        // inside the app process, so this intent (which by design runs without opening
+        // the app) has to request the Activity itself rather than relying on that.
+        #if canImport(ActivityKit)
+        if ActivityAuthorizationInfo().areActivitiesEnabled, let start = session.startedAt {
+            for stale in Activity<SessionActivityAttributes>.activities {
+                await stale.end(nil, dismissalPolicy: .immediate)
+            }
+
+            // History alone, same as the widget's own display — never the raw guess
+            // re-multiplied, which would show an expectation nobody's history supports.
+            let allRecords = ((try? context.fetch(FetchDescriptor<Session>())) ?? []).records
+            let expected = category.flatMap { category -> Int? in
+                BiasEngine().recalibratedEstimate(
+                    rawGuessMinutes: nil,
+                    for: CategoryKey(categoryID: category.id, contextTag: session.contextTag),
+                    from: allRecords
+                )?.minutes
+            }
+
+            let attributes = SessionActivityAttributes(
+                sessionID: session.uuid.uuidString, title: session.title, contextTag: contextTag
+            )
+            let state = SessionActivityAttributes.ContentState(startedAt: start, expectedMinutes: expected)
+            do {
+                _ = try Activity.request(
+                    attributes: attributes, content: ActivityContent(state: state, staleDate: nil)
+                )
+            } catch {
+                intentLogger.error("StartSessionIntent could not start live activity: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        #endif
 
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()

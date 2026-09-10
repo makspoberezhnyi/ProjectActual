@@ -75,11 +75,23 @@ final class LiveActivityController {
         reloadWidgets()
     }
 
+    /// Ends every activity of this type, not just the one this process happens to be
+    /// tracking in `current`. A session can now be started from the widget or the lock
+    /// screen — `StartSessionIntent` requests its own Activity from the extension
+    /// process, which this app process never sees in `current` — so relying on that
+    /// alone would leave the extension's activity stranded the next time the app
+    /// starts a session and calls this expecting a clean slate, producing two Live
+    /// Activities on screen at once instead of one.
     private func endActivity() {
         #if canImport(ActivityKit)
-        guard let activity = current else { return }
         current = nil
-        Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        let activities = Activity<SessionActivityAttributes>.activities
+        guard !activities.isEmpty else { return }
+        Task {
+            for activity in activities {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+        }
         #endif
     }
 
