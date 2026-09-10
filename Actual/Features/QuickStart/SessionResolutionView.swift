@@ -14,13 +14,20 @@ struct SessionResolutionView: View {
     let categories: [TaskCategory]
     let history: [SessionRecord]
     /// Hands back the chosen category (nil means create one from `title`) and context.
-    let onResolve: (_ categoryID: String?, _ title: String, _ contextTag: ContextTag) -> Void
+    let onResolve: (_ categoryID: String?, _ title: String, _ contextTag: ContextTag, _ symbolName: String?) -> Void
     let onDismiss: () -> Void
 
     @State private var selectedCategoryID: String?
     @State private var typedTitle: String = ""
     @State private var contextTag: ContextTag = .normal
+    @State private var iconName: String = "circle"
     @State private var isNaming = false
+
+    /// Whether what's typed is about to create a new category — the only case an icon
+    /// choice means anything, since picking an existing chip already has one.
+    private var isNewCategory: Bool {
+        selectedCategoryID == nil && !typedTitle.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     /// The person's most frequent categories, which is what a one-tap chip list is for.
     private var frequent: [TaskCategory] {
@@ -99,6 +106,11 @@ struct SessionResolutionView: View {
                     isNaming = true
                 }
             }
+
+            if isNewCategory {
+                CategoryIconPicker(selection: $iconName)
+                    .padding(.top, 2)
+            }
         }
     }
 
@@ -123,7 +135,7 @@ struct SessionResolutionView: View {
                 let title = selectedCategoryID
                     .flatMap { id in categories.first { $0.id == id }?.name }
                     ?? trimmed
-                onResolve(selectedCategoryID, title, contextTag)
+                onResolve(selectedCategoryID, title, contextTag, isNewCategory ? iconName : nil)
             }
             .opacity(canResolve ? 1 : 0.4)
             .disabled(!canResolve)

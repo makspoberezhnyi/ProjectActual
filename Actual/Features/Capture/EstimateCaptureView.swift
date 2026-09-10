@@ -8,6 +8,9 @@ struct SessionDraft {
     var estimatedMinutes: Int?
     /// Set when the person picked somewhere to go, which marks this as a trip.
     var destination: (name: String, latitude: Double, longitude: Double)?
+    /// Only meaningful when `title` doesn't match an existing category — resolving one
+    /// that already exists keeps its own icon regardless of what this carries.
+    var symbolName: String?
 }
 
 /// Estimate capture. A guess, a context, and — once there is enough history — the
@@ -35,6 +38,7 @@ struct EstimateCaptureView: View {
     @State private var title: String
     @State private var contextTag: ContextTag
     @State private var guessMinutes: Int
+    @State private var iconName: String = "circle"
     @State private var customTagName: String = ""
     @State private var isAddingCustomTag = false
     @State private var isPickingCustomDuration = false
@@ -103,6 +107,13 @@ struct EstimateCaptureView: View {
         return prefixed.count == 1 ? prefixed.first : nil
     }
 
+    /// Whether what's typed is about to create a new category rather than reuse one —
+    /// the only case an icon choice actually means anything, since an existing category
+    /// already has one.
+    private var isNewCategory: Bool {
+        matchedCategory == nil && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// The engine's answer for this exact category and context, or nil during cold
     /// start — in which case no recalibrated number is shown at all.
     private var estimate: RecalibratedEstimate? {
@@ -121,6 +132,7 @@ struct EstimateCaptureView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 titleField
+                iconSection
                 contextSection
                 guessSection
                 destinationRow
@@ -193,6 +205,22 @@ struct EstimateCaptureView: View {
         }
         .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
+    }
+
+    /// Only shown while typing something new — an existing category already has an
+    /// icon, and this is about giving a fresh one something better than the plain
+    /// circle it would otherwise be stuck with.
+    @ViewBuilder
+    private var iconSection: some View {
+        if isNewCategory {
+            VStack(alignment: .leading, spacing: 10) {
+                Caption("Icon")
+                CategoryIconPicker(selection: $iconName)
+            }
+            .padding(.horizontal, Theme.Padding.screen)
+            .padding(.top, 20)
+            .transition(.opacity)
+        }
     }
 
     // MARK: - Context
@@ -389,7 +417,8 @@ struct EstimateCaptureView: View {
                 title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                 contextTag: contextTag,
                 estimatedMinutes: minutes,
-                destination: destination
+                destination: destination,
+                symbolName: isNewCategory ? iconName : nil
             )
         )
     }

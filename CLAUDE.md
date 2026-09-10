@@ -331,6 +331,24 @@ Typography got a modest across-the-board bump at the same time — `Typeface`'s 
 apply a fixed 1.08× scale to whatever size they're called with, so every screen reads
 slightly larger without a per-call-site pass through the whole design system.
 
+## Custom category icons
+
+A category created by typing a name that matches nothing existing used to fall back to
+a plain, unlabelled circle forever — `TaskCategory`'s own default, with no way to change
+it afterward. `CategoryIconPicker` (`Actual/Features/Capture/`) is a curated, scrollable
+row of SF Symbols in the same mostly-unfilled style the seeded categories already use
+(`laptopcomputer`, `car.fill`, `envelope`, `cart`, `phone`, `book` — see `SeedData`), and
+it shows up in both places a session can actually create a new category: `EstimateCaptureView`,
+the moment what's typed stops matching anything existing, and `SessionResolutionView`'s
+"what was this" step at the end of a quick start, the same moment.
+
+The choice only means anything the instant a category is actually created —
+`SessionOperations.resolveCategory` takes an optional `symbolName`, applies it only on
+the create path, and an existing match keeps whatever icon it already had regardless of
+what the caller passes. `SessionDraft.symbolName` and `SessionResolutionView.onResolve`'s
+extra parameter carry the choice from each screen down to that one call, `nil` whenever
+the typed name matched something existing and the picker never appeared to begin with.
+
 ## Editable profile
 
 Name and photo are real settings now rather than the seed's fixed "Marta" — Profile's

@@ -423,8 +423,8 @@ struct MainShell: View {
                 session: session,
                 categories: categories,
                 history: sessions.records,
-                onResolve: { categoryID, title, tag in
-                    resolve(session, categoryID: categoryID, title: title, contextTag: tag)
+                onResolve: { categoryID, title, tag, symbolName in
+                    resolve(session, categoryID: categoryID, title: title, contextTag: tag, symbolName: symbolName)
                 },
                 onDismiss: { awaitingResolution = nil }
             )
@@ -454,7 +454,7 @@ struct MainShell: View {
         // Held as an object rather than looked up again by id. A category created a
         // moment ago is not yet in the query results, so a second lookup would find
         // nothing and the trip would never be watched.
-        let category = isQuickStart ? nil : resolveCategory(named: draft.title)
+        let category = isQuickStart ? nil : resolveCategory(named: draft.title, symbolName: draft.symbolName)
 
         let session = Session(
             categoryID: category?.id,
@@ -705,8 +705,8 @@ struct MainShell: View {
         isViewingActiveSession = true
     }
 
-    private func resolveCategory(named title: String) -> TaskCategory {
-        SessionOperations.resolveCategory(named: title, categories: categories, context: context)
+    private func resolveCategory(named title: String, symbolName: String? = nil) -> TaskCategory {
+        SessionOperations.resolveCategory(named: title, symbolName: symbolName, categories: categories, context: context)
     }
 
     /// Closing writes the actual duration immediately. No confirmation prompt, no
@@ -737,9 +737,10 @@ struct MainShell: View {
         _ session: Session,
         categoryID: String?,
         title: String,
-        contextTag: ContextTag
+        contextTag: ContextTag,
+        symbolName: String?
     ) {
-        session.categoryID = categoryID ?? resolveCategory(named: title).id
+        session.categoryID = categoryID ?? resolveCategory(named: title, symbolName: symbolName).id
         session.title = title
         session.contextTag = contextTag
         try? context.save()

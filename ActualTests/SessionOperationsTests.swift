@@ -45,6 +45,34 @@ struct SessionOperationsTests {
         #expect(all?.count == 1)
     }
 
+    @Test("A provided symbol name is used for a newly created category, defaulting to a plain circle otherwise")
+    func resolveCategoryUsesProvidedSymbol() {
+        let context = makeContext()
+
+        let withIcon = SessionOperations.resolveCategory(
+            named: "Yoga class", symbolName: "dumbbell.fill", categories: [], context: context
+        )
+        #expect(withIcon.symbolName == "dumbbell.fill")
+
+        let withoutIcon = SessionOperations.resolveCategory(
+            named: "Something else", categories: [withIcon], context: context
+        )
+        #expect(withoutIcon.symbolName == "circle")
+    }
+
+    @Test("Resolving an existing category by name keeps its own icon rather than the caller's")
+    func resolveCategoryKeepsExistingSymbol() {
+        let context = makeContext()
+        let existing = TaskCategory(name: "Work session", symbolName: "laptopcomputer")
+
+        let resolved = SessionOperations.resolveCategory(
+            named: "work session", symbolName: "dumbbell.fill", categories: [existing], context: context
+        )
+
+        #expect(resolved.id == existing.id)
+        #expect(resolved.symbolName == "laptopcomputer")
+    }
+
     // MARK: - isTrip
 
     @Test("A session under a trip category is a trip; one under a plain category, or with no category, is not")

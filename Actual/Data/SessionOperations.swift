@@ -16,8 +16,14 @@ enum SessionOperations {
     /// Categories are the person's own, named in whatever language they typed. A title
     /// that matches one they already have reuses it, so history keeps accumulating
     /// against the same key rather than fragmenting across near-identical names.
+    ///
+    /// `symbolName` only matters the moment a category is actually created — an
+    /// existing match already has whatever icon it was given the first time, and
+    /// reusing it here is the whole point of matching by name at all rather than
+    /// letting every mention of "Work session" become its own category.
     static func resolveCategory(
         named title: String,
+        symbolName: String? = nil,
         categories: [TaskCategory],
         context: ModelContext
     ) -> TaskCategory {
@@ -28,7 +34,7 @@ enum SessionOperations {
             return existing
         }
 
-        let created = TaskCategory(name: trimmed)
+        let created = TaskCategory(name: trimmed, symbolName: symbolName ?? "circle")
         context.insert(created)
         return created
     }
