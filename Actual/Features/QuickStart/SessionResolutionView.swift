@@ -108,8 +108,11 @@ struct SessionResolutionView: View {
             }
 
             if isNewCategory {
-                CategoryIconPicker(selection: $iconName)
-                    .padding(.top, 2)
+                HStack(spacing: 12) {
+                    EmojiIconButton(selection: $iconName)
+                    CategoryIconPicker(selection: $iconName)
+                }
+                .padding(.top, 2)
             }
         }
     }

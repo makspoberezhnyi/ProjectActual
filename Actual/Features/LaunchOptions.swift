@@ -12,7 +12,12 @@ enum LaunchOptions {
     }
 
     static var destination: Destination {
-        requested == "insights" ? .insights : .home
+        switch requested {
+        case "insights": .insights
+        case "history": .log
+        case "profile": .profile
+        default: .home
+        }
     }
 
     static var opensCapture: Bool { requested == "capture" }
