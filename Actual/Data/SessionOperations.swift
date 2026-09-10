@@ -102,4 +102,80 @@ enum SessionOperations {
         context.delete(session)
         try? context.save()
     }
+
+    /// Every field a deleted `Session` needs to come back exactly as it was, kept
+    /// after the managed object itself is gone.
+    ///
+    /// The `Session` this was taken from is deleted the moment this exists — nothing
+    /// here reads back from a live object, because there won't be one until `restore`
+    /// creates a new one. Carrying `uuid` forward means a restored session slots back
+    /// into anything that already pointed at it by that id, e.g. a reminder's
+    /// `sourceReminderShareID` chain or a Live Activity keyed on it mid-flight.
+    struct Snapshot {
+        let uuid: UUID
+        let categoryID: String?
+        let title: String
+        let contextTagRaw: String
+        let estimatedMinutes: Int?
+        let startedAt: Date?
+        let departedAt: Date?
+        let endedAt: Date?
+        let isFlaggedLowConfidence: Bool
+        let wasTrackedPassively: Bool
+        let apiBaselineMinutes: Int?
+        let routeData: Data?
+        let sourceReminderShareID: String?
+        let createdAt: Date
+
+        init(_ session: Session) {
+            uuid = session.uuid
+            categoryID = session.categoryID
+            title = session.title
+            contextTagRaw = session.contextTagRaw
+            estimatedMinutes = session.estimatedMinutes
+            startedAt = session.startedAt
+            departedAt = session.departedAt
+            endedAt = session.endedAt
+            isFlaggedLowConfidence = session.isFlaggedLowConfidence
+            wasTrackedPassively = session.wasTrackedPassively
+            apiBaselineMinutes = session.apiBaselineMinutes
+            routeData = session.routeData
+            sourceReminderShareID = session.sourceReminderShareID
+            createdAt = session.createdAt
+        }
+    }
+
+    /// Deletes one or more sessions at once and hands back what each one looked like,
+    /// so the caller can offer an undo without having to have snapshotted anything
+    /// itself beforehand — a swipe or a multi-select bar can call straight into this.
+    @discardableResult
+    static func deleteSessions(_ sessions: [Session], context: ModelContext) -> [Snapshot] {
+        let snapshots = sessions.map(Snapshot.init)
+        sessions.forEach(context.delete)
+        try? context.save()
+        return snapshots
+    }
+
+    /// The other half of `deleteSessions`: puts a deleted session back exactly as it
+    /// was, under the same `uuid` it was deleted under.
+    static func restore(_ snapshot: Snapshot, context: ModelContext) {
+        let session = Session(
+            uuid: snapshot.uuid,
+            categoryID: snapshot.categoryID,
+            title: snapshot.title,
+            contextTag: ContextTag(snapshot.contextTagRaw),
+            estimatedMinutes: snapshot.estimatedMinutes,
+            startedAt: snapshot.startedAt,
+            departedAt: snapshot.departedAt,
+            endedAt: snapshot.endedAt,
+            isFlaggedLowConfidence: snapshot.isFlaggedLowConfidence,
+            wasTrackedPassively: snapshot.wasTrackedPassively,
+            apiBaselineMinutes: snapshot.apiBaselineMinutes,
+            routeData: snapshot.routeData,
+            sourceReminderShareID: snapshot.sourceReminderShareID,
+            createdAt: snapshot.createdAt
+        )
+        context.insert(session)
+        try? context.save()
+    }
 }

@@ -11,12 +11,14 @@ struct HistoryView: View {
     let categories: [TaskCategory]
     let onStartAgain: (Session) -> Void
     let onDeleteSession: (Session) -> Void
+    let onDeleteSessions: ([Session]) -> Void
     let onEditSession: (Session, EditSessionView.Edit) -> Void
 
     @State private var scope: Scope = .everything
     @State private var selected: Session?
     @State private var sessionPendingEdit: Session?
-    @State private var pendingDelete: Session?
+    @State private var isSelecting = false
+    @State private var selectedUUIDs: Set<UUID> = []
 
     /// Built once per body evaluation rather than scanned per row.
     private var categoriesByID: [String: TaskCategory] { categories.indexedByID() }
@@ -92,18 +94,6 @@ struct HistoryView: View {
                 onCancel: { sessionPendingEdit = nil }
             )
         }
-        .alert(
-            "Delete this session?",
-            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
-        ) {
-            Button("Cancel", role: .cancel) { pendingDelete = nil }
-            Button("Delete", role: .destructive) {
-                if let session = pendingDelete { onDeleteSession(session) }
-                pendingDelete = nil
-            }
-        } message: {
-            Text("Removes it from your history and from the numbers this category is based on. This cannot be undone.")
-        }
         .sheet(item: $selected) { session in
             SessionDetailView(
                 session: session,
@@ -139,7 +129,14 @@ struct HistoryView: View {
                     .font(Typeface.title(22))
                     .foregroundStyle(Theme.ink)
                 Spacer()
-                Caption(totalSummary)
+                if isSelecting {
+                    Button("Cancel", action: endSelecting)
+                        .font(Typeface.medium(13))
+                        .foregroundStyle(Theme.inkSoft)
+                        .buttonStyle(.plain)
+                } else {
+                    Caption(totalSummary)
+                }
             }
             .padding(.horizontal, Theme.Padding.screen)
             .padding(.top, 22)
@@ -162,12 +159,65 @@ struct HistoryView: View {
                     .buttonStyle(.plain)
                 }
                 Spacer()
+                // Cleaning up a handful of mistaken entries at once shouldn't need
+                // one swipe-and-confirm per row. Hidden once there's nothing to
+                // select, and while already selecting — "Cancel" above is the one
+                // way out of that state.
+                if !isSelecting && !days.isEmpty {
+                    Button("Select") { isSelecting = true }
+                        .font(Typeface.body(12))
+                        .foregroundStyle(Theme.inkFaint)
+                        .buttonStyle(.plain)
+                }
             }
             .padding(.horizontal, Theme.Padding.screen)
             .padding(.bottom, 6)
+
+            if isSelecting {
+                selectionBar
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.bg)
+    }
+
+    private var selectionBar: some View {
+        HStack {
+            Caption(selectedUUIDs.isEmpty ? "Select sessions to delete" : "\(selectedUUIDs.count) selected")
+            Spacer()
+            Button(role: .destructive) {
+                deleteSelected()
+            } label: {
+                Text("Delete")
+                    .font(Typeface.medium(13))
+                    .foregroundStyle(selectedUUIDs.isEmpty ? Theme.inkFaint : Color.red)
+            }
+            .buttonStyle(.plain)
+            .disabled(selectedUUIDs.isEmpty)
+        }
+        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .transition(.opacity)
+    }
+
+    private func endSelecting() {
+        isSelecting = false
+        selectedUUIDs.removeAll()
+    }
+
+    private func toggleSelection(_ session: Session) {
+        if selectedUUIDs.contains(session.uuid) {
+            selectedUUIDs.remove(session.uuid)
+        } else {
+            selectedUUIDs.insert(session.uuid)
+        }
+    }
+
+    private func deleteSelected() {
+        let toDelete = days.flatMap(\.sessions).filter { selectedUUIDs.contains($0.uuid) }
+        onDeleteSessions(toDelete)
+        endSelecting()
     }
 
     private var totalSummary: String {
@@ -207,32 +257,64 @@ struct HistoryView: View {
         .listRowBackground(Color.clear)
     }
 
-    /// One row, with a trailing swipe for the two things worth doing to a logged
-    /// session without opening it first: fixing a mistake, or removing it entirely.
-    /// Delete sits at the very edge — the same short swipe Mail and Reminders use for
-    /// their own primary action — safe here because it still asks before it commits.
+    /// One row. Normally a trailing swipe carries the two things worth doing to a
+    /// logged session without opening it first — fixing a mistake, or removing it —
+    /// and a leading swipe repeats it. Delete sits at the very trailing edge, the same
+    /// short swipe Mail and Reminders use for their own primary action, safe here
+    /// because it's a single `Session` an undo toast can still put back. Swiping is
+    /// replaced by a plain checkmark tap while multi-select is active, since a row
+    /// can't sensibly answer to both gestures at once.
     private func row(for session: Session) -> some View {
-        Button { selected = session } label: {
-            HistoryRow(session: session, categoriesByID: categoriesByID)
+        Button {
+            if isSelecting {
+                toggleSelection(session)
+            } else {
+                selected = session
+            }
+        } label: {
+            HStack(spacing: 10) {
+                if isSelecting {
+                    selectionIndicator(isSelected: selectedUUIDs.contains(session.uuid))
+                }
+                HistoryRow(session: session, categoriesByID: categoriesByID)
+            }
         }
         .buttonStyle(.plain)
         .listRowInsets(EdgeInsets(top: 5, leading: Theme.Padding.screen, bottom: 5, trailing: Theme.Padding.screen))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                pendingDelete = session
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
+            if !isSelecting {
+                Button(role: .destructive) {
+                    onDeleteSession(session)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
 
-            Button {
-                sessionPendingEdit = session
-            } label: {
-                Label("Edit", systemImage: "pencil")
+                Button {
+                    sessionPendingEdit = session
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+                .tint(Theme.accent)
             }
-            .tint(Theme.accent)
         }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if !isSelecting, session.categoryID != nil {
+                Button {
+                    onStartAgain(session)
+                } label: {
+                    Label("Start again", systemImage: "arrow.clockwise")
+                }
+                .tint(Theme.accent)
+            }
+        }
+    }
+
+    private func selectionIndicator(isSelected: Bool) -> some View {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: 20))
+            .foregroundStyle(isSelected ? Theme.accent : Theme.inkFaint)
     }
 
     private func totalMinutes(_ sessions: [Session]) -> Int {

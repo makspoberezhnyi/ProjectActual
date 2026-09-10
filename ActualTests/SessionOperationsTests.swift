@@ -204,4 +204,47 @@ struct SessionOperationsTests {
         let remaining = try? context.fetch(FetchDescriptor<Session>())
         #expect(remaining?.isEmpty == true)
     }
+
+    // MARK: - deleteSessions / restore (undo)
+
+    @Test("Deleting a batch removes every session and hands back one snapshot each")
+    func deleteSessionsRemovesAllAndSnapshots() {
+        let context = makeContext()
+        let first = Session(categoryID: "work", title: "Work", estimatedMinutes: 60)
+        let second = Session(categoryID: "calls", title: "Call Sam", estimatedMinutes: 15)
+        context.insert(first)
+        context.insert(second)
+        try? context.save()
+
+        let snapshots = SessionOperations.deleteSessions([first, second], context: context)
+
+        #expect((try? context.fetch(FetchDescriptor<Session>()))?.isEmpty == true)
+        #expect(Set(snapshots.map(\.uuid)) == Set([first.uuid, second.uuid]))
+    }
+
+    @Test("Restoring a snapshot brings the session back under the same identity, with every field intact")
+    func restoreBringsBackTheSameSession() {
+        let context = makeContext()
+        let original = Session(
+            categoryID: "commute", title: "Commute", contextTag: .highPressure,
+            estimatedMinutes: 25, startedAt: .now.addingTimeInterval(-1800), endedAt: .now,
+            isFlaggedLowConfidence: true, sourceReminderShareID: "share-9"
+        )
+        context.insert(original)
+        try? context.save()
+        let uuid = original.uuid
+
+        let snapshots = SessionOperations.deleteSessions([original], context: context)
+        #expect((try? context.fetch(FetchDescriptor<Session>()))?.isEmpty == true)
+
+        SessionOperations.restore(snapshots[0], context: context)
+
+        let restored = try? context.fetch(FetchDescriptor<Session>()).first
+        #expect(restored?.uuid == uuid)
+        #expect(restored?.title == "Commute")
+        #expect(restored?.contextTag == .highPressure)
+        #expect(restored?.estimatedMinutes == 25)
+        #expect(restored?.isFlaggedLowConfidence == true)
+        #expect(restored?.sourceReminderShareID == "share-9")
+    }
 }

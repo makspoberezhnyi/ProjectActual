@@ -22,7 +22,6 @@ struct HomeView: View {
 
     @State private var selectedPastSession: Session?
     @State private var sessionPendingEdit: Session?
-    @State private var pendingDelete: Session?
     @AppStorage("displayName") private var displayName = "Marta"
 
     private let engine = BiasEngine()
@@ -140,18 +139,6 @@ struct HomeView: View {
                 onCancel: { sessionPendingEdit = nil }
             )
         }
-        .alert(
-            "Delete this session?",
-            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
-        ) {
-            Button("Cancel", role: .cancel) { pendingDelete = nil }
-            Button("Delete", role: .destructive) {
-                if let session = pendingDelete { onDeleteSession(session) }
-                pendingDelete = nil
-            }
-        } message: {
-            Text("Removes it from your history and from the numbers this category is based on. This cannot be undone.")
-        }
         .sheet(item: $selectedPastSession) { session in
             SessionDetailView(
                 session: session,
@@ -261,7 +248,7 @@ struct HomeView: View {
         .listRowSeparator(.hidden)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
-                pendingDelete = session
+                onDeleteSession(session)
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -272,6 +259,16 @@ struct HomeView: View {
                 Label("Edit", systemImage: "pencil")
             }
             .tint(Theme.accent)
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if session.categoryID != nil {
+                Button {
+                    onStartAgain(session)
+                } label: {
+                    Label("Start again", systemImage: "arrow.clockwise")
+                }
+                .tint(Theme.accent)
+            }
         }
     }
 

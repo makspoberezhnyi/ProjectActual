@@ -171,6 +171,19 @@ struct MainShell: View {
     /// the first would end the wrong one.
     @State private var activeSessionID: UUID?
 
+    /// A delete (one session, or a whole multi-select batch) still waiting out its
+    /// undo window. Replacing rather than queuing on a second delete is deliberate:
+    /// undo is a brief safety net for the thing you just did, not a history you can
+    /// page back through, so a new delete's toast simply takes over the count and
+    /// resets the clock rather than stacking a second banner.
+    @State private var pendingUndo: PendingUndo?
+    @State private var undoDismissTask: Task<Void, Never>?
+
+    private struct PendingUndo: Identifiable {
+        let id = UUID()
+        let snapshots: [SessionOperations.Snapshot]
+    }
+
     private var runningSessions: [Session] {
         sessions
             .filter(\.isRunning)
@@ -310,6 +323,7 @@ struct MainShell: View {
                         categories: categories,
                         onStartAgain: startAgain,
                         onDeleteSession: deleteSession,
+                        onDeleteSessions: deleteSessions,
                         onEditSession: editSession
                     )
                 case .profile:
@@ -341,6 +355,16 @@ struct MainShell: View {
                 destination: $destination,
                 onCapture: { captureRequest = CaptureRequest(prefill: nil) }
             )
+
+            if let pendingUndo {
+                UndoToast(
+                    message: pendingUndo.snapshots.count == 1
+                        ? "Session deleted"
+                        : "\(pendingUndo.snapshots.count) sessions deleted",
+                    onUndo: undoDelete
+                )
+                .padding(.bottom, 84)
+            }
         }
         .sheet(item: $captureRequest) { request in
             EstimateCaptureView(
@@ -498,7 +522,36 @@ struct MainShell: View {
     }
 
     private func deleteSession(_ session: Session) {
-        SessionOperations.deleteSession(session, context: context)
+        deleteSessions([session])
+    }
+
+    /// The one real delete path — a single swipe, the detail sheet's confirmed
+    /// delete, and History's multi-select bar all funnel in here, so all three get
+    /// the same undo toast for free rather than each having to remember to show one.
+    private func deleteSessions(_ toDelete: [Session]) {
+        guard !toDelete.isEmpty else { return }
+        let snapshots = SessionOperations.deleteSessions(toDelete, context: context)
+        showUndo(for: snapshots)
+    }
+
+    private func showUndo(for snapshots: [SessionOperations.Snapshot]) {
+        undoDismissTask?.cancel()
+        let undo = PendingUndo(snapshots: snapshots)
+        pendingUndo = undo
+        undoDismissTask = Task {
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard !Task.isCancelled, pendingUndo?.id == undo.id else { return }
+            pendingUndo = nil
+        }
+    }
+
+    private func undoDelete() {
+        guard let pendingUndo else { return }
+        undoDismissTask?.cancel()
+        self.pendingUndo = nil
+        for snapshot in pendingUndo.snapshots {
+            SessionOperations.restore(snapshot, context: context)
+        }
     }
 
     /// Applies a correction to a session already closed — a typo, the wrong context,
@@ -786,6 +839,38 @@ struct MainShell: View {
         if session.endedAt.map({ Date.now.timeIntervalSince($0) < 60 }) == true {
             justEnded = session
         }
+    }
+}
+
+/// The brief undo banner after a delete — one session, or a whole multi-select
+/// batch. Deliberately not an alert: the delete has already happened by the time this
+/// shows, so there is nothing left to confirm, only a few seconds to change your mind.
+private struct UndoToast: View {
+    let message: String
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Text(message)
+                .font(Typeface.body(13))
+                .foregroundStyle(Theme.ink)
+
+            Spacer(minLength: 8)
+
+            Button(action: onUndo) {
+                Text("Undo")
+                    .font(Typeface.semibold(13))
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(.ultraThinMaterial, in: .capsule)
+        .overlay {
+            Capsule().strokeBorder(Theme.line, lineWidth: 1)
+        }
+        .padding(.horizontal, Theme.Padding.screen)
     }
 }
 
