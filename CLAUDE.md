@@ -29,6 +29,28 @@ The store lives in the **app group** `group.app.actual.Actual`, because a widget
 its own sandbox and cannot see the app's private container. **App groups work in the
 simulator without a paid Apple Developer account** — the container is created on demand.
 
+**On a real device, that same free account needs Xcode to have actually registered the
+group**, which is a real, separate step from writing the entitlement file — and it is
+exactly the failure mode behind "the widget runs a timer but the session never shows up
+in the app." `SharedStore.makeContainer()` (`Shared/Data/SharedStore.swift`) falls back
+silently to a *private* store — per process — whenever the app-group container can't be
+opened, and a private fallback is still a real, working, persisted store. That's what
+makes this failure mode so confusing to watch happen: the widget's own timer is
+completely real, backed by a session that really did save — just to the widget
+extension's own sandboxed container, invisible to the app, which independently fell back
+to its own separate private container. Two working stores that don't talk to each other
+look, from the UI alone, exactly like one broken one. `makeContainer()` now logs which
+path it took (shared / private / in-memory) via `Logger(subsystem: "app.actual.Actual",
+category: "SharedStore")`, and `StartSessionIntent`/`EndSessionIntent` log their own save
+failures instead of swallowing them with `try?` — check Console.app filtered to that
+subsystem before assuming the logic is wrong. The actual fix, when this happens, is in
+Xcode: Signing & Capabilities on *both* the `Actual` and `ActualWidgets` targets, App
+Groups capability present and checked for `group.app.actual.Actual`, signed in with the
+Apple ID that's actually building. Toggling the capability off and back on (or hitting
+"Try Again" on a provisioning error there) is usually what makes Xcode actually register
+it, since this is a one-time-per-account-per-machine registration step that a plain
+`git pull` of the entitlement files does not redo on its own.
+
 ## Layout
 
 - `Actual/Core/` — the bias engine and its value types. **Plain Swift, Foundation only.**

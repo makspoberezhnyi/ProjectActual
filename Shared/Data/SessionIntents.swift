@@ -1,9 +1,12 @@
 import Foundation
 import AppIntents
 import SwiftData
+import os
 #if canImport(WidgetKit)
 import WidgetKit
 #endif
+
+private let intentLogger = Logger(subsystem: "app.actual.Actual", category: "SessionIntents")
 
 /// Ends whatever is running, from a widget or the lock screen.
 ///
@@ -49,7 +52,11 @@ public struct EndSessionIntent: AppIntent {
         // confirm. A quick start still owes a label, and the app asks for it next open.
         let title = session.title
         session.endedAt = .now
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            intentLogger.error("EndSessionIntent failed to save: \(error.localizedDescription, privacy: .public)")
+        }
 
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()
@@ -103,7 +110,11 @@ public struct StartSessionIntent: AppIntent {
             startedAt: .now
         )
         context.insert(session)
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            intentLogger.error("StartSessionIntent failed to save: \(error.localizedDescription, privacy: .public)")
+        }
 
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()
