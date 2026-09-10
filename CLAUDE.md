@@ -276,14 +276,31 @@ outside a Siri-structured invocation, and the stage 10 transcription echo.
 
 ## Dynamic Island sizing
 
-`SessionLiveActivity`'s compact and expanded trailing regions dropped their fixed
-`.frame(maxWidth:)` values in favour of `.minimumScaleFactor` — a guessed pixel width
-is exactly what gets clipped by the island's own rounded cutout on real hardware, which
-the simulator does not render with the same fidelity. The compact region also passes
-`showsHours: false` to `Text(timerInterval:)`, capping the string at "59:59" rather
-than letting "1:23:45" appear the moment a session crosses an hour in the tightest
-space anywhere in the Dynamic Island. Unverified on physical hardware — worth a look
-once running on a device.
+The compact pill used to balloon out to nearly the full screen width instead of a tight
+capsule around the sensor housing — confirmed live in the simulator, not just a
+suspicion. The cause was `Text(timerInterval:)` being given an open-ended range ending
+at `Date.distantFuture` (year 4001): the view sizes itself for the *widest* value the
+interval could ever show, not the current one, so it was reserving layout width for a
+number with dozens of digits. `SessionLiveActivity.elapsedRange(from:)` bounds every
+`timerInterval` (compact, expanded, and lock screen) to 24 hours from `startedAt`
+instead — `countsDown: false` still just counts up the same as before, the bound only
+caps what the layout system has to plan for. The compact trailing region also carries an
+explicit 44pt `.frame` now rather than relying on `.minimumScaleFactor` alone to keep it
+pinned tight. Measured against Apple's own documented compact-island width (~235pt) on
+the simulator: it now lands within a few points of that, down from ~348pt (87% of the
+402pt screen) before the fix.
+
+The expanded presentation was also simplified to one row — a leading dot+timer with the
+title underneath, and one big circular stop button on the trailing side, the same shape
+as the system's own screen-recording Live Activity — replacing a three-region layout
+(title/context, timer, and a separate bottom row with the expected duration and a small
+"End" pill) that read as cluttered and was clipping the first glyph of the title against
+the island's own rounded corner. The stop button reuses the exact glyph from the in-app
+End button (`SessionActiveView.endButton`): a small rounded-square icon on a filled
+circle. Verified live in the simulator, both compact and expanded. The Live Activity's
+own End button not responding to synthetic taps in the simulator (noted elsewhere in
+this file) is unrelated to this pass — that's an input-injection limitation, not a
+layout one — and is still worth trying by hand on a real device.
 
 ## Appearance: light, dark, or system
 

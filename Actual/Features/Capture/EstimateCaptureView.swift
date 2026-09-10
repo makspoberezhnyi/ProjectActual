@@ -114,6 +114,30 @@ struct EstimateCaptureView: View {
         matchedCategory == nil && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// The person's most frequent categories, shown as quick picks before anything is
+    /// typed — the same shortcut `SessionResolutionView`'s search field offers.
+    private var frequentCategories: [TaskCategory] {
+        let counts = Dictionary(grouping: history, by: \.categoryID).mapValues(\.count)
+        return categories
+            .sorted { (counts[$0.id] ?? 0) > (counts[$1.id] ?? 0) }
+            .prefix(8)
+            .map { $0 }
+    }
+
+    /// What the chip row under the title field shows: frequent categories while it's
+    /// empty, or a live search over existing ones as typing narrows it down. Tapping a
+    /// chip sets `title` to that category's exact name, which is what lets
+    /// `matchedCategory` resolve it deterministically the same way typing the full name
+    /// out by hand would.
+    private var categorySuggestions: [TaskCategory] {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return frequentCategories }
+        return categories
+            .filter { $0.name.lowercased().contains(trimmed) }
+            .prefix(8)
+            .map { $0 }
+    }
+
     /// The engine's answer for this exact category and context, or nil during cold
     /// start — in which case no recalibrated number is shown at all.
     private var estimate: RecalibratedEstimate? {
@@ -131,19 +155,32 @@ struct EstimateCaptureView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 header
-                titleField
-                iconSection
-                contextSection
-                guessSection
-                destinationRow
 
-                if let estimate {
-                    historyCard(estimate)
-                        .padding(.horizontal, Theme.Padding.screen)
-                        .padding(.top, 22)
+                // Everything between the header and the actions lives in a
+                // ScrollView, not a fixed VStack: without one, there is nothing
+                // bounded for the keyboard's automatic avoidance to scroll, so it
+                // shifts the whole rigid layout upward instead — and once the icon
+                // row appears (making the content taller than the screen), that
+                // shift pushes the title field, and the emoji button beside it,
+                // up past the top safe area entirely. The emoji button "not
+                // working" was this: it wasn't broken, it was offscreen under the
+                // status bar and untappable.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        titleField
+                        iconSection
+                        contextSection
+                        guessSection
+                        destinationRow
+
+                        if let estimate {
+                            historyCard(estimate)
+                                .padding(.horizontal, Theme.Padding.screen)
+                                .padding(.top, 14)
+                        }
+                    }
                 }
 
-                Spacer(minLength: 12)
                 actions
             }
         }
@@ -185,32 +222,50 @@ struct EstimateCaptureView: View {
             Color.clear.frame(width: 22, height: 22)
         }
         .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 22)
-        .padding(.bottom, 4)
+        .padding(.top, 16)
+        .padding(.bottom, 2)
     }
 
     private var titleField: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
                 if isNewCategory {
                     EmojiIconButton(selection: $iconName)
                 }
 
+                // Same boxed search-field look as `SessionResolutionView`'s category
+                // field, not the earlier full-width headline style — this is a search
+                // field before it's a title, and reading as one everywhere it appears
+                // is what makes the "type, then tap a match" pattern recognizable.
                 TextField(
                     "",
                     text: $title,
                     prompt: Text("What are you about to do").foregroundStyle(Theme.inkFaint)
                 )
-                .font(Typeface.title(22))
+                .font(Typeface.body(15))
                 .foregroundStyle(Theme.ink)
                 .textInputAutocapitalization(.sentences)
                 .autocorrectionDisabled()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
+                .overlay {
+                    RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(Theme.line, lineWidth: 1)
+                }
             }
 
-            Hairline()
+            if !categorySuggestions.isEmpty {
+                FlowLayout(spacing: 7, lineSpacing: 7) {
+                    ForEach(categorySuggestions) { category in
+                        Chip(title: category.name, isSelected: matchedCategory?.id == category.id) {
+                            title = category.name
+                        }
+                    }
+                }
+            }
         }
         .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 22)
+        .padding(.top, 14)
     }
 
     /// Only shown while typing something new — an existing category already has an
@@ -220,12 +275,12 @@ struct EstimateCaptureView: View {
     @ViewBuilder
     private var iconSection: some View {
         if isNewCategory {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Caption("Icon")
                 CategoryIconPicker(selection: $iconName)
             }
             .padding(.horizontal, Theme.Padding.screen)
-            .padding(.top, 20)
+            .padding(.top, 14)
             .transition(.opacity)
         }
     }
@@ -233,10 +288,10 @@ struct EstimateCaptureView: View {
     // MARK: - Context
 
     private var contextSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Caption("Context")
 
-            FlowLayout(spacing: 8, lineSpacing: 8) {
+            FlowLayout(spacing: 7, lineSpacing: 7) {
                 ForEach(availableTags, id: \.self) { tag in
                     Chip(title: tag.displayName, isSelected: tag == contextTag) {
                         contextTag = tag
@@ -246,17 +301,17 @@ struct EstimateCaptureView: View {
             }
         }
         .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 24)
+        .padding(.top, 16)
     }
 
     // MARK: - The guess
 
     private var guessSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             Caption("Your guess")
 
             Text(DurationFormatting.padded(minutes: guessMinutes))
-                .font(Typeface.display(44))
+                .font(Typeface.display(34))
                 .foregroundStyle(Theme.ink)
 
             HStack(spacing: 8) {
@@ -270,10 +325,10 @@ struct EstimateCaptureView: View {
                 }
                 PresetChip(title: "custom", isDashed: true) { isPickingCustomDuration = true }
             }
-            .padding(.top, 4)
+            .padding(.top, 2)
         }
         .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 28)
+        .padding(.top, 16)
     }
 
     /// Somewhere to go, for the trips that have one.
@@ -301,7 +356,7 @@ struct EstimateCaptureView: View {
                     .foregroundStyle(Theme.inkFaint)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 13)
+            .padding(.vertical, 11)
             .background(Theme.card, in: .rect(cornerRadius: 14))
             .overlay {
                 RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.line, lineWidth: 1)
@@ -309,7 +364,7 @@ struct EstimateCaptureView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 22)
+        .padding(.top, 14)
     }
 
     private var destinationName: String? {
@@ -324,8 +379,8 @@ struct EstimateCaptureView: View {
         // carry the same authority as one resting on forty.
         let isMuted = estimate.confidence == .low
 
-        CardSurface(radius: Theme.Radius.panel, padding: 18) {
-            VStack(alignment: .leading, spacing: 8) {
+        CardSurface(radius: Theme.Radius.panel, padding: 14) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     SectionLabel(text: estimate.scope == .exact
                                  ? "BASED ON YOUR HISTORY"
@@ -336,7 +391,7 @@ struct EstimateCaptureView: View {
 
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(DurationFormatting.compact(minutes: estimate.minutes))
-                        .font(Typeface.display(30))
+                        .font(Typeface.display(26))
                         .foregroundStyle(Theme.ink)
                         .opacity(isMuted ? 0.65 : 1)
 
@@ -415,7 +470,8 @@ struct EstimateCaptureView: View {
             }
         }
         .padding(.horizontal, Theme.Padding.screen)
-        .padding(.bottom, 44)
+        .padding(.top, 10)
+        .padding(.bottom, 24)
     }
 
     private func start(with minutes: Int) {

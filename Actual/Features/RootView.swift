@@ -357,6 +357,12 @@ struct MainShell: View {
                 .fullScreenCover(isPresented: $isViewingTripMap) {
                     TripMapView(session: session, onDismiss: { isViewingTripMap = false })
                 }
+            } else {
+                // `presentedSession` can only be nil here if `activeSessionID` no
+                // longer matches anything in `sessions` — a session deleted or ended
+                // out from under this presentation. With no view to show, self-dismiss
+                // rather than leave a blank cover with nothing on it and no way back.
+                Color.clear.onAppear { isViewingActiveSession = false }
             }
         }
         #if DEBUG

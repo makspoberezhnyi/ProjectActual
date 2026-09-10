@@ -8,6 +8,17 @@ import SwiftUI
 /// carries the same two facts the app shows — how long you have been going, and how long
 /// this usually takes — and the same one-tap end.
 struct SessionLiveActivity: Widget {
+    /// `Text(timerInterval:)` sizes itself for the *widest* value the interval could
+    /// ever show, not just the current one — an open range ending at `.distantFuture`
+    /// (year 4001) makes it reserve room for a number with dozens of digits, which is
+    /// what was ballooning the compact pill out to nearly the full screen width instead
+    /// of a tight capsule around the sensor housing. A bounded end date, far longer than
+    /// any real session, keeps that reservation sane while `countsDown: false` still
+    /// just counts up from `startedAt` same as before.
+    private static func elapsedRange(from startedAt: Date) -> ClosedRange<Date> {
+        startedAt...startedAt.addingTimeInterval(24 * 60 * 60)
+    }
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SessionActivityAttributes.self) { context in
             lockScreen(context)
@@ -15,55 +26,46 @@ struct SessionLiveActivity: Widget {
                 .activitySystemActionForegroundColor(Theme.ink)
         } dynamicIsland: { context in
             DynamicIsland {
+                // One row, not three: a timer with the title underneath on the
+                // leading side, one big stop button on the trailing side — the same
+                // shape as the system's own screen-recording Live Activity, rather
+                // than the cramped title/context/expected-duration/small-pill layout
+                // this replaced, which read as cluttered and clipped its own title
+                // against the island's rounded corner.
                 DynamicIslandExpandedRegion(.leading) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(context.attributes.title)
-                            .font(.system(size: 13, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Circle().fill(Theme.accent).frame(width: 8, height: 8)
+                            Text(
+                                timerInterval: Self.elapsedRange(from: context.state.startedAt),
+                                countsDown: false
+                            )
+                            .font(.system(size: 20, weight: .bold).monospacedDigit())
                             .foregroundStyle(Theme.ink)
                             .lineLimit(1)
-                        Text(context.attributes.contextTag)
-                            .font(.system(size: 11))
+                            .minimumScaleFactor(0.7)
+                        }
+                        Text(context.attributes.title)
+                            .font(.system(size: 13))
                             .foregroundStyle(Theme.inkFaint)
+                            .lineLimit(1)
                     }
+                    .padding(.leading, 4)
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
-                    // No fixed frame: a guessed pixel width is exactly what gets
-                    // clipped by the island's own rounded cutout on real hardware,
-                    // which the simulator does not render with the same fidelity.
-                    // minimumScaleFactor is the safety net instead of a hand-picked
-                    // width.
-                    Text(
-                        timerInterval: context.state.startedAt...Date.distantFuture,
-                        countsDown: false
-                    )
-                    .font(.system(size: 18, weight: .bold).monospacedDigit())
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .multilineTextAlignment(.trailing)
-                }
-
-                DynamicIslandExpandedRegion(.bottom) {
-                    HStack(spacing: 10) {
-                        if let expected = context.state.expectedMinutes {
-                            Text("usually ~\(DurationFormatting.compact(minutes: expected))")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Theme.inkFaint)
-                        }
-
-                        Spacer()
-
-                        Button(intent: EndSessionIntent(sessionID: context.attributes.sessionID)) {
-                            Text("End")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Theme.bg)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 6)
-                                .background(Theme.ink, in: .capsule)
-                        }
-                        .buttonStyle(.plain)
+                    // Same stop glyph as the in-app End button
+                    // (SessionActiveView.endButton): a filled circle with a small
+                    // rounded-square icon, sized for an easy tap rather than a
+                    // small text pill.
+                    Button(intent: EndSessionIntent(sessionID: context.attributes.sessionID)) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Theme.bg)
+                            .frame(width: 14, height: 14)
+                            .frame(width: 44, height: 44)
+                            .background(Theme.ink, in: .circle)
                     }
+                    .buttonStyle(.plain)
                 }
             } compactLeading: {
                 Circle().fill(Theme.accent).frame(width: 6, height: 6)
@@ -72,10 +74,12 @@ struct SessionLiveActivity: Widget {
                 // tightest space anywhere in the Dynamic Island. showsHours: false
                 // caps the string at "59:59" regardless of session length, rather
                 // than "1:23:45" appearing the moment a session crosses an hour and
-                // getting clipped by the island's edge. No fixed frame, for the same
-                // reason as the expanded region above.
+                // getting clipped by the island's edge. A tight 44pt frame keeps this
+                // region pinned to that width instead of letting the system's compact
+                // pill balloon to whatever the text's ideal size is; minimumScaleFactor
+                // is what absorbs "59:59" being fractionally wider than "0:07".
                 Text(
-                    timerInterval: context.state.startedAt...Date.distantFuture,
+                    timerInterval: Self.elapsedRange(from: context.state.startedAt),
                     countsDown: false,
                     showsHours: false
                 )
@@ -83,6 +87,7 @@ struct SessionLiveActivity: Widget {
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+                .frame(width: 44, alignment: .trailing)
             } minimal: {
                 Circle().fill(Theme.accent).frame(width: 6, height: 6)
             }
@@ -100,7 +105,7 @@ struct SessionLiveActivity: Widget {
                     .lineLimit(1)
 
                 Text(
-                    timerInterval: context.state.startedAt...Date.distantFuture,
+                    timerInterval: Self.elapsedRange(from: context.state.startedAt),
                     countsDown: false
                 )
                 .font(.system(size: 30, weight: .bold).monospacedDigit())

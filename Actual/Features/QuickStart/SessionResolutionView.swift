@@ -21,7 +21,6 @@ struct SessionResolutionView: View {
     @State private var typedTitle: String = ""
     @State private var contextTag: ContextTag = .normal
     @State private var iconName: String = "circle"
-    @State private var isNaming = false
 
     /// Whether what's typed is about to create a new category — the only case an icon
     /// choice means anything, since picking an existing chip already has one.
@@ -29,11 +28,26 @@ struct SessionResolutionView: View {
         selectedCategoryID == nil && !typedTitle.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    /// The person's most frequent categories, which is what a one-tap chip list is for.
+    /// The person's most frequent categories, which is what the chip row shows before
+    /// anything has been typed — the same "most likely first" shortcut a blank search
+    /// field would otherwise waste.
     private var frequent: [TaskCategory] {
         let counts = Dictionary(grouping: history, by: \.categoryID).mapValues(\.count)
         return categories
             .sorted { (counts[$0.id] ?? 0) > (counts[$1.id] ?? 0) }
+            .prefix(8)
+            .map { $0 }
+    }
+
+    /// What the chip row shows: the frequent list while the field is empty, or whatever
+    /// existing categories match what's been typed so far — a live search rather than a
+    /// fixed set, so reusing a category already in history is a type-then-tap instead of
+    /// retyping it character for character and hoping the app notices.
+    private var suggestions: [TaskCategory] {
+        let trimmed = typedTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return frequent }
+        return categories
+            .filter { $0.name.lowercased().contains(trimmed) }
             .prefix(8)
             .map { $0 }
     }
@@ -63,11 +77,6 @@ struct SessionResolutionView: View {
                 actions
             }
         }
-        .alert("What was it?", isPresented: $isNaming) {
-            TextField("Name it", text: $typedTitle)
-            Button("Cancel", role: .cancel) { typedTitle = "" }
-            Button("Use this") { selectedCategoryID = nil }
-        }
     }
 
     private var header: some View {
@@ -91,19 +100,37 @@ struct SessionResolutionView: View {
         VStack(alignment: .leading, spacing: 10) {
             Caption("Category")
 
-            FlowLayout(spacing: 8, lineSpacing: 8) {
-                ForEach(frequent) { category in
-                    Chip(title: category.name, isSelected: selectedCategoryID == category.id) {
-                        selectedCategoryID = category.id
-                        typedTitle = ""
-                    }
+            TextField(
+                "",
+                text: $typedTitle,
+                prompt: Text("Search or name a category").foregroundStyle(Theme.inkFaint)
+            )
+            .font(Typeface.body(15))
+            .foregroundStyle(Theme.ink)
+            .textInputAutocapitalization(.sentences)
+            .autocorrectionDisabled()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(Theme.line, lineWidth: 1)
+            }
+            // Editing away from a picked chip un-picks it — the field is back to being
+            // freeform text, exactly like it was before anything matched.
+            .onChange(of: typedTitle) { _, newValue in
+                if let selectedCategoryID, categories.first(where: { $0.id == selectedCategoryID })?.name != newValue {
+                    self.selectedCategoryID = nil
                 }
-                Chip(
-                    title: typedTitle.isEmpty ? "+ something else" : typedTitle,
-                    isSelected: selectedCategoryID == nil && !typedTitle.isEmpty,
-                    isDashed: typedTitle.isEmpty
-                ) {
-                    isNaming = true
+            }
+
+            if !suggestions.isEmpty {
+                FlowLayout(spacing: 8, lineSpacing: 8) {
+                    ForEach(suggestions) { category in
+                        Chip(title: category.name, isSelected: selectedCategoryID == category.id) {
+                            selectedCategoryID = category.id
+                            typedTitle = category.name
+                        }
+                    }
                 }
             }
 

@@ -108,26 +108,35 @@ struct ProfileView: View {
     private var heroCard: some View {
         Button { isEditingProfile = true } label: {
             CardSurface(radius: 20, padding: 16) {
-                HStack(alignment: .center, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 5) {
                         Text(displayName)
-                            .font(Typeface.display(24))
+                            .font(Typeface.display(21))
                             .foregroundStyle(Theme.ink)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
 
                         if let firstLogged {
+                            // Abbreviated month, not `.wide`: "Joined September 2026"
+                            // was long enough to wrap onto a second line the moment the
+                            // avatar took its share of the card's width, which pushed
+                            // the stats row down and read as broken rather than just
+                            // snug. "Sep 2026" fits on one line at any card width this
+                            // layout actually produces.
                             Caption(
-                                "Joined \(firstLogged.formatted(.dateTime.month(.wide).year()))",
-                                size: 13
+                                "Joined \(firstLogged.formatted(.dateTime.month(.abbreviated).year()))",
+                                size: 12.5
                             )
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                         }
 
-                        HStack(spacing: 14) {
+                        HStack(spacing: 12) {
                             figure("\(closed.count)", "sessions")
                             figure("\(categoryCounts.count)", categoryCounts.count == 1 ? "category" : "categories")
                             figure(totalTracked, "logged")
                         }
+                        .padding(.top, 1)
                     }
 
                     Spacer(minLength: 8)
@@ -148,12 +157,12 @@ struct ProfileView: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 104, height: 104)
+                    .frame(width: 88, height: 88)
             } else {
                 Text(ProfilePhoto.initial(for: displayName))
-                    .font(Typeface.title(36))
+                    .font(Typeface.title(30))
                     .foregroundStyle(Theme.inkSoft)
-                    .frame(width: 104, height: 104)
+                    .frame(width: 88, height: 88)
                     .background(Theme.card)
             }
         }
