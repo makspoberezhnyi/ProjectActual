@@ -842,6 +842,11 @@ struct BottomBar: View {
             VStack(spacing: 3) {
                 Image(systemName: symbol)
                     .font(.system(size: 20, weight: .regular))
+                    // A free bit of extra tactility from Apple's own SF Symbol
+                    // effects, layered on top of the pill's slide rather than
+                    // replacing it — triggers once, the moment this tab becomes
+                    // selected, not on every re-render.
+                    .symbolEffect(.bounce, value: isSelected)
                 Text(label)
                     .font(.system(size: 10, weight: .medium))
             }
@@ -862,7 +867,7 @@ struct BottomBar: View {
                                 .strokeBorder(Theme.line, lineWidth: 1)
                         }
                         .padding(.horizontal, 4)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 1)
                         .matchedGeometryEffect(id: "tabSelection", in: tabSelection)
                 }
             }

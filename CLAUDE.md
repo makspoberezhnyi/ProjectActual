@@ -393,7 +393,17 @@ another app's tab bar the person sent — matched the pill shape, the stretch-th
 middle motion, and the `.bouncy` spring, deliberately not the reference's blue selected-
 state colour, which stayed `Theme.ink` to match the rest of the app's monochrome
 palette. The "+" stays the one circle that's always present regardless of selection,
-since it isn't a destination toggling on and off, it's a constant action.
+since it isn't a destination toggling on and off, it's a constant action. The pill
+itself sits taller in its slot than the first version — `.padding(.vertical, 1)`, not
+`4` — closer to the full height of the row rather than visibly inset from it.
+
+Each tab's icon also carries `.symbolEffect(.bounce, value: isSelected)` — a real,
+built-in SF Symbol animation (iOS 17+), not a hand-rolled one. Apple doesn't ship
+anything like a general animation-asset library the way Lottie does, but symbol
+effects are the one place it does provide ready-made presets (`.bounce`, `.pulse`,
+`.wiggle`, `.variableColor`, `.replace`, and others), free with a single modifier.
+Layered on top of the pill's slide rather than replacing it, so selecting a tab gets
+both the shared pill moving and a small bounce on the icon landing on it.
 
 History's icon changed from `line.3.horizontal` to `clock.arrow.circlepath` in the same
 pass — a hamburger glyph reads as "menu," not "a log of what already happened," and the
