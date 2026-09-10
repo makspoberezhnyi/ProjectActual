@@ -764,29 +764,38 @@ struct BottomBar: View {
     /// needs to interpolate the frame between them rather than cross-dissolve.
     @Namespace private var tabSelection
 
+    /// The tab capsule's own outer height (48pt tab row plus 8pt of padding on each
+    /// side) — what the "+" circle matches so the two objects read as one family
+    /// rather than the "+" being sized on its own.
+    private let barHeight: CGFloat = 64
+
     var body: some View {
-        HStack(spacing: 0) {
-            tab(.home, symbol: "house.fill", label: "Home")
-            tab(.log, symbol: "clock.arrow.circlepath", label: "History")
+        HStack(spacing: 12) {
+            HStack(spacing: 0) {
+                tab(.home, symbol: "house.fill", label: "Home")
+                tab(.log, symbol: "clock.arrow.circlepath", label: "History")
+                tab(.insights, symbol: "chart.bar.fill", label: "Insights")
+                tab(.profile, symbol: "person.crop.circle.fill", label: "Profile")
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
+            .background {
+                // A floating capsule rather than an edge-to-edge bar, so it reads as one
+                // object sitting over the content instead of a strip claiming the bottom
+                // of every screen — the same footprint reduction a system Liquid Glass
+                // tab bar gets for free, done by hand since this bar is a custom HStack
+                // rather than a real `TabView`.
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
+            }
 
+            // Its own circle, entirely outside the tab capsule rather than a fifth slot
+            // inside it — the "+" is an action, not a destination, and sitting apart
+            // from the four tabs is what actually reads that difference instead of just
+            // styling it differently in the same row.
             captureButton
-                .frame(maxWidth: .infinity)
                 .accessibilityLabel("Start a session")
-
-            tab(.insights, symbol: "chart.bar.fill", label: "Insights")
-            tab(.profile, symbol: "person.crop.circle.fill", label: "Profile")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background {
-            // A floating capsule rather than an edge-to-edge bar, so it reads as one
-            // object sitting over the content instead of a strip claiming the bottom
-            // of every screen — the same footprint reduction a system Liquid Glass
-            // tab bar gets for free, done by hand since this bar is a custom HStack
-            // rather than a real `TabView`.
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 6)
@@ -794,34 +803,22 @@ struct BottomBar: View {
 
     /// The one circle in the bar, deliberately: everything else reads flat so the "+"
     /// stands out as the action it is, rather than a fifth tab among five identical
-    /// bubbles. Liquid Glass where it fits best on iOS 26+ — the one floating,
-    /// un-anchored control in the app, the same kind of accessory a system tab bar
-    /// puts glass on. Older OSes keep the plain filled-circle look.
-    @ViewBuilder
+    /// bubbles. Same glass material and border as the tab capsule, and the same outer
+    /// height, so it reads as that capsule's sibling rather than a differently-styled
+    /// control that happens to sit next to it.
     private var captureButton: some View {
-        if #available(iOS 26.0, *) {
-            // Plain `.glass`, not `.glassProminent`: prominent fills with the tint and
-            // always draws white content on top, which on this app's near-white dark-mode
-            // accent left the "+" nearly invisible against its own background. Plain
-            // glass draws the icon in the colour it's actually given instead.
-            Button(action: onCapture) {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 40, height: 40)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-        } else {
-            Button(action: onCapture) {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Theme.bg)
-                    .frame(width: 40, height: 40)
-                    .background(Theme.accent, in: .circle)
-            }
-            .buttonStyle(.plain)
+        Button(action: onCapture) {
+            Image(systemName: "plus")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(Theme.ink)
+                .frame(width: barHeight, height: barHeight)
+                .background {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .overlay { Circle().strokeBorder(Theme.line, lineWidth: 1) }
+                }
         }
+        .buttonStyle(.plain)
     }
 
     /// Icon over a small label, flat against the bar's own glass rather than a bubble
@@ -857,15 +854,12 @@ struct BottomBar: View {
             .contentShape(.rect)
             .background {
                 if isSelected {
-                    // A larger radius than the row's own first pass, now that the pill
-                    // fills nearly the full slot height — at 48pt tall, 20pt still leaves
-                    // flat sides for the label rather than rounding into a full capsule.
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    // A true capsule, not just a generously-rounded rect — at 48pt
+                    // tall its ends are already full semicircles, which is what reads
+                    // as a pill rather than a rounded rectangle that happens to be tall.
+                    Capsule()
                         .fill(.regularMaterial)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .strokeBorder(Theme.line, lineWidth: 1)
-                        }
+                        .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
                         .padding(.horizontal, 4)
                         .matchedGeometryEffect(id: "tabSelection", in: tabSelection)
                 }
