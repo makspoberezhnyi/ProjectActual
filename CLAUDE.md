@@ -393,9 +393,12 @@ another app's tab bar the person sent — matched the pill shape, the stretch-th
 middle motion, and the `.bouncy` spring, deliberately not the reference's blue selected-
 state colour, which stayed `Theme.ink` to match the rest of the app's monochrome
 palette. The "+" stays the one circle that's always present regardless of selection,
-since it isn't a destination toggling on and off, it's a constant action. The pill
-itself sits taller in its slot than the first version — `.padding(.vertical, 1)`, not
-`4` — closer to the full height of the row rather than visibly inset from it.
+since it isn't a destination toggling on and off, it's a constant action. The pill grew
+taller and rounder across two follow-up passes — the row itself went from 44pt to 48pt,
+the pill dropped its vertical padding entirely to fill that full height rather than
+sitting visibly inset from it, and its corner radius went from 16 to 20 to match: a
+flatter radius would look under-rounded at the new height, and a full `Capsule()` still
+isn't right for the same reason noted above, crowding the label at the sides.
 
 Each tab's icon also carries `.symbolEffect(.bounce, value: isSelected)` — a real,
 built-in SF Symbol animation (iOS 17+), not a hand-rolled one. Apple doesn't ship

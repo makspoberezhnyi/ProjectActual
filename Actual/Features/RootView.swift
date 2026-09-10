@@ -852,22 +852,20 @@ struct BottomBar: View {
             }
             .foregroundStyle(isSelected ? Theme.ink : Theme.inkFaint)
             .frame(maxWidth: .infinity)
-            .frame(height: 44)
+            .frame(height: 48)
             .contentShape(.rect)
             .background {
                 if isSelected {
-                    // A fixed, smaller radius rather than `Capsule()` — at this height a
-                    // capsule's ends round so aggressively they crowd the label at the
-                    // sides, and the curve sits close enough to the bar's own edge on the
-                    // first and last tab to look pinched rather than simply rounded.
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    // A larger radius than the row's own first pass, now that the pill
+                    // fills nearly the full slot height — at 48pt tall, 20pt still leaves
+                    // flat sides for the label rather than rounding into a full capsule.
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(.regularMaterial)
                         .overlay {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
                                 .strokeBorder(Theme.line, lineWidth: 1)
                         }
                         .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
                         .matchedGeometryEffect(id: "tabSelection", in: tabSelection)
                 }
             }
