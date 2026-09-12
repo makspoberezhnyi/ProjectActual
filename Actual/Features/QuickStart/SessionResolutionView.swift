@@ -83,7 +83,7 @@ struct SessionResolutionView: View {
                             .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
                             .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.2), value: appeared)
                     }
-                    .padding(.horizontal, Theme.Spacing.focused)
+                    .padding(.horizontal, Theme.Padding.focused)
                     .padding(.top, 26)
                     .padding(.bottom, 24)
                 }
@@ -106,7 +106,7 @@ struct SessionResolutionView: View {
             Button(action: onDismiss) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
@@ -115,7 +115,7 @@ struct SessionResolutionView: View {
             Caption("What was this")
             Spacer()
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
     }
 
@@ -125,16 +125,16 @@ struct SessionResolutionView: View {
         VStack(alignment: .leading, spacing: 8) {
             Caption("What was this")
 
-            TextField("", text: $typedTitle, prompt: Text("Session title").foregroundStyle(Theme.tertiaryText))
+            TextField("", text: $typedTitle, prompt: Text("Session title").foregroundStyle(Theme.inkFaint))
                 .font(Typeface.body(15))
-                .foregroundStyle(Theme.primaryText)
+                .foregroundStyle(Theme.ink)
                 .textInputAutocapitalization(.sentences)
                 .autocorrectionDisabled()
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
                 .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
                 .overlay {
-                    RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(Theme.border, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(Theme.line, lineWidth: 1)
                 }
                 // Editing away from a picked chip un-picks it — the field is back to
                 // being freeform text, exactly like it was before anything matched.
@@ -146,7 +146,7 @@ struct SessionResolutionView: View {
 
             if isNewCategory {
                 EmojiIconButton(selection: $iconName)
-                    .padding(.horizontal, Theme.Spacing.screen)
+                    .padding(.horizontal, Theme.Padding.screen)
                     .padding(.top, 14)
             }
 
@@ -159,7 +159,7 @@ struct SessionResolutionView: View {
                 }
             }
         }
-        .padding(.horizontal, Theme.Spacing.focused)
+        .padding(.horizontal, Theme.Padding.focused)
         .padding(.top, 16)
     }
 
@@ -177,7 +177,7 @@ struct SessionResolutionView: View {
                 }
             }
         }
-        .padding(.horizontal, Theme.Spacing.focused)
+        .padding(.horizontal, Theme.Padding.focused)
         .padding(.top, 16)
     }
 
@@ -189,7 +189,7 @@ struct SessionResolutionView: View {
         }
         .disabled(!canResolve)
         .opacity(canResolve ? 1 : 0.4)
-        .padding(.horizontal, Theme.Spacing.focused)
+        .padding(.horizontal, Theme.Padding.focused)
         .padding(.top, 10)
         .padding(.bottom, 24)
     }
@@ -209,7 +209,7 @@ struct UnresolvedSessionsCard: View {
             HStack {
                 Text("Needs a label")
                     .font(Typeface.title(15))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                 Spacer()
                 Caption("\(sessions.count) waiting")
             }
@@ -221,13 +221,13 @@ struct UnresolvedSessionsCard: View {
                     HStack(spacing: 12) {
                         Image(systemName: "questionmark.circle")
                             .font(.system(size: 15))
-                            .foregroundStyle(Theme.secondaryText)
+                            .foregroundStyle(Theme.inkSoft)
                             .frame(width: 18, height: 18)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Unlabelled session")
                                 .font(Typeface.medium(14))
-                                .foregroundStyle(Theme.primaryText)
+                                .foregroundStyle(Theme.ink)
                             Caption(endedLabel(session), size: 12)
                         }
 
@@ -235,13 +235,13 @@ struct UnresolvedSessionsCard: View {
 
                         Text(DurationFormatting.compact(minutes: session.actualMinutes ?? 0))
                             .font(Typeface.title(16))
-                            .foregroundStyle(Theme.primaryText)
+                            .foregroundStyle(Theme.ink)
 
                         Image(systemName: "chevron.right")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Theme.tertiaryText)
+                            .foregroundStyle(Theme.inkFaint)
                     }
-                    .padding(.horizontal, Theme.Spacing.row)
+                    .padding(.horizontal, Theme.Padding.row)
                     .padding(.vertical, 14)
                     .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
                     .overlay {

@@ -79,7 +79,7 @@ struct RunningWidgetView: View {
                 Circle().fill(Theme.accent).frame(width: 5, height: 5)
                 Text(running.title)
                     .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                     .lineLimit(1)
             }
 
@@ -87,14 +87,14 @@ struct RunningWidgetView: View {
             // widget framework can sustain anyway.
             Text(running.startedAt, style: .timer)
                 .font(.system(size: isCompact ? 26 : 32, weight: .bold).monospacedDigit())
-                .foregroundStyle(Theme.primaryText)
+                .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
 
             if let expected = running.expectedMinutes {
                 Text("of ~\(DurationFormatting.compact(minutes: expected)) expected")
                     .font(.system(size: isCompact ? 10 : 11))
-                    .foregroundStyle(Theme.tertiaryText)
+                    .foregroundStyle(Theme.inkFaint)
                     .lineLimit(1)
             }
 
@@ -106,7 +106,7 @@ struct RunningWidgetView: View {
                     .foregroundStyle(Theme.bg)
                     .frame(maxWidth: .infinity)
                     .frame(height: isCompact ? 28 : 32)
-                    .background(Theme.primaryText, in: .capsule)
+                    .background(Theme.ink, in: .capsule)
             }
             .buttonStyle(.plain)
         }
@@ -133,7 +133,7 @@ struct QuickStartWidgetView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Or start again")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Theme.tertiaryText)
+                            .foregroundStyle(Theme.inkFaint)
 
                         ForEach(quickStarts.prefix(3)) { start in
                             quickStartRow(start)
@@ -152,11 +152,11 @@ struct QuickStartWidgetView: View {
                     .font(.system(size: isCompact ? 20 : 22, weight: .semibold))
                     .foregroundStyle(Theme.bg)
                     .frame(width: isCompact ? 46 : 50, height: isCompact ? 46 : 50)
-                    .background(Theme.primaryText, in: .circle)
+                    .background(Theme.ink, in: .circle)
 
                 Text("Start")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -172,12 +172,12 @@ struct QuickStartWidgetView: View {
             HStack(spacing: 8) {
                 CategoryIconView(symbolName: start.symbolName)
                     .font(.system(size: 11))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .frame(width: 14)
 
                 Text(start.name)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                     .lineLimit(1)
 
                 Spacer(minLength: 4)
@@ -185,7 +185,7 @@ struct QuickStartWidgetView: View {
                 if let minutes = start.expectedMinutes {
                     Text(DurationFormatting.compact(minutes: minutes))
                         .font(.system(size: 10.5))
-                        .foregroundStyle(Theme.tertiaryText)
+                        .foregroundStyle(Theme.inkFaint)
                 }
             }
             .padding(.horizontal, 10)

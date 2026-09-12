@@ -54,7 +54,7 @@ struct SessionDetailView: View {
                             flaggedNote
                         }
                     }
-                    .padding(.horizontal, Theme.Spacing.focused)
+                    .padding(.horizontal, Theme.Padding.focused)
                     .padding(.top, 22)
                     .padding(.bottom, 24)
                 }
@@ -71,11 +71,11 @@ struct SessionDetailView: View {
                     } label: {
                         Text("Delete this session")
                             .font(Typeface.body(13))
-                            .foregroundStyle(Theme.tertiaryText)
+                            .foregroundStyle(Theme.inkFaint)
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, Theme.Spacing.focused)
+                .padding(.horizontal, Theme.Padding.focused)
                 .padding(.bottom, 40)
             }
             .opacity(appeared ? 1 : 0)
@@ -99,7 +99,7 @@ struct SessionDetailView: View {
             Button(action: onDismiss) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
@@ -108,7 +108,7 @@ struct SessionDetailView: View {
             Caption(session.endedAt?.formatted(.dateTime.weekday(.wide).month(.wide).day()) ?? "")
             Spacer()
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
     }
 
@@ -120,7 +120,7 @@ struct SessionDetailView: View {
                 Caption("\(categoryName) · \(session.contextTag.rawValue)")
                 Text(session.title)
                     .font(Typeface.title(24))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
             }
 
             HStack(alignment: .top, spacing: session.apiBaselineMinutes == nil ? 22 : 14) {
@@ -130,7 +130,7 @@ struct SessionDetailView: View {
                         session.estimatedMinutes.map { DurationFormatting.padded(minutes: $0) } ?? "—"
                     )
                     .font(Typeface.display(28))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 }
@@ -141,7 +141,7 @@ struct SessionDetailView: View {
                         Caption("Route said", size: 12)
                         Text(DurationFormatting.padded(minutes: baseline))
                             .font(Typeface.display(28))
-                            .foregroundStyle(Theme.secondaryText)
+                            .foregroundStyle(Theme.inkSoft)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                     }
@@ -151,17 +151,17 @@ struct SessionDetailView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Actual")
                         .font(Typeface.semibold(12))
-                        .foregroundStyle(Theme.secondaryText)
+                        .foregroundStyle(Theme.inkSoft)
                     Text(DurationFormatting.padded(minutes: session.actualMinutes ?? 0))
                         .font(Typeface.display(28))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
     }
 
@@ -182,7 +182,7 @@ struct SessionDetailView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(DurationFormatting.compact(minutes: estimate.minutes))
                         .font(Typeface.display(26))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
 
                     if let trend = trendText(estimate) {
                         Caption(trend, size: 12)
@@ -191,7 +191,7 @@ struct SessionDetailView: View {
 
                 Text(explanation(estimate))
                     .font(Typeface.body(13))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -231,11 +231,11 @@ struct SessionDetailView: View {
         CardSurface(radius: Theme.Radius.row, padding: 15) {
             Text("This session's data may not be reliable.")
                 .font(Typeface.body(12))
-                .foregroundStyle(Theme.secondaryText)
+                .foregroundStyle(Theme.inkSoft)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.bottom, 44)
     }
 }

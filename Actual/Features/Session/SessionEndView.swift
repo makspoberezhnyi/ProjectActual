@@ -37,7 +37,7 @@ struct SessionEndView: View {
                         Caption("\(session.title) · \(session.contextTag.rawValue)")
                         Text("Session ended")
                             .font(Typeface.title(24))
-                            .foregroundStyle(Theme.primaryText)
+                            .foregroundStyle(Theme.ink)
                     }
 
                     outcome
@@ -56,7 +56,7 @@ struct SessionEndView: View {
                         firstTimeCard
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.focused)
+                .padding(.horizontal, Theme.Padding.focused)
 
                 Spacer()
                 actions
@@ -77,7 +77,7 @@ struct SessionEndView: View {
                     session.estimatedMinutes.map { DurationFormatting.padded(minutes: $0) } ?? "—"
                 )
                 .font(Typeface.display(28))
-                .foregroundStyle(Theme.secondaryText)
+                .foregroundStyle(Theme.inkSoft)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             }
@@ -91,7 +91,7 @@ struct SessionEndView: View {
                     Caption("Route said", size: 12)
                     Text(DurationFormatting.padded(minutes: baseline))
                         .font(Typeface.display(28))
-                        .foregroundStyle(Theme.secondaryText)
+                        .foregroundStyle(Theme.inkSoft)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                 }
@@ -101,10 +101,10 @@ struct SessionEndView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Actual")
                     .font(Typeface.semibold(12))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                 Text(DurationFormatting.padded(minutes: session.actualMinutes ?? 0))
                     .font(Typeface.display(28))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
@@ -126,7 +126,7 @@ struct SessionEndView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(DurationFormatting.compact(minutes: estimate.minutes))
                         .font(Typeface.display(24))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
 
                     if let delta = estimate.trendMinutes, delta != 0 {
                         Caption(
@@ -138,14 +138,14 @@ struct SessionEndView: View {
 
                 Text(summary(estimate))
                     .font(Typeface.body(13))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let routeNote {
                     Text(routeNote)
                         .font(Typeface.body(12.5))
-                        .foregroundStyle(Theme.tertiaryText)
+                        .foregroundStyle(Theme.inkFaint)
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)
@@ -178,7 +178,7 @@ struct SessionEndView: View {
                 Caption("Logged")
                 Text("A few more of these and Actual will start showing you what this usually takes.")
                     .font(Typeface.body(13))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -210,10 +210,10 @@ struct SessionEndView: View {
                         Text("Let them know it's done")
                             .font(Typeface.body(13))
                     }
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
-                    .overlay { Capsule().strokeBorder(Theme.border, lineWidth: 1) }
+                    .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
                 }
                 .buttonStyle(.plain)
             }
@@ -222,14 +222,14 @@ struct SessionEndView: View {
 
             HStack(spacing: 4) {
                 Text("This felt unusual?")
-                    .foregroundStyle(Theme.tertiaryText)
+                    .foregroundStyle(Theme.inkFaint)
                 Text("Tag the context")
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .underline()
             }
             .font(Typeface.body(12.5))
         }
-        .padding(.horizontal, Theme.Spacing.focused)
+        .padding(.horizontal, Theme.Padding.focused)
         .padding(.bottom, 46)
     }
 }

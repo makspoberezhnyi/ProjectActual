@@ -24,7 +24,7 @@ struct TripMapView: View {
             VStack {
                 Spacer()
                 statCard
-                    .padding(.horizontal, Theme.Spacing.screen)
+                    .padding(.horizontal, Theme.Padding.screen)
                     .padding(.bottom, 40)
             }
         }
@@ -39,7 +39,7 @@ struct TripMapView: View {
                     Circle()
                         .fill(Theme.card)
                         .frame(width: 12, height: 12)
-                        .overlay { Circle().strokeBorder(Theme.primaryText, lineWidth: 2) }
+                        .overlay { Circle().strokeBorder(Theme.ink, lineWidth: 2) }
                 }
             }
 
@@ -67,7 +67,7 @@ struct TripMapView: View {
             Button(action: onDismiss) {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                     .frame(width: 36, height: 36)
                     .background(Theme.bg.opacity(0.85), in: .circle)
             }
@@ -75,7 +75,7 @@ struct TripMapView: View {
             .accessibilityLabel("Close map")
             Spacer()
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 8)
     }
 
@@ -85,7 +85,7 @@ struct TripMapView: View {
                 label: "time",
                 value: DurationFormatting.clock(seconds: session.elapsedSeconds())
             )
-            Divider().overlay(Theme.border).frame(height: 32)
+            Divider().overlay(Theme.line).frame(height: 32)
             stat(
                 label: "distance",
                 value: DurationFormatting.distance(meters: session.routeDistanceMeters)
@@ -96,7 +96,7 @@ struct TripMapView: View {
         .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.panel))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.Radius.panel)
-                .strokeBorder(Theme.border, lineWidth: 1)
+                .strokeBorder(Theme.line, lineWidth: 1)
         }
     }
 
@@ -104,7 +104,7 @@ struct TripMapView: View {
         VStack(spacing: 3) {
             Text(value)
                 .font(Typeface.timer(22))
-                .foregroundStyle(Theme.primaryText)
+                .foregroundStyle(Theme.ink)
             Caption(label, size: 11.5)
         }
         .frame(maxWidth: .infinity)

@@ -12,14 +12,6 @@ struct CategoryTrendView: View {
     let history: [BiasEngine.HistoryPoint]
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
-
-    /// `AdaptiveColor` resolves itself for `.foregroundStyle()`/`.fill()`, but Swift
-    /// Charts' gradient wants a concrete `[Color]`, so this picks the matching one by
-    /// hand rather than hardcoding a single mode.
-    private var resolvedAccent: Color {
-        colorScheme == .dark ? Theme.accent.dark : Theme.accent.light
-    }
 
     var body: some View {
         ZStack {
@@ -31,18 +23,18 @@ struct CategoryTrendView: View {
 
                 if history.count >= 2 {
                     chart
-                        .padding(.horizontal, Theme.Spacing.screen)
+                        .padding(.horizontal, Theme.Padding.screen)
                         .padding(.top, 28)
                         .frame(height: 220)
                 } else {
                     Caption("Not enough history yet to draw a trend for this one.")
-                        .padding(.horizontal, Theme.Spacing.screen)
+                        .padding(.horizontal, Theme.Padding.screen)
                         .padding(.top, 40)
                 }
 
                 if output.driftFlag {
                     driftNote
-                        .padding(.horizontal, Theme.Spacing.screen)
+                        .padding(.horizontal, Theme.Padding.screen)
                         .padding(.top, 20)
                 }
 
@@ -56,7 +48,7 @@ struct CategoryTrendView: View {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
@@ -66,7 +58,7 @@ struct CategoryTrendView: View {
             Spacer()
             Color.clear.frame(width: 22, height: 22)
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
     }
 
@@ -74,7 +66,7 @@ struct CategoryTrendView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(name)
                 .font(Typeface.title(24))
-                .foregroundStyle(Theme.primaryText)
+                .foregroundStyle(Theme.ink)
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(DurationFormatting.signedPercent(output.deviation))
@@ -85,7 +77,7 @@ struct CategoryTrendView: View {
 
             CountBadge(text: "\(output.instanceCount) sessions")
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 18)
     }
 
@@ -95,7 +87,7 @@ struct CategoryTrendView: View {
     private var chart: some View {
         Chart {
             RuleMark(y: .value("Spot on", 0))
-                .foregroundStyle(Theme.tertiaryText.opacity(0.5))
+                .foregroundStyle(Theme.inkFaint.opacity(0.5))
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 4]))
 
             ForEach(Array(history.enumerated()), id: \.offset) { _, point in
@@ -113,7 +105,7 @@ struct CategoryTrendView: View {
                 )
                 .foregroundStyle(
                     .linearGradient(
-                        colors: [resolvedAccent.opacity(0.18), resolvedAccent.opacity(0)],
+                        colors: [Theme.accent.opacity(0.18), Theme.accent.opacity(0)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -123,19 +115,19 @@ struct CategoryTrendView: View {
         }
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 4)) { _ in
-                AxisGridLine().foregroundStyle(Theme.border)
-                AxisValueLabel().foregroundStyle(Theme.tertiaryText)
+                AxisGridLine().foregroundStyle(Theme.line)
+                AxisValueLabel().foregroundStyle(Theme.inkFaint)
             }
         }
         .chartYAxis {
             AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine().foregroundStyle(Theme.border)
+                AxisGridLine().foregroundStyle(Theme.line)
                 AxisValueLabel {
                     if let percent = value.as(Double.self) {
                         Text("\(Int(percent))%")
                     }
                 }
-                .foregroundStyle(Theme.tertiaryText)
+                .foregroundStyle(Theme.inkFaint)
             }
         }
     }
@@ -146,12 +138,12 @@ struct CategoryTrendView: View {
                 HStack {
                     Text("Shifted recently")
                         .font(Typeface.medium(13))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
                     Spacer()
                 }
                 Text("This moved quickly in the last stretch on the chart above, worth a second look if something in this routine changed.")
                     .font(Typeface.body(12.5))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }

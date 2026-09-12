@@ -128,18 +128,18 @@ struct HistoryView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("History")
                     .font(Typeface.title(22))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                 Spacer()
                 if isSelecting {
                     Button("Cancel", action: endSelecting)
                         .font(Typeface.medium(13))
-                        .foregroundStyle(Theme.secondaryText)
+                        .foregroundStyle(Theme.inkSoft)
                         .buttonStyle(.plain)
                 } else {
                     Caption(totalSummary)
                 }
             }
-            .padding(.horizontal, Theme.Spacing.screen)
+            .padding(.horizontal, Theme.Padding.screen)
             .padding(.top, 22)
             .padding(.bottom, 6)
 
@@ -150,11 +150,11 @@ struct HistoryView: View {
                     } label: {
                         Text(option.rawValue)
                             .font(option == scope ? Typeface.medium(12) : Typeface.body(12))
-                            .foregroundStyle(option == scope ? Theme.bg : Theme.tertiaryText)
+                            .foregroundStyle(option == scope ? Theme.bg : Theme.inkFaint)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 6)
                             .background {
-                                if option == scope { Capsule().fill(Theme.primaryText) }
+                                if option == scope { Capsule().fill(Theme.ink) }
                             }
                     }
                     .buttonStyle(.plain)
@@ -167,11 +167,11 @@ struct HistoryView: View {
                 if !isSelecting && !days.isEmpty {
                     Button("Select") { isSelecting = true }
                         .font(Typeface.body(12))
-                        .foregroundStyle(Theme.tertiaryText)
+                        .foregroundStyle(Theme.inkFaint)
                         .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, Theme.Spacing.screen)
+            .padding(.horizontal, Theme.Padding.screen)
             .padding(.bottom, 6)
 
             if isSelecting {
@@ -186,19 +186,19 @@ struct HistoryView: View {
         HStack(spacing: 0) {
             Text(selectedUUIDs.isEmpty ? "Select sessions to delete" : "\(selectedUUIDs.count) selected")
                 .font(Typeface.body(13))
-                .foregroundStyle(Theme.secondaryText)
+                .foregroundStyle(Theme.inkSoft)
             Spacer()
             Button(role: .destructive) {
                 deleteSelected()
             } label: {
                 Text("Delete")
                     .font(Typeface.medium(13))
-                    .foregroundStyle(selectedUUIDs.isEmpty ? AnyShapeStyle(Theme.tertiaryText) : AnyShapeStyle(Color.red))
+                    .foregroundStyle(selectedUUIDs.isEmpty ? Theme.inkFaint : Color.red)
             }
             .buttonStyle(.plain)
             .disabled(selectedUUIDs.isEmpty)
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.vertical, 8)
         .background(Theme.bg)
         .transition(.opacity)
@@ -234,11 +234,11 @@ struct HistoryView: View {
             CardSurface(radius: Theme.Radius.row, padding: 16) {
                 Text("Nothing logged yet. Anything you start and finish shows up here.")
                     .font(Typeface.body(13))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, Theme.Spacing.screen)
+            .padding(.horizontal, Theme.Padding.screen)
             Spacer()
             Spacer()
         }
@@ -250,13 +250,13 @@ struct HistoryView: View {
         HStack {
             Text(dayLabel(date))
                 .font(Typeface.title(15))
-                .foregroundStyle(Theme.primaryText)
+                .foregroundStyle(Theme.ink)
             Spacer()
             // A factual total for the day. No target, nothing to be under or over.
             Caption(DurationFormatting.compact(minutes: totalMinutes(sessions)))
         }
         .textCase(nil)
-        .listRowInsets(EdgeInsets(top: 22, leading: Theme.Spacing.screen, bottom: 8, trailing: Theme.Spacing.screen))
+        .listRowInsets(EdgeInsets(top: 22, leading: Theme.Padding.screen, bottom: 8, trailing: Theme.Padding.screen))
         .listRowBackground(Color.clear)
     }
 
@@ -283,7 +283,7 @@ struct HistoryView: View {
             }
         }
         .buttonStyle(.plain)
-        .listRowInsets(EdgeInsets(top: 5, leading: Theme.Spacing.screen, bottom: 5, trailing: Theme.Spacing.screen))
+        .listRowInsets(EdgeInsets(top: 5, leading: Theme.Padding.screen, bottom: 5, trailing: Theme.Padding.screen))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -343,7 +343,7 @@ struct HistoryView: View {
     private func selectionIndicator(isSelected: Bool) -> some View {
         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
             .font(.system(size: 20))
-            .foregroundStyle(isSelected ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.tertiaryText.opacity(0.5)))
+            .foregroundStyle(isSelected ? Theme.accent : Theme.inkFaint.opacity(0.5))
     }
 
     private func totalMinutes(_ sessions: [Session]) -> Int {
@@ -384,22 +384,22 @@ struct HistoryRow: View {
         HStack(spacing: 12) {
             CategoryIconView(symbolName: symbol)
                 .font(.system(size: 15, weight: .regular))
-                .foregroundStyle(Theme.secondaryText)
+                .foregroundStyle(Theme.inkSoft)
                 .frame(width: 18, height: 18)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(session.title)
                         .font(Typeface.medium(14))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
 
                     if session.contextTag != .normal {
                         Text(session.contextTag.rawValue)
                             .font(Typeface.body(10.5))
-                            .foregroundStyle(Theme.secondaryText)
+                            .foregroundStyle(Theme.inkSoft)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 2)
-                            .background(Theme.pillBg, in: .capsule)
+                            .background(Theme.pill, in: .capsule)
                     }
                 }
 
@@ -415,7 +415,7 @@ struct HistoryRow: View {
                         Caption("·", size: 12)
                         Text(DurationFormatting.signedPercent(deviation))
                             .font(Typeface.body(12))
-                            .foregroundStyle(Theme.secondaryText)
+                            .foregroundStyle(Theme.inkSoft)
                     }
                 }
             }
@@ -425,17 +425,17 @@ struct HistoryRow: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(DurationFormatting.compact(minutes: session.actualMinutes ?? 0))
                     .font(Typeface.title(16))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                 Caption(endedLabel, size: 11)
             }
         }
-        .padding(.horizontal, Theme.Spacing.row)
+        .padding(.horizontal, Theme.Padding.row)
         .padding(.vertical, 14)
         .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.Radius.row)
                 .strokeBorder(
-                    session.isFlaggedLowConfidence ? AnyShapeStyle(Color.white.opacity(0.18)) : AnyShapeStyle(Theme.border),
+                    session.isFlaggedLowConfidence ? Color.white.opacity(0.18) : Theme.line,
                     lineWidth: 1
                 )
         }

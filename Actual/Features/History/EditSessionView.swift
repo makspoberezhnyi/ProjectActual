@@ -77,7 +77,7 @@ struct EditSessionView: View {
                         guessSection
                         timesSection
                     }
-                    .padding(.horizontal, Theme.Spacing.focused)
+                    .padding(.horizontal, Theme.Padding.focused)
                     .padding(.top, 18)
                     .padding(.bottom, 12)
                 }
@@ -96,7 +96,7 @@ struct EditSessionView: View {
                 }
                 .disabled(!isValid)
                 .opacity(isValid ? 1 : 0.4)
-                .padding(.horizontal, Theme.Spacing.focused)
+                .padding(.horizontal, Theme.Padding.focused)
                 .padding(.bottom, 24)
             }
         }
@@ -120,7 +120,7 @@ struct EditSessionView: View {
             Button(action: onCancel) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
@@ -130,7 +130,7 @@ struct EditSessionView: View {
             Spacer()
             Color.clear.frame(width: 22, height: 22)
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
     }
 
@@ -142,16 +142,16 @@ struct EditSessionView: View {
             TextField(
                 "",
                 text: $title,
-                prompt: Text("What was this").foregroundStyle(Theme.tertiaryText)
+                prompt: Text("What was this").foregroundStyle(Theme.inkFaint)
             )
             .font(Typeface.body(15))
-            .foregroundStyle(Theme.primaryText)
+            .foregroundStyle(Theme.ink)
             .textInputAutocapitalization(.sentences)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
             .overlay {
-                RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(Theme.border, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(Theme.line, lineWidth: 1)
             }
         }
     }
@@ -184,7 +184,7 @@ struct EditSessionView: View {
                 HStack {
                     Text(DurationFormatting.padded(minutes: guessMinutes))
                         .font(Typeface.display(26))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
                     Spacer()
                     Stepper("", value: $guessMinutes, in: 5...600, step: 5)
                         .labelsHidden()
@@ -202,11 +202,11 @@ struct EditSessionView: View {
                 VStack(spacing: 12) {
                     DatePicker("Started", selection: $startedAt, displayedComponents: [.date, .hourAndMinute])
                         .font(Typeface.body(13))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
                     Hairline()
                     DatePicker("Ended", selection: $endedAt, displayedComponents: [.date, .hourAndMinute])
                         .font(Typeface.body(13))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
                 }
             }
 

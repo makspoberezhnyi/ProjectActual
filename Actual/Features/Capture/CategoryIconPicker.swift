@@ -43,13 +43,13 @@ struct CategoryIconPicker: View {
                         } label: {
                             Image(systemName: symbol)
                                 .font(.system(size: 16))
-                                .foregroundStyle(isSelected ? Theme.bg : Theme.secondaryText)
+                                .foregroundStyle(isSelected ? Theme.bg : Theme.inkSoft)
                                 .frame(width: 40, height: 40)
                                 .background {
-                                    Circle().fill(isSelected ? Theme.primaryText : Theme.card)
+                                    Circle().fill(isSelected ? Theme.ink : Theme.card)
                                 }
                                 .overlay {
-                                    Circle().strokeBorder(Theme.border, lineWidth: isSelected ? 0 : 1)
+                                    Circle().strokeBorder(Theme.line, lineWidth: isSelected ? 0 : 1)
                                 }
                         }
                         .buttonStyle(.plain)
@@ -90,7 +90,7 @@ struct EmojiIconButton: View {
             } else {
                 Image(systemName: "face.smiling")
                     .font(.system(size: 16))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
             }
 
             // Invisible but tappable/typable: it never displays its own draft, so
@@ -102,10 +102,10 @@ struct EmojiIconButton: View {
         }
         .frame(width: 40, height: 40)
         .background {
-            Circle().fill(isSelected ? Theme.primaryText : Theme.card)
+            Circle().fill(isSelected ? Theme.ink : Theme.card)
         }
         .overlay {
-            Circle().strokeBorder(Theme.border, lineWidth: isSelected ? 0 : 1)
+            Circle().strokeBorder(Theme.line, lineWidth: isSelected ? 0 : 1)
         }
         .accessibilityLabel(isSelected ? "Emoji icon, \(selection)" : "Pick an emoji icon")
     }

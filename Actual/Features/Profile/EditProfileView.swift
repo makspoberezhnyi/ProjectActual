@@ -29,10 +29,10 @@ struct EditProfileView: View {
                         TextField(
                             "",
                             text: $displayName,
-                            prompt: Text("Your name").foregroundStyle(Theme.tertiaryText)
+                            prompt: Text("Your name").foregroundStyle(Theme.inkFaint)
                         )
                         .font(Typeface.title(22))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
                         .textInputAutocapitalization(.words)
                         .autocorrectionDisabled()
                         Hairline()
@@ -42,11 +42,11 @@ struct EditProfileView: View {
                     // "from" — changing it here changes what the next reminder says.
                     Text("Used on your reminder links, and in Home's greeting. Nothing here leaves the device on its own.")
                         .font(Typeface.body(12.5))
-                        .foregroundStyle(Theme.tertiaryText)
+                        .foregroundStyle(Theme.inkFaint)
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal, Theme.Spacing.focused)
+                .padding(.horizontal, Theme.Padding.focused)
                 .padding(.top, 36)
 
                 Spacer()
@@ -71,7 +71,7 @@ struct EditProfileView: View {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
@@ -81,7 +81,7 @@ struct EditProfileView: View {
             Spacer()
             Color.clear.frame(width: 22, height: 22)
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
     }
 
@@ -99,7 +99,7 @@ struct EditProfileView: View {
                     } else {
                         Image(systemName: "pencil.circle.fill")
                             .font(.system(size: 26))
-                            .foregroundStyle(Theme.primaryText, Theme.card)
+                            .foregroundStyle(Theme.ink, Theme.card)
                             .background(Theme.bg, in: .circle)
                     }
                 }
@@ -113,7 +113,7 @@ struct EditProfileView: View {
                     pickerItem = nil
                 }
                 .font(Typeface.body(13))
-                .foregroundStyle(Theme.tertiaryText)
+                .foregroundStyle(Theme.inkFaint)
                 .buttonStyle(.plain)
             }
         }
@@ -131,12 +131,12 @@ struct EditProfileView: View {
             } else {
                 Text(ProfilePhoto.initial(for: displayName))
                     .font(Typeface.title(32))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .frame(width: 96, height: 96)
                     .background(Theme.card, in: .circle)
             }
         }
-        .overlay { Circle().strokeBorder(Theme.border, lineWidth: 1) }
+        .overlay { Circle().strokeBorder(Theme.line, lineWidth: 1) }
     }
 }
 

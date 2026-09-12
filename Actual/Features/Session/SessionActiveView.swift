@@ -48,12 +48,12 @@ struct SessionActiveView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("\(session.title) · \(session.contextTag.rawValue)")
                                 .font(Typeface.body(13.5))
-                                .foregroundStyle(isOverdue ? Theme.error : Theme.tertiaryText)
+                                .foregroundStyle(isOverdue ? Theme.error : Theme.inkFaint)
 
                             Text(DurationFormatting.clock(seconds: elapsed))
                                 .font(Typeface.timer(64))
                                 .tracking(-1.3)
-                                .foregroundStyle(isOverdue ? Theme.error : Theme.primaryText)
+                                .foregroundStyle(isOverdue ? Theme.error : Theme.ink)
                         }
                         .padding(.top, 44)
 
@@ -70,7 +70,7 @@ struct SessionActiveView: View {
                                 Spacer()
                                 Text("\(DurationFormatting.compact(minutes: estimate.minutes)) · \(estimate.instanceCount) sessions")
                                     .font(Typeface.body(12.5))
-                                    .foregroundStyle(Theme.secondaryText)
+                                    .foregroundStyle(Theme.inkSoft)
                             }
                             .padding(.top, 16)
                         } else {
@@ -79,7 +79,7 @@ struct SessionActiveView: View {
                         }
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.focused)
+                .padding(.horizontal, Theme.Padding.focused)
                 .opacity(appeared ? 1 : 0)
                 .offset(y: appeared ? 0 : -20)
                 .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
@@ -89,7 +89,7 @@ struct SessionActiveView: View {
 
                 if let onShowMap, !session.route.isEmpty {
                     routeCard(onTap: onShowMap)
-                        .padding(.horizontal, Theme.Spacing.focused)
+                        .padding(.horizontal, Theme.Padding.focused)
                         .padding(.bottom, 12)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : -20)
@@ -100,11 +100,11 @@ struct SessionActiveView: View {
                 CardSurface(radius: Theme.Radius.row, padding: 17) {
                     Text("Say \"ending \(session.title.lowercased())\" or tap below when you're done. Nothing to confirm, Actual just records what happened.")
                         .font(Typeface.body(13))
-                        .foregroundStyle(Theme.secondaryText)
+                        .foregroundStyle(Theme.inkSoft)
                         .lineSpacing(3.5)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal, Theme.Spacing.focused)
+                .padding(.horizontal, Theme.Padding.focused)
                 .opacity(appeared ? 1 : 0)
                 .offset(y: appeared ? 0 : -20)
                 .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
@@ -123,7 +123,7 @@ struct SessionActiveView: View {
             Button(action: onDismiss) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
@@ -132,7 +132,7 @@ struct SessionActiveView: View {
             Caption(session.title)
             Spacer()
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
     }
 
@@ -145,17 +145,17 @@ struct SessionActiveView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "route")
                         .font(.system(size: 14))
-                        .foregroundStyle(Theme.secondaryText)
+                        .foregroundStyle(Theme.inkSoft)
 
                     Text("View route")
                         .font(Typeface.body(13))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.tertiaryText)
+                        .foregroundStyle(Theme.inkFaint)
                 }
             }
         }
@@ -168,7 +168,7 @@ struct SessionActiveView: View {
         PrimaryButton(title: "End session") {
             onEnd()
         }
-        .padding(.horizontal, Theme.Spacing.focused)
+        .padding(.horizontal, Theme.Padding.focused)
         .padding(.top, 10)
         .padding(.bottom, 24)
     }

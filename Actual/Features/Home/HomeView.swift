@@ -69,12 +69,12 @@ struct HomeView: View {
                             nextCommitment: nextCommitment,
                             onOpen: onOpenGapFiller
                         )
-                        .padding(.horizontal, Theme.Spacing.screen)
+                        .padding(.horizontal, Theme.Padding.screen)
                         .padding(.top, 18)
                         .plainRow()
                     } else {
                         idleCard
-                            .padding(.horizontal, Theme.Spacing.screen)
+                            .padding(.horizontal, Theme.Padding.screen)
                             .padding(.top, 18)
                             .plainRow()
                     }
@@ -89,21 +89,21 @@ struct HomeView: View {
                             )
                         }
                     }
-                    .padding(.horizontal, Theme.Spacing.screen)
+                    .padding(.horizontal, Theme.Padding.screen)
                     .padding(.top, 18)
                     .plainRow()
                 }
 
                 if !unresolved.isEmpty {
                     UnresolvedSessionsCard(sessions: unresolved, onResolve: onResolve)
-                        .padding(.horizontal, Theme.Spacing.screen)
+                        .padding(.horizontal, Theme.Padding.screen)
                         .padding(.top, 24)
                         .plainRow()
                 }
 
                 if !reminders.isEmpty {
                     remindersSection
-                        .padding(.horizontal, Theme.Spacing.screen)
+                        .padding(.horizontal, Theme.Padding.screen)
                         .padding(.top, 24)
                         .plainRow()
                 }
@@ -112,7 +112,7 @@ struct HomeView: View {
 
                 if todaysClosed.isEmpty {
                     Caption("Nothing logged yet today.")
-                        .padding(.horizontal, Theme.Spacing.screen)
+                        .padding(.horizontal, Theme.Padding.screen)
                         .plainRow()
                 } else {
                     ForEach(todaysClosed) { session in
@@ -170,7 +170,7 @@ struct HomeView: View {
                     Caption(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                     Text("\(timeOfDayGreeting), \(displayName)")
                         .font(Typeface.title(22))
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.ink)
                 }
 
                 Spacer()
@@ -178,7 +178,7 @@ struct HomeView: View {
                 Button(action: onComposeReminder) {
                     Image(systemName: "paperplane")
                         .font(.system(size: 17, weight: .regular))
-                        .foregroundStyle(Theme.secondaryText)
+                        .foregroundStyle(Theme.inkSoft)
                         .frame(width: 30, height: 30)
                 }
                 .buttonStyle(.plain)
@@ -186,7 +186,7 @@ struct HomeView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
         .padding(.bottom, 6)
         .background(Theme.bg)
@@ -208,10 +208,10 @@ struct HomeView: View {
                 Caption("Nothing running")
                 Text("Start something")
                     .font(Typeface.title(16))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
                 Text("Tap the plus below, or say \"starting a work session, guessing two hours\".")
                     .font(Typeface.body(13))
-                    .foregroundStyle(Theme.secondaryText)
+                    .foregroundStyle(Theme.inkSoft)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
@@ -225,11 +225,11 @@ struct HomeView: View {
         HStack {
             Text("Today")
                 .font(Typeface.title(16))
-                .foregroundStyle(Theme.primaryText)
+                .foregroundStyle(Theme.ink)
             Spacer()
             Caption("\(todaysClosed.count) logged")
         }
-        .padding(.horizontal, Theme.Spacing.screen)
+        .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 24)
         .padding(.bottom, 4)
         .plainRow()
@@ -243,7 +243,7 @@ struct HomeView: View {
             LoggedSessionRow(session: session, categoriesByID: categoriesByID)
         }
         .buttonStyle(.plain)
-        .listRowInsets(EdgeInsets(top: 5, leading: Theme.Spacing.screen, bottom: 5, trailing: Theme.Spacing.screen))
+        .listRowInsets(EdgeInsets(top: 5, leading: Theme.Padding.screen, bottom: 5, trailing: Theme.Padding.screen))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -278,19 +278,19 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("From others")
                 .font(Typeface.title(15))
-                .foregroundStyle(Theme.primaryText)
+                .foregroundStyle(Theme.ink)
 
             ForEach(reminders) { reminder in
                 HStack(spacing: 12) {
                     Image(systemName: reminder.state == .expired ? "clock.badge.xmark" : "envelope")
                         .font(.system(size: 15))
-                        .foregroundStyle(Theme.secondaryText)
+                        .foregroundStyle(Theme.inkSoft)
                         .frame(width: 18, height: 18)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(reminder.title)
                             .font(Typeface.medium(14))
-                            .foregroundStyle(Theme.primaryText)
+                            .foregroundStyle(Theme.ink)
                         Caption(subtitle(for: reminder), size: 12)
                     }
 
@@ -300,12 +300,12 @@ struct HomeView: View {
                         Caption(DurationFormatting.compact(minutes: minutes), size: 12.5)
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.row)
+                .padding(.horizontal, Theme.Padding.row)
                 .padding(.vertical, 14)
                 .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
                 .overlay {
                     RoundedRectangle(cornerRadius: Theme.Radius.row)
-                        .strokeBorder(Theme.border, lineWidth: 1)
+                        .strokeBorder(Theme.line, lineWidth: 1)
                 }
                 .opacity(reminder.state == .expired ? 0.6 : 1)
             }
@@ -354,7 +354,7 @@ struct ActiveSessionCard: View {
                         Caption("Active now", size: 12)
                         Text(session.title)
                             .font(Typeface.title(16))
-                            .foregroundStyle(Theme.primaryText)
+                            .foregroundStyle(Theme.ink)
                     }
                     Spacer()
                     TagPill(text: session.contextTag.rawValue)
@@ -368,7 +368,7 @@ struct ActiveSessionCard: View {
                             Text(DurationFormatting.clock(seconds: elapsed))
                                 .font(Typeface.timer(42))
                                 .tracking(-0.4)
-                                .foregroundStyle(Theme.primaryText)
+                                .foregroundStyle(Theme.ink)
 
                             if let expectedMinutes {
                                 Caption(
@@ -408,13 +408,13 @@ struct LoggedSessionRow: View {
         HStack(spacing: 12) {
             CategoryIconView(symbolName: symbol)
                 .font(.system(size: 15, weight: .regular))
-                .foregroundStyle(Theme.secondaryText)
+                .foregroundStyle(Theme.inkSoft)
                 .frame(width: 18, height: 18)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.title)
                     .font(Typeface.medium(14))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
 
                 Caption(
                     session.estimatedMinutes.map {
@@ -429,7 +429,7 @@ struct LoggedSessionRow: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(DurationFormatting.compact(minutes: session.actualMinutes ?? 0))
                     .font(Typeface.title(16))
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(Theme.ink)
 
                 // "actual" is underlined only where there is a guess to have been
                 // wrong about; a passively tracked duration is just "tracked".
@@ -438,19 +438,19 @@ struct LoggedSessionRow: View {
                 } else if session.estimatedMinutes != nil {
                     Text("actual")
                         .font(Typeface.body(11))
-                        .foregroundStyle(Theme.secondaryText)
+                        .foregroundStyle(Theme.inkSoft)
                         .underline(true, color: Color.white.opacity(0.25))
                 } else {
                     Caption("actual", size: 11)
                 }
             }
         }
-        .padding(.horizontal, Theme.Spacing.row)
+        .padding(.horizontal, Theme.Padding.row)
         .padding(.vertical, 14)
         .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.Radius.row)
-                .strokeBorder(Theme.border, lineWidth: 1)
+                .strokeBorder(Theme.line, lineWidth: 1)
         }
     }
 }
