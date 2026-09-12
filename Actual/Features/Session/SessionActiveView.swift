@@ -1,27 +1,27 @@
 import SwiftUI
 
-/// The running session, given a whole screen. One number, how long this usually takes,
-/// and a way to stop.
-///
-/// The copy here does the work of setting expectations: there is nothing to confirm
-/// afterward, so nothing on this screen implies there will be.
+// The running session, given a whole screen. One number, how long this usually takes,
+// and a way to stop.
+//
+// The copy here does the work of setting expectations: there is nothing to confirm
+// afterward, so nothing on this screen implies there will be.
 struct SessionActiveView: View {
     let session: Session
     let history: [SessionRecord]
     let onEnd: () -> Void
     let onDismiss: () -> Void
-    /// Only meaningful for a trip; nil everywhere else.
+    // Only meaningful for a trip; nil everywhere else.
     let onShowMap: (() -> Void)?
 
     private let engine = BiasEngine()
 
-    /// How long this usually takes, drawn from history alone.
-    ///
-    /// Deliberately not the stored guess re-multiplied. Once someone accepts the app's
-    /// corrected number, that number *is* the correction; running it through the
-    /// multiplier a second time compounds it and shows an expectation nobody's history
-    /// supports. The honest figure for "how long this usually takes you" never depends
-    /// on what was guessed today.
+    // How long this usually takes, drawn from history alone.
+    //
+    // Deliberately not the stored guess re-multiplied. Once someone accepts the app's
+    // corrected number, that number *is* the correction; running it through the
+    // multiplier a second time compounds it and shows an expectation nobody's history
+    // supports. The honest figure for "how long this usually takes you" never depends
+    // on what was guessed today.
     private var estimate: RecalibratedEstimate? {
         guard let categoryID = session.categoryID else { return nil }
         return engine.recalibratedEstimate(
@@ -30,6 +30,8 @@ struct SessionActiveView: View {
             from: history
         )
     }
+
+    @State private var appeared = false
 
     var body: some View {
         ZStack {
@@ -40,24 +42,26 @@ struct SessionActiveView: View {
 
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     let elapsed = session.elapsedSeconds(now: context.date)
+                    let isOverdue = estimate.map { elapsed > $0.minutes * 60 } ?? false
 
                     VStack(alignment: .leading, spacing: 0) {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("\(session.title) · \(session.contextTag.rawValue)")
                                 .font(Typeface.body(13.5))
-                                .foregroundStyle(Theme.inkFaint)
+                                .foregroundStyle(isOverdue ? Theme.error : Theme.inkFaint)
 
                             Text(DurationFormatting.clock(seconds: elapsed))
                                 .font(Typeface.timer(64))
                                 .tracking(-1.3)
-                                .foregroundStyle(Theme.ink)
+                                .foregroundStyle(isOverdue ? Theme.error : Theme.ink)
                         }
                         .padding(.top, 44)
 
                         if let estimate {
                             ProgressBar(
                                 fraction: Double(elapsed) / Double(max(1, estimate.minutes * 60)),
-                                height: 4
+                                height: 4,
+                                dimmed: isOverdue
                             )
                             .padding(.top, 26)
 
@@ -76,6 +80,10 @@ struct SessionActiveView: View {
                     }
                 }
                 .padding(.horizontal, Theme.Padding.focused)
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : -20)
+                .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
+                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: appeared)
 
                 Spacer()
 
@@ -83,6 +91,10 @@ struct SessionActiveView: View {
                     routeCard(onTap: onShowMap)
                         .padding(.horizontal, Theme.Padding.focused)
                         .padding(.bottom, 12)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : -20)
+                        .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1), value: appeared)
                 }
 
                 CardSurface(radius: Theme.Radius.row, padding: 17) {
@@ -93,87 +105,71 @@ struct SessionActiveView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, Theme.Padding.focused)
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : -20)
+                .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
+                .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.2), value: appeared)
 
                 endButton
             }
         }
+        .onAppear { appeared = true }
     }
+
+    // MARK: - Header
 
     private var header: some View {
         HStack {
             Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(Theme.inkSoft)
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Theme.ink)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Minimize")
-            .accessibilityHint("The session keeps running in the background")
-
+            .accessibilityLabel("Close")
             Spacer()
-
-            HStack(spacing: 7) {
-                Circle()
-                    .fill(Theme.accent)
-                    .frame(width: 6, height: 6)
-                Text("IN PROGRESS")
-                    .font(Typeface.body(12))
-                    .tracking(0.72)
-                    .foregroundStyle(Theme.inkFaint)
-            }
-
+            Caption(session.title)
             Spacer()
-            Color.clear.frame(width: 22, height: 22)
         }
         .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
     }
 
-    /// Opens the live route. Shown only for a trip once it actually has fixes to draw,
-    /// since there is nothing to look at before the car has moved.
+    // MARK: - Route Card
+
+    @ViewBuilder
     private func routeCard(onTap: @escaping () -> Void) -> some View {
         Button(action: onTap) {
-            HStack(spacing: 10) {
-                Image(systemName: "map")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Theme.inkSoft)
-                Text("View route")
-                    .font(Typeface.medium(13))
-                    .foregroundStyle(Theme.ink)
-                Spacer()
-                if session.routeDistanceMeters > 0 {
-                    Caption(DurationFormatting.distance(meters: session.routeDistanceMeters), size: 12)
+            CardSurface(radius: Theme.Radius.row, padding: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "route")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.inkSoft)
+
+                    Text("View route")
+                        .font(Typeface.body(13))
+                        .foregroundStyle(Theme.ink)
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.inkFaint)
                 }
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.inkFaint)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 13)
-            .background(Theme.card, in: .rect(cornerRadius: 14))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.line, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
     }
 
-    private var endButton: some View {
-        VStack(spacing: 14) {
-            Button(action: onEnd) {
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(Theme.bg)
-                    .frame(width: 24, height: 24)
-                    .frame(width: 80, height: 80)
-                    .background(Theme.ink, in: .circle)
-            }
-            .buttonStyle(.plain)
+    // MARK: - End Button
 
-            Caption("End session")
+    private var endButton: some View {
+        PrimaryButton(title: "End session") {
+            onEnd()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 28)
-        .padding(.bottom, 48)
+        .padding(.horizontal, Theme.Padding.focused)
+        .padding(.top, 10)
+        .padding(.bottom, 24)
     }
 }

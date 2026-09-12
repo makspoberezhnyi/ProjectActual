@@ -6,6 +6,7 @@ struct OnboardingView: View {
     let onFinish: () -> Void
 
     @State private var stage: Stage = .mark
+    @State private var appeared = false
 
     private enum Stage { case mark, tagline }
 
@@ -16,6 +17,10 @@ struct OnboardingView: View {
             switch stage {
             case .mark:
                 markScreen
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : -20)
+                    .scaleEffect(appeared ? 1 : 0.95, anchor: .center)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: appeared)
                     .transition(.opacity)
             case .tagline:
                 taglineScreen
@@ -26,6 +31,7 @@ struct OnboardingView: View {
             try? await Task.sleep(for: .seconds(1.6))
             withAnimation(.easeInOut(duration: 0.6)) { stage = .tagline }
         }
+        .onAppear { appeared = true }
     }
 
     // MARK: - 01, the mark

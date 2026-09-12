@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Where the person is most wrong, sorted plainly by how far from right they are
-/// rather than alphabetically or by how often something happens.
+// Where the person is most wrong, sorted plainly by how far from right they are
+// rather than alphabetically or by how often something happens.
 struct InsightsView: View {
     let sessions: [Session]
     let categories: [TaskCategory]
@@ -30,15 +30,16 @@ struct InsightsView: View {
     }
 
     private var ranking: [BiasEngineOutput] { engine.ranking(from: records) }
-    private var aggregate: Double? { engine.aggregateDeviation(from: records) }
 
-    /// Drifted categories are pulled out and shown as their own plain note, since a
-    /// real pattern shift deserves to be seen rather than folded into an average.
+    // Drifted categories are pulled out and shown as their own plain note, since a
+    // real pattern shift deserves to be seen rather than folded into an average.
     private var drifted: [BiasEngineOutput] { ranking.filter(\.driftFlag) }
     private var steady: [BiasEngineOutput] { ranking.filter { !$0.driftFlag } }
 
-    /// Built once per body evaluation rather than scanned per ranked row.
+    // Built once per body evaluation rather than scanned per ranked row.
     private var categoriesByID: [String: TaskCategory] { categories.indexedByID() }
+
+    @State private var appeared = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -77,6 +78,10 @@ struct InsightsView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.horizontal, Theme.Padding.screen)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : -20)
+                        .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1), value: appeared)
                     } else {
                         VStack(spacing: 10) {
                             ForEach(steady, id: \.key) { output in
@@ -84,12 +89,20 @@ struct InsightsView: View {
                                     DeviationRow(output: output, name: name(for: output.key))
                                 }
                                 .buttonStyle(.plain)
+                                .opacity(appeared ? 1 : 0)
+                                .offset(y: appeared ? 0 : -20)
+                                .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
+                                .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(Double(steady.firstIndex(of: output) ?? 0) * 0.07 + 0.2), value: appeared)
                             }
                             ForEach(drifted, id: \.key) { output in
                                 Button { selected = output } label: {
                                     DriftRow(output: output, name: name(for: output.key))
                                 }
                                 .buttonStyle(.plain)
+                                .opacity(appeared ? 1 : 0)
+                                .offset(y: appeared ? 0 : -20)
+                                .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
+                                .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(Double(drifted.firstIndex(of: output) ?? 0) * 0.07 + 0.3), value: appeared)
                             }
                         }
                         .padding(.horizontal, Theme.Padding.screen)
@@ -106,134 +119,127 @@ struct InsightsView: View {
                 history: BiasEngine().multiplierHistory(for: output.key, from: records)
             )
         }
+        .onAppear { appeared = true }
     }
+
+    // MARK: - Range Picker
 
     private var rangePicker: some View {
-        HStack(spacing: 8) {
-            ForEach(Range.allCases, id: \.self) { option in
-                Button {
-                    range = option
-                } label: {
-                    Text(option.rawValue)
-                        .font(option == range ? Typeface.medium(12) : Typeface.body(12))
-                        .foregroundStyle(option == range ? Theme.bg : Theme.inkFaint)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background {
-                            if option == range { Capsule().fill(Theme.ink) }
-                        }
+        HStack(spacing: 12) {
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
+                    range = .last30Days
                 }
-                .buttonStyle(.plain)
+            } label: {
+                Text(range.rawValue)
+                    .font(Typeface.body(13))
+                    .foregroundStyle(range == .last30Days ? Theme.ink : Theme.inkFaint)
             }
-            Spacer()
+            .buttonStyle(.plain)
+
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
+                    range = .allTime
+                }
+            } label: {
+                Text("All time")
+                    .font(Typeface.body(13))
+                    .foregroundStyle(range == .allTime ? Theme.ink : Theme.inkFaint)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 6)
+        .padding(.top, 22)
     }
 
-    /// One honest headline. Nil rather than a fabricated zero when nothing qualifies.
+    // MARK: - Headline
+
     private var headline: some View {
-        CardSurface(radius: 20, padding: 20) {
-            VStack(alignment: .leading, spacing: 6) {
-                Caption("On average, you're off by")
-
-                if let aggregate {
-                    Text(DurationFormatting.percent(aggregate))
-                        .font(Typeface.display(38))
-                        .foregroundStyle(Theme.ink)
-                    Caption(
-                        "weighted across \(ranking.count) \(ranking.count == 1 ? "category" : "categories") with enough history",
-                        size: 12
-                    )
-                } else {
-                    Text("—")
-                        .font(Typeface.display(38))
-                        .foregroundStyle(Theme.inkFaint)
-                    Caption("no category has enough history in this range yet", size: 12)
-                }
-            }
-        }
-        .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 20)
+        Text("Insights")
+            .font(Typeface.title(22))
+            .foregroundStyle(Theme.ink)
+            .padding(.horizontal, Theme.Padding.screen)
+            .padding(.top, 22)
+            .padding(.bottom, 10)
     }
 
-    /// Category and context together, since that pairing is what the engine measured.
-    private func name(for key: CategoryKey) -> String {
-        let base = categoriesByID[key.categoryID]?.name ?? key.categoryID
-        return key.contextTag == .normal ? base : "\(base), \(key.contextTag.rawValue)"
-    }
-}
+    // MARK: - Deviation Row
 
-/// One ranked category. Low confidence is rendered muted and says so, so a number
-/// resting on nine sessions does not borrow the authority of one resting on fifty-one.
-struct DeviationRow: View {
-    let output: BiasEngineOutput
-    let name: String
+    private struct DeviationRow: View {
+        let output: BiasEngineOutput
+        let name: String
 
-    private var isMuted: Bool { output.confidence == .low }
+        var body: some View {
+            HStack(spacing: 12) {
+                Image(systemName: "chart.line.xy")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Theme.inkSoft)
 
-    var body: some View {
-        CardSurface(radius: Theme.Radius.row, padding: 15) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(name)
                         .font(Typeface.medium(14))
                         .foregroundStyle(Theme.ink)
-                    Spacer()
-                    CountBadge(text: "\(output.instanceCount) logs")
+                    Text("\(DurationFormatting.compact(minutes: Int(output.averageActualMinutes.rounded())))")
+                        .font(Typeface.body(12))
+                        .foregroundStyle(output.deviation > 0 ? Theme.error : Theme.success)
                 }
 
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(DurationFormatting.signedPercent(output.deviation))
-                        .font(Typeface.display(20))
-                        .foregroundStyle(Theme.accent)
-                        .opacity(isMuted ? 0.7 : 1)
+                Spacer()
 
-                    Caption(output.deviationDescription, size: 12)
-
-                    if isMuted {
-                        Spacer()
-                        Caption(output.confidence.label, size: 11)
-                    }
-                }
-
-                ProgressBar(
-                    fraction: min(output.absoluteDeviation, 1),
-                    dimmed: isMuted
-                )
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Theme.inkFaint)
+            }
+            .padding(.horizontal, Theme.Padding.row)
+            .padding(.vertical, 14)
+            .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.row)
+                    .strokeBorder(Theme.line, lineWidth: 1)
             }
         }
     }
-}
 
-/// A category whose multiplier moved quickly. Stated as something to look at, not as
-/// a problem to fix.
-struct DriftRow: View {
-    let output: BiasEngineOutput
-    let name: String
+    // MARK: - Drift Row
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(name)
-                    .font(Typeface.medium(14))
-                    .foregroundStyle(Theme.ink)
+    private struct DriftRow: View {
+        let output: BiasEngineOutput
+        let name: String
+
+        var body: some View {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Theme.error)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(Typeface.medium(14))
+                        .foregroundStyle(Theme.ink)
+                    Text("\(DurationFormatting.compact(minutes: Int(output.averageActualMinutes.rounded())))")
+                        .font(Typeface.body(12))
+                        .foregroundStyle(output.deviation > 0 ? Theme.error : Theme.success)
+                }
+
                 Spacer()
-                CountBadge(text: "shifted recently", emphasised: true)
-            }
 
-            Text("This one moved quickly in the last stretch, worth a second look if something in this routine changed.")
-                .font(Typeface.body(12))
-                .foregroundStyle(Theme.inkSoft)
-                .lineSpacing(3)
-                .fixedSize(horizontal: false, vertical: true)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Theme.inkFaint)
+            }
+            .padding(.horizontal, Theme.Padding.row)
+            .padding(.vertical, 14)
+            .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.row)
+                    .strokeBorder(Theme.line, lineWidth: 1)
+            }
         }
-        .padding(15)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
-        .overlay {
-            RoundedRectangle(cornerRadius: Theme.Radius.row)
-                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-        }
+    }
+
+    // MARK: - Helpers
+
+    private func name(for key: CategoryKey) -> String {
+        categoriesByID[key.categoryID]?.name ?? key.categoryID
     }
 }
