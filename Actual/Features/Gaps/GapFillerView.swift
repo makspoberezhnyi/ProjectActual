@@ -31,7 +31,7 @@ struct GapFillerView: View {
                         SuggestionRow(suggestion: suggestion) { onChoose(suggestion) }
                     }
                 }
-                .padding(.horizontal, Theme.Padding.screen)
+                .padding(.horizontal, Theme.Spacing.screen)
                 .padding(.top, 22)
                 .opacity(appeared ? 1 : 0)
                 .offset(y: appeared ? 0 : -20)
@@ -42,9 +42,9 @@ struct GapFillerView: View {
                     CardSurface(radius: Theme.Radius.panel, padding: 16) {
                         Text("Nothing in your history fits a window this size yet.")
                             .font(Typeface.body(13))
-                            .foregroundStyle(Theme.inkSoft)
+                            .foregroundStyle(Theme.secondaryText)
                     }
-                    .padding(.horizontal, Theme.Padding.screen)
+                    .padding(.horizontal, Theme.Spacing.screen)
                     .padding(.top, 22)
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : -20)
@@ -58,11 +58,11 @@ struct GapFillerView: View {
                     CardSurface(radius: Theme.Radius.row, padding: 15) {
                         Text(honestNote)
                             .font(Typeface.body(12))
-                            .foregroundStyle(Theme.inkSoft)
+                            .foregroundStyle(Theme.secondaryText)
                             .lineSpacing(3)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.horizontal, Theme.Padding.screen)
+                    .padding(.horizontal, Theme.Spacing.screen)
                     .padding(.bottom, 44)
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : -20)
@@ -81,17 +81,17 @@ struct GapFillerView: View {
             Button(action: onDismiss) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(Theme.primaryText)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close")
             Spacer()
             Caption(nextCommitment ?? "")
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
             Spacer()
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 22)
     }
 
@@ -100,8 +100,8 @@ struct GapFillerView: View {
     private var headline: some View {
         Text("What fits this window")
             .font(Typeface.title(22))
-            .foregroundStyle(Theme.ink)
-            .padding(.horizontal, Theme.Padding.screen)
+            .foregroundStyle(Theme.primaryText)
+            .padding(.horizontal, Theme.Spacing.screen)
             .padding(.top, 22)
             .padding(.bottom, 6)
     }
@@ -111,8 +111,8 @@ struct GapFillerView: View {
     private var subheading: some View {
         Text("Suggested activities based on your history")
             .font(Typeface.body(13))
-            .foregroundStyle(Theme.inkSoft)
-            .padding(.horizontal, Theme.Padding.screen)
+            .foregroundStyle(Theme.secondaryText)
+            .padding(.horizontal, Theme.Spacing.screen)
             .padding(.bottom, 10)
     }
 
@@ -127,12 +127,12 @@ struct GapFillerView: View {
                 HStack(spacing: 12) {
                     Image(systemName: suggestion.symbolName)
                         .font(.system(size: 16))
-                        .foregroundStyle(Theme.inkSoft)
+                        .foregroundStyle(Theme.secondaryText)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(suggestion.title)
                             .font(Typeface.medium(14))
-                            .foregroundStyle(Theme.ink)
+                            .foregroundStyle(Theme.primaryText)
                         Caption(suggestion.subtitle, size: 12)
                     }
 
@@ -140,14 +140,14 @@ struct GapFillerView: View {
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.inkFaint)
+                        .foregroundStyle(Theme.tertiaryText)
                 }
-                .padding(.horizontal, Theme.Padding.row)
+                .padding(.horizontal, Theme.Spacing.row)
                 .padding(.vertical, 14)
                 .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
                 .overlay {
                     RoundedRectangle(cornerRadius: Theme.Radius.row)
-                        .strokeBorder(Theme.line, lineWidth: 1)
+                        .strokeBorder(Theme.border, lineWidth: 1)
                 }
             }
             .buttonStyle(.plain)
@@ -173,11 +173,11 @@ struct FreeWindowCard: View {
 
                     Text(window.end.formatted(.dateTime.hour().minute()))
                         .font(Typeface.title(16))
-                        .foregroundStyle(Theme.ink)
+                        .foregroundStyle(Theme.primaryText)
 
                     Text(subtitle)
                         .font(Typeface.body(13))
-                        .foregroundStyle(Theme.inkSoft)
+                        .foregroundStyle(Theme.secondaryText)
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
                 }

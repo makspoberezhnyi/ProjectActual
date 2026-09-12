@@ -23,7 +23,7 @@ struct DestinationPickerView: View {
                     Button { dismiss() } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(Theme.ink)
+                            .foregroundStyle(Theme.primaryText)
                             .frame(width: 22, height: 22)
                     }
                     .buttonStyle(.plain)
@@ -33,23 +33,23 @@ struct DestinationPickerView: View {
                     Spacer()
                     Color.clear.frame(width: 22, height: 22)
                 }
-                .padding(.horizontal, Theme.Padding.screen)
+                .padding(.horizontal, Theme.Spacing.screen)
                 .padding(.top, 22)
 
                 VStack(spacing: 16) {
                     TextField(
                         "",
                         text: $query,
-                        prompt: Text("Search for a place").foregroundStyle(Theme.inkFaint)
+                        prompt: Text("Search for a place").foregroundStyle(Theme.tertiaryText)
                     )
                     .font(Typeface.title(20))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(Theme.primaryText)
                     .autocorrectionDisabled()
                     .onChange(of: query) { _, newValue in scheduleSearch(newValue) }
 
                     Hairline()
                 }
-                .padding(.horizontal, Theme.Padding.screen)
+                .padding(.horizontal, Theme.Spacing.screen)
                 .padding(.top, 22)
 
                 ScrollView {
@@ -61,12 +61,12 @@ struct DestinationPickerView: View {
                                 HStack(spacing: 12) {
                                     Image(systemName: "mappin.circle")
                                         .font(.system(size: 16))
-                                        .foregroundStyle(Theme.inkSoft)
+                                        .foregroundStyle(Theme.secondaryText)
 
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(item.name ?? "Unnamed place")
                                             .font(Typeface.medium(14))
-                                            .foregroundStyle(Theme.ink)
+                                            .foregroundStyle(Theme.primaryText)
                                         if let subtitle = address(for: item) {
                                             Caption(subtitle, size: 12)
                                         }
@@ -74,12 +74,12 @@ struct DestinationPickerView: View {
 
                                     Spacer()
                                 }
-                                .padding(.horizontal, Theme.Padding.row)
+                                .padding(.horizontal, Theme.Spacing.row)
                                 .padding(.vertical, 14)
                                 .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
                                 .overlay {
                                     RoundedRectangle(cornerRadius: Theme.Radius.row)
-                                        .strokeBorder(Theme.line, lineWidth: 1)
+                                        .strokeBorder(Theme.border, lineWidth: 1)
                                 }
                             }
                             .buttonStyle(.plain)
@@ -90,7 +90,7 @@ struct DestinationPickerView: View {
                                 .padding(.top, 20)
                         }
                     }
-                    .padding(.horizontal, Theme.Padding.screen)
+                    .padding(.horizontal, Theme.Spacing.screen)
                     .padding(.top, 20)
                 }
                 .scrollIndicators(.hidden)

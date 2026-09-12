@@ -69,7 +69,7 @@ struct ProfileView: View {
                 privacy
                 dangerZone
             }
-            .padding(.horizontal, Theme.Padding.screen)
+            .padding(.horizontal, Theme.Spacing.screen)
             .padding(.top, 20)
             .padding(.bottom, 110)
         }
@@ -112,7 +112,7 @@ struct ProfileView: View {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(displayName)
                             .font(Typeface.display(21))
-                            .foregroundStyle(Theme.ink)
+                            .foregroundStyle(Theme.primaryText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
 
@@ -161,20 +161,20 @@ struct ProfileView: View {
             } else {
                 Text(ProfilePhoto.initial(for: displayName))
                     .font(Typeface.title(30))
-                    .foregroundStyle(Theme.inkSoft)
+                    .foregroundStyle(Theme.secondaryText)
                     .frame(width: 88, height: 88)
                     .background(Theme.card)
             }
         }
         .clipShape(.circle)
-        .overlay { Circle().strokeBorder(Theme.line, lineWidth: 1) }
+        .overlay { Circle().strokeBorder(Theme.border, lineWidth: 1) }
     }
 
     private func figure(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
                 .font(Typeface.display(17))
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Caption(label, size: 10.5)
@@ -201,12 +201,12 @@ struct ProfileView: View {
                         HStack(spacing: 12) {
                             CategoryIconView(symbolName: entry.category.symbolName)
                                 .font(.system(size: 14))
-                                .foregroundStyle(Theme.inkSoft)
+                                .foregroundStyle(Theme.secondaryText)
                                 .frame(width: 18)
 
                             Text(entry.category.name)
                                 .font(Typeface.body(14))
-                                .foregroundStyle(Theme.ink)
+                                .foregroundStyle(Theme.primaryText)
 
                             Spacer()
 
@@ -230,20 +230,20 @@ struct ProfileView: View {
                             HStack(spacing: 6) {
                                 Text(entry.tag.displayName)
                                     .font(Typeface.body(13))
-                                    .foregroundStyle(Theme.inkSoft)
+                                    .foregroundStyle(Theme.secondaryText)
                                 Text("\(entry.count)")
                                     .font(Typeface.body(11.5))
-                                    .foregroundStyle(Theme.inkFaint)
+                                    .foregroundStyle(Theme.tertiaryText)
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
-                            .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
+                            .overlay { Capsule().strokeBorder(Theme.border, lineWidth: 1) }
                         }
                     }
 
                     Text("Normal is one context among several, not the baseline the others deviate from.")
                         .font(Typeface.body(12))
-                        .foregroundStyle(Theme.inkFaint)
+                        .foregroundStyle(Theme.tertiaryText)
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -261,11 +261,11 @@ struct ProfileView: View {
                     HStack(spacing: 10) {
                         Image(systemName: sent.recipientCompletedAt != nil ? "checkmark.circle.fill" : "clock")
                             .font(.system(size: 13))
-                            .foregroundStyle(sent.recipientCompletedAt != nil ? Theme.accent : Theme.inkFaint)
+                            .foregroundStyle(sent.recipientCompletedAt != nil ? Theme.accent : Theme.tertiaryText)
 
                         Text(sent.title)
                             .font(Typeface.body(14))
-                            .foregroundStyle(Theme.ink)
+                            .foregroundStyle(Theme.primaryText)
 
                         Spacer()
 
@@ -276,7 +276,7 @@ struct ProfileView: View {
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Theme.inkFaint)
+                                .foregroundStyle(Theme.tertiaryText)
                                 .frame(width: 26, height: 26)
                         }
                         .buttonStyle(.plain)
@@ -327,12 +327,12 @@ struct ProfileView: View {
                     } label: {
                         Text(mode.label)
                             .font(mode.rawValue == appearanceModeRaw ? Typeface.medium(13) : Typeface.body(13))
-                            .foregroundStyle(mode.rawValue == appearanceModeRaw ? Theme.bg : Theme.inkFaint)
+                            .foregroundStyle(mode.rawValue == appearanceModeRaw ? Theme.bg : Theme.tertiaryText)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
                             .background {
                                 if mode.rawValue == appearanceModeRaw {
-                                    Capsule().fill(Theme.ink)
+                                    Capsule().fill(Theme.primaryText)
                                 }
                             }
                     }
@@ -349,7 +349,7 @@ struct ProfileView: View {
         section("Privacy") {
             Text("Everything above lives on this device. Nothing is ranked, judged, or shared with anyone.")
                 .font(Typeface.body(13))
-                .foregroundStyle(Theme.inkSoft)
+                .foregroundStyle(Theme.secondaryText)
                 .lineSpacing(3.5)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -422,16 +422,16 @@ struct ProfileView: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 13))
-                .foregroundStyle(Theme.inkSoft)
+                .foregroundStyle(Theme.secondaryText)
                 .frame(width: 16)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(Typeface.body(13.5))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(Theme.primaryText)
                 Text(subtitle)
                     .font(Typeface.body(11))
-                    .foregroundStyle(Theme.inkFaint)
+                    .foregroundStyle(Theme.tertiaryText)
             }
 
             Spacer()
@@ -517,7 +517,7 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(Typeface.title(15))
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
 
             CardSurface(radius: Theme.Radius.panel, padding: 16) {
                 content()

@@ -22,8 +22,8 @@ struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SessionActivityAttributes.self) { context in
             lockScreen(context)
-                .activityBackgroundTint(Theme.bg)
-                .activitySystemActionForegroundColor(Theme.ink)
+                .activityBackgroundTint(Theme.bg.dark)
+                .activitySystemActionForegroundColor(Theme.primaryText.dark)
         } dynamicIsland: { context in
             DynamicIsland {
                 // One row, not three: a timer with the title underneath on the
@@ -41,13 +41,13 @@ struct SessionLiveActivity: Widget {
                                 countsDown: false
                             )
                             .font(.system(size: 20, weight: .bold).monospacedDigit())
-                            .foregroundStyle(Theme.ink)
+                            .foregroundStyle(Theme.primaryText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                         }
                         Text(context.attributes.title)
                             .font(.system(size: 13))
-                            .foregroundStyle(Theme.inkFaint)
+                            .foregroundStyle(Theme.tertiaryText)
                             .lineLimit(1)
                     }
                     .padding(.leading, 4)
@@ -63,7 +63,7 @@ struct SessionLiveActivity: Widget {
                             .fill(Theme.bg)
                             .frame(width: 14, height: 14)
                             .frame(width: 44, height: 44)
-                            .background(Theme.ink, in: .circle)
+                            .background(Theme.primaryText, in: .circle)
                     }
                     .buttonStyle(.plain)
                 }
@@ -84,7 +84,7 @@ struct SessionLiveActivity: Widget {
                     showsHours: false
                 )
                 .font(.system(size: 13, weight: .medium).monospacedDigit())
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .frame(width: 44, alignment: .trailing)
@@ -101,7 +101,7 @@ struct SessionLiveActivity: Widget {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(context.attributes.title) · \(context.attributes.contextTag)")
                     .font(.system(size: 12))
-                    .foregroundStyle(Theme.inkFaint)
+                    .foregroundStyle(Theme.tertiaryText)
                     .lineLimit(1)
 
                 Text(
@@ -109,29 +109,25 @@ struct SessionLiveActivity: Widget {
                     countsDown: false
                 )
                 .font(.system(size: 30, weight: .bold).monospacedDigit())
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
 
                 if let expected = context.state.expectedMinutes {
                     Text("of ~\(DurationFormatting.compact(minutes: expected)) expected")
                         .font(.system(size: 11))
-                        .foregroundStyle(Theme.inkFaint)
+                        .foregroundStyle(Theme.tertiaryText)
                 }
             }
-
-            Spacer(minLength: 0)
-
+            Spacer()
             Button(intent: EndSessionIntent(sessionID: context.attributes.sessionID)) {
-                Text("End")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.bg)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(Theme.ink, in: .capsule)
+                Image(systemName: "play.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
+                    .foregroundStyle(Theme.primaryText)
             }
             .buttonStyle(.plain)
         }
-        .padding(16)
     }
 }

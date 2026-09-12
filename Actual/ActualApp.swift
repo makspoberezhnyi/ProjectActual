@@ -10,7 +10,7 @@ struct ActualApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                .tint(Theme.ink)
+                .tint(Theme.primaryText)
         }
         .modelContainer(container)
     }

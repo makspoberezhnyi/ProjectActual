@@ -20,7 +20,7 @@ extension View {
 /// The raised card the design uses everywhere: card fill, hairline border, generous radius.
 struct CardSurface<Content: View>: View {
     var radius: CGFloat = Theme.Radius.card
-    var padding: CGFloat = Theme.Padding.card
+    var padding: CGFloat = Theme.Spacing.card
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -30,14 +30,14 @@ struct CardSurface<Content: View>: View {
             .background(Theme.card, in: .rect(cornerRadius: radius))
             .overlay {
                 RoundedRectangle(cornerRadius: radius)
-                    .strokeBorder(Theme.line, lineWidth: 1)
+                    .strokeBorder(Theme.border, lineWidth: 1)
             }
     }
 }
 
 // MARK: - Buttons
 
-/// The filled pill: ink background, background-coloured label. The one primary action
+/// The filled pill: primary text background, foreground-colored label. The one primary action
 /// on a screen.
 struct PrimaryButton: View {
     let title: String
@@ -51,7 +51,7 @@ struct PrimaryButton: View {
                 .foregroundStyle(Theme.bg)
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
-                .background(Theme.ink, in: .capsule)
+                .background(Theme.primaryText, in: .capsule)
         }
         .buttonStyle(.plain)
     }
@@ -62,7 +62,7 @@ struct PrimaryButton: View {
 /// almost no contrast, so this stood out as text with a border rather than a tappable
 /// surface. A `Theme.card` fill gives it the same raised quality every other surface
 /// in the design already has, while staying visibly quieter than `PrimaryButton`'s
-/// solid ink fill.
+/// solid primary text fill.
 struct SecondaryButton: View {
     let title: String
     var height: CGFloat = 52
@@ -72,11 +72,11 @@ struct SecondaryButton: View {
         Button(action: action) {
             Text(title)
                 .font(Typeface.medium(14))
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
                 .background(Theme.card, in: .capsule)
-                .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
+                .overlay { Capsule().strokeBorder(Theme.border, lineWidth: 1) }
         }
         .buttonStyle(.plain)
     }
@@ -84,7 +84,7 @@ struct SecondaryButton: View {
 
 // MARK: - Chips
 
-/// A selectable chip. Selected chips invert to ink-on-background; unselected ones are
+/// A selectable chip. Selected chips invert to primary text-on-background; unselected ones are
 /// a soft outline. Used for context tags and duration presets.
 struct Chip: View {
     let title: String
@@ -98,19 +98,19 @@ struct Chip: View {
         Button(action: action) {
             Text(title)
                 .font(isSelected ? Typeface.medium(13) : Typeface.body(13))
-                .foregroundStyle(isSelected ? Theme.bg : (isDashed ? Theme.inkFaint : Theme.inkSoft))
+                .foregroundStyle(isSelected ? Theme.bg : (isDashed ? Theme.tertiaryText : Theme.secondaryText))
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, verticalPadding)
                 .background {
                     if isSelected {
-                        Capsule().fill(Theme.ink)
+                        Capsule().fill(Theme.primaryText)
                     } else if isDashed {
                         Capsule().strokeBorder(
-                            Theme.inkFaint,
+                            Theme.tertiaryText,
                             style: StrokeStyle(lineWidth: 1, dash: [4, 3])
                         )
                     } else {
-                        Capsule().strokeBorder(Theme.line, lineWidth: 1)
+                        Capsule().strokeBorder(Theme.border, lineWidth: 1)
                     }
                 }
         }
@@ -130,7 +130,7 @@ struct PresetChip: View {
         Button(action: action) {
             Text(title)
                 .font(Typeface.body(13))
-                .foregroundStyle(isSelected ? Theme.accent : (isDashed ? Theme.inkFaint : Theme.inkSoft))
+                .foregroundStyle(isSelected ? Theme.accent : (isDashed ? Theme.tertiaryText : Theme.secondaryText))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
                 .background {
@@ -138,9 +138,9 @@ struct PresetChip: View {
                     if isSelected {
                         shape.fill(Theme.accentDim)
                     } else if isDashed {
-                        shape.strokeBorder(Theme.inkFaint, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                        shape.strokeBorder(Theme.tertiaryText, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     } else {
-                        shape.strokeBorder(Theme.line, lineWidth: 1)
+                        shape.strokeBorder(Theme.border, lineWidth: 1)
                     }
                 }
         }
@@ -158,10 +158,10 @@ struct CountBadge: View {
     var body: some View {
         Text(text)
             .font(Typeface.body(11))
-            .foregroundStyle(emphasised ? Theme.ink : Theme.inkFaint)
+            .foregroundStyle(emphasised ? Theme.primaryText : Theme.tertiaryText)
             .padding(.horizontal, 9)
             .padding(.vertical, 3)
-            .background(emphasised ? Theme.accentDim : Theme.badge, in: .capsule)
+            .background(emphasised ? Theme.accentDim : Theme.badgeBg, in: .capsule)
     }
 }
 
@@ -172,10 +172,10 @@ struct TagPill: View {
     var body: some View {
         Text(text)
             .font(Typeface.body(11))
-            .foregroundStyle(Theme.inkSoft)
+            .foregroundStyle(Theme.secondaryText)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(Theme.pill, in: .capsule)
+            .background(Theme.pillBg, in: .capsule)
     }
 }
 
@@ -193,7 +193,7 @@ struct ProgressBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Theme.track)
+                Capsule().fill(Theme.trackBackground)
                 Capsule()
                     .fill(Theme.accent)
                     .opacity(dimmed ? 0.5 : 1)
@@ -214,11 +214,11 @@ struct SectionLabel: View {
         Text(text)
             .font(Typeface.semibold(12.5))
             .tracking(0.25)
-            .foregroundStyle(Theme.inkSoft)
+            .foregroundStyle(Theme.secondaryText)
     }
 }
 
-/// A faint caption in the design's tertiary ink.
+/// A faint caption in the design's tertiary text.
 struct Caption: View {
     let text: String
     var size: CGFloat = 12.5
@@ -231,7 +231,7 @@ struct Caption: View {
     var body: some View {
         Text(text)
             .font(Typeface.body(size))
-            .foregroundStyle(Theme.inkFaint)
+            .foregroundStyle(Theme.tertiaryText)
     }
 }
 
@@ -239,7 +239,7 @@ struct Caption: View {
 struct Hairline: View {
     var body: some View {
         Rectangle()
-            .fill(Theme.line)
+            .fill(Theme.border)
             .frame(height: 1)
     }
 }

@@ -45,7 +45,7 @@ struct OnboardingView: View {
             Text("Actual")
                 .font(Typeface.body(15))
                 .tracking(0.3)
-                .foregroundStyle(Theme.inkFaint)
+                .foregroundStyle(Theme.tertiaryText)
                 .padding(.bottom, 90)
         }
     }
@@ -59,7 +59,7 @@ struct OnboardingView: View {
                 .font(Typeface.title(38))
                 .tracking(-0.38)
                 .lineSpacing(4)
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
                 .padding(.horizontal, 40)
             Spacer()
 
@@ -67,10 +67,10 @@ struct OnboardingView: View {
                 PrimaryButton(title: "Continue with email", height: 54, action: onFinish)
 
                 Text("By continuing, you agree to our ")
-                    .foregroundStyle(Theme.inkFaint)
-                + Text("Terms").foregroundStyle(Theme.inkSoft)
-                + Text(" and ").foregroundStyle(Theme.inkFaint)
-                + Text("Privacy Policy").foregroundStyle(Theme.inkSoft)
+                    .foregroundStyle(Theme.tertiaryText)
+                + Text("Terms").foregroundStyle(Theme.secondaryText)
+                + Text(" and ").foregroundStyle(Theme.tertiaryText)
+                + Text("Privacy Policy").foregroundStyle(Theme.secondaryText)
             }
             .font(Typeface.body(12))
             .multilineTextAlignment(.center)
@@ -93,14 +93,14 @@ struct ActualMark: View {
 
             ZStack {
                 Circle()
-                    .strokeBorder(Theme.ink, lineWidth: lineWidth)
+                    .strokeBorder(Theme.primaryText, lineWidth: lineWidth)
                     .frame(width: 26 * scale, height: 26 * scale)
 
                 Path { path in
                     path.move(to: CGPoint(x: side / 2, y: 10 * scale))
                     path.addLine(to: CGPoint(x: side / 2, y: 6 * scale))
                 }
-                .stroke(Theme.ink, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .stroke(Theme.primaryText, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
             }
             .frame(width: side, height: side)
         }

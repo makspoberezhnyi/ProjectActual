@@ -28,26 +28,26 @@ struct ReceiveReminderView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(reminder.title)
                             .font(Typeface.title(30))
-                            .foregroundStyle(Theme.ink)
+                            .foregroundStyle(Theme.primaryText)
                             .lineSpacing(2)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Text(subtitle)
                             .font(Typeface.body(14))
-                            .foregroundStyle(Theme.inkFaint)
+                            .foregroundStyle(Theme.tertiaryText)
                     }
 
                     CardSurface(radius: Theme.Radius.panel, padding: 18) {
                         Text(explanation)
                             .font(Typeface.body(13.5))
-                            .foregroundStyle(Theme.inkSoft)
+                            .foregroundStyle(Theme.secondaryText)
                             .lineSpacing(4)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
                     completionToggle
                 }
-                .padding(.horizontal, Theme.Padding.focused)
+                .padding(.horizontal, Theme.Spacing.focused)
                 .frame(maxHeight: .infinity, alignment: .center)
 
                 actions
@@ -62,13 +62,13 @@ struct ReceiveReminderView: View {
             Button(action: onDecline) {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Theme.inkFaint)
+                    .foregroundStyle(Theme.tertiaryText)
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Decline")
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 22)
     }
 
@@ -76,14 +76,14 @@ struct ReceiveReminderView: View {
         HStack(spacing: 10) {
             Text(String(reminder.senderName.prefix(1)).uppercased())
                 .font(Typeface.semibold(13))
-                .foregroundStyle(Theme.inkSoft)
+                .foregroundStyle(Theme.secondaryText)
                 .frame(width: 34, height: 34)
                 .background(Theme.card, in: .circle)
-                .overlay { Circle().strokeBorder(Theme.line, lineWidth: 1) }
+                .overlay { Circle().strokeBorder(Theme.border, lineWidth: 1) }
 
             Text("\(reminder.senderName) sent you a reminder")
                 .font(Typeface.body(13.5))
-                .foregroundStyle(Theme.inkSoft)
+                .foregroundStyle(Theme.secondaryText)
         }
     }
 
@@ -107,13 +107,13 @@ struct ReceiveReminderView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Let \(reminder.senderName) know when it's done")
                     .font(Typeface.body(13))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(Theme.primaryText)
                 Text("Just that it happened. Never your guess or how long it actually took.")
                     .font(Typeface.body(11.5))
-                    .foregroundStyle(Theme.inkFaint)
+                    .foregroundStyle(Theme.tertiaryText)
             }
         }
-        .tint(Theme.inkSoft)
+        .tint(Theme.secondaryText)
     }
 
     private var actions: some View {
@@ -123,11 +123,11 @@ struct ReceiveReminderView: View {
             Button(action: onDecline) {
                 Text("Not now")
                     .font(Typeface.body(13))
-                    .foregroundStyle(Theme.inkFaint)
+                    .foregroundStyle(Theme.tertiaryText)
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, Theme.Padding.focused)
+        .padding(.horizontal, Theme.Spacing.focused)
         .padding(.bottom, 48)
     }
 }
@@ -175,7 +175,7 @@ struct ReminderPromptView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(reminder.title)
                     .font(Typeface.title(22))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(Theme.primaryText)
                 Caption("from \(reminder.senderName) · \(reminder.windowDescription.lowercased())", size: 13)
             }
 
@@ -200,7 +200,7 @@ struct ReminderPromptView: View {
             }
             .padding(.top, 4)
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 28)
         .padding(.bottom, 40)
         .frame(maxWidth: .infinity, alignment: .leading)

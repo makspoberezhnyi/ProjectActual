@@ -853,7 +853,7 @@ private struct UndoToast: View {
         HStack(spacing: 14) {
             Text(message)
                 .font(Typeface.body(13))
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
 
             Spacer(minLength: 8)
 
@@ -868,9 +868,9 @@ private struct UndoToast: View {
         .padding(.vertical, 14)
         .background(.ultraThinMaterial, in: .capsule)
         .overlay {
-            Capsule().strokeBorder(Theme.line, lineWidth: 1)
+            Capsule().strokeBorder(Theme.border, lineWidth: 1)
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
     }
 }
 
@@ -908,7 +908,7 @@ struct BottomBar: View {
                 // rather than a real `TabView`.
                 Capsule()
                     .fill(.ultraThinMaterial)
-                    .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
+                    .overlay { Capsule().strokeBorder(Theme.border, lineWidth: 1) }
             }
 
             // Its own circle, entirely outside the tab capsule rather than a fifth slot
@@ -931,12 +931,12 @@ struct BottomBar: View {
         Button(action: onCapture) {
             Image(systemName: "plus")
                 .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
                 .frame(width: barHeight, height: barHeight)
                 .background {
                     Circle()
                         .fill(.ultraThinMaterial)
-                        .overlay { Circle().strokeBorder(Theme.line, lineWidth: 1) }
+                        .overlay { Circle().strokeBorder(Theme.border, lineWidth: 1) }
                 }
         }
         .buttonStyle(.plain)
@@ -946,7 +946,7 @@ struct BottomBar: View {
     /// of its own — the label carries the accessibility win a bare icon-only row
     /// didn't have, and reads it visually as well as to VoiceOver.
     /// A glass pill behind whichever tab is current, fading and scaling in on switch
-    /// rather than just popping — colour alone (`Theme.ink` vs `Theme.inkFaint`) turned
+    /// rather than just popping — colour alone (`Theme.primaryText` vs `Theme.tertiaryText`) turned
     /// out too subtle a signal for which tab is actually active once every icon sat
     /// flat against the same shared bar. `.regularMaterial`, not the bar's own
     /// `.ultraThinMaterial`, so the indicator actually reads as a distinct shape on top
@@ -969,7 +969,7 @@ struct BottomBar: View {
                 Text(label)
                     .font(.system(size: 10, weight: .medium))
             }
-            .foregroundStyle(isSelected ? Theme.ink : Theme.inkFaint)
+            .foregroundStyle(isSelected ? Theme.primaryText : Theme.tertiaryText)
             .frame(maxWidth: .infinity)
             .frame(height: 48)
             .contentShape(.rect)
@@ -980,7 +980,7 @@ struct BottomBar: View {
                     // as a pill rather than a rounded rectangle that happens to be tall.
                     Capsule()
                         .fill(.regularMaterial)
-                        .overlay { Capsule().strokeBorder(Theme.line, lineWidth: 1) }
+                        .overlay { Capsule().strokeBorder(Theme.border, lineWidth: 1) }
                         .padding(.horizontal, 4)
                         .matchedGeometryEffect(id: "tabSelection", in: tabSelection)
                 }

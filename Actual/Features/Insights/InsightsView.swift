@@ -48,8 +48,8 @@ struct InsightsView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("Your patterns")
                     .font(Typeface.title(22))
-                    .foregroundStyle(Theme.ink)
-                    .padding(.horizontal, Theme.Padding.screen)
+                    .foregroundStyle(Theme.primaryText)
+                    .padding(.horizontal, Theme.Spacing.screen)
                     .padding(.top, 22)
                     .padding(.bottom, 6)
 
@@ -64,8 +64,8 @@ struct InsightsView: View {
 
                     Text("Where you're most wrong")
                         .font(Typeface.title(15))
-                        .foregroundStyle(Theme.ink)
-                        .padding(.horizontal, Theme.Padding.screen)
+                        .foregroundStyle(Theme.primaryText)
+                        .padding(.horizontal, Theme.Spacing.screen)
                         .padding(.top, 22)
                         .padding(.bottom, 10)
 
@@ -73,11 +73,11 @@ struct InsightsView: View {
                         CardSurface(radius: Theme.Radius.row, padding: 16) {
                             Text("Not enough history in this range yet. A handful of logged sessions in a category and this fills in.")
                                 .font(Typeface.body(13))
-                                .foregroundStyle(Theme.inkSoft)
+                                .foregroundStyle(Theme.secondaryText)
                                 .lineSpacing(3)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(.horizontal, Theme.Padding.screen)
+                        .padding(.horizontal, Theme.Spacing.screen)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : -20)
                         .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
@@ -105,7 +105,7 @@ struct InsightsView: View {
                                 .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(Double(drifted.firstIndex(of: output) ?? 0) * 0.07 + 0.3), value: appeared)
                             }
                         }
-                        .padding(.horizontal, Theme.Padding.screen)
+                        .padding(.horizontal, Theme.Spacing.screen)
                     }
                 }
                 .padding(.bottom, 110)
@@ -133,7 +133,7 @@ struct InsightsView: View {
             } label: {
                 Text(range.rawValue)
                     .font(Typeface.body(13))
-                    .foregroundStyle(range == .last30Days ? Theme.ink : Theme.inkFaint)
+                    .foregroundStyle(range == .last30Days ? Theme.primaryText : Theme.tertiaryText)
             }
             .buttonStyle(.plain)
 
@@ -144,11 +144,11 @@ struct InsightsView: View {
             } label: {
                 Text("All time")
                     .font(Typeface.body(13))
-                    .foregroundStyle(range == .allTime ? Theme.ink : Theme.inkFaint)
+                    .foregroundStyle(range == .allTime ? Theme.primaryText : Theme.tertiaryText)
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 22)
     }
 
@@ -157,8 +157,8 @@ struct InsightsView: View {
     private var headline: some View {
         Text("Insights")
             .font(Typeface.title(22))
-            .foregroundStyle(Theme.ink)
-            .padding(.horizontal, Theme.Padding.screen)
+            .foregroundStyle(Theme.primaryText)
+            .padding(.horizontal, Theme.Spacing.screen)
             .padding(.top, 22)
             .padding(.bottom, 10)
     }
@@ -173,12 +173,12 @@ struct InsightsView: View {
             HStack(spacing: 12) {
                 Image(systemName: "chart.line.xy")
                     .font(.system(size: 16))
-                    .foregroundStyle(Theme.inkSoft)
+                    .foregroundStyle(Theme.secondaryText)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
                         .font(Typeface.medium(14))
-                        .foregroundStyle(Theme.ink)
+                        .foregroundStyle(Theme.primaryText)
                     Text("\(DurationFormatting.compact(minutes: Int(output.averageActualMinutes.rounded())))")
                         .font(Typeface.body(12))
                         .foregroundStyle(output.deviation > 0 ? Theme.error : Theme.success)
@@ -188,14 +188,14 @@ struct InsightsView: View {
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.inkFaint)
+                    .foregroundStyle(Theme.tertiaryText)
             }
-            .padding(.horizontal, Theme.Padding.row)
+            .padding(.horizontal, Theme.Spacing.row)
             .padding(.vertical, 14)
             .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
             .overlay {
                 RoundedRectangle(cornerRadius: Theme.Radius.row)
-                    .strokeBorder(Theme.line, lineWidth: 1)
+                    .strokeBorder(Theme.border, lineWidth: 1)
             }
         }
     }
@@ -215,7 +215,7 @@ struct InsightsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
                         .font(Typeface.medium(14))
-                        .foregroundStyle(Theme.ink)
+                        .foregroundStyle(Theme.primaryText)
                     Text("\(DurationFormatting.compact(minutes: Int(output.averageActualMinutes.rounded())))")
                         .font(Typeface.body(12))
                         .foregroundStyle(output.deviation > 0 ? Theme.error : Theme.success)
@@ -225,14 +225,14 @@ struct InsightsView: View {
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.inkFaint)
+                    .foregroundStyle(Theme.tertiaryText)
             }
-            .padding(.horizontal, Theme.Padding.row)
+            .padding(.horizontal, Theme.Spacing.row)
             .padding(.vertical, 14)
             .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
             .overlay {
                 RoundedRectangle(cornerRadius: Theme.Radius.row)
-                    .strokeBorder(Theme.line, lineWidth: 1)
+                    .strokeBorder(Theme.border, lineWidth: 1)
             }
         }
     }

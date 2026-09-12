@@ -60,7 +60,7 @@ struct ShareReminderView: View {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(Theme.primaryText)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
@@ -70,7 +70,7 @@ struct ShareReminderView: View {
             Spacer()
             Color.clear.frame(width: 22, height: 22)
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 22)
         .padding(.bottom, 4)
     }
@@ -80,15 +80,15 @@ struct ShareReminderView: View {
             TextField(
                 "",
                 text: $title,
-                prompt: Text("What do you need them to do").foregroundStyle(Theme.inkFaint)
+                prompt: Text("What do you need them to do").foregroundStyle(Theme.tertiaryText)
             )
             .font(Typeface.title(22))
-            .foregroundStyle(Theme.ink)
+            .foregroundStyle(Theme.primaryText)
             .textInputAutocapitalization(.sentences)
 
             Hairline()
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 22)
     }
 
@@ -105,7 +105,7 @@ struct ShareReminderView: View {
             Caption("Anytime in that window works, no fixed time needed.")
                 .padding(.top, 2)
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 24)
     }
 
@@ -127,11 +127,11 @@ struct ShareReminderView: View {
 
             Text("Optional, but it's what lets Actual wait for a stretch that actually fits, instead of just dropping this into their list.")
                 .font(Typeface.body(12.5))
-                .foregroundStyle(Theme.inkFaint)
+                .foregroundStyle(Theme.tertiaryText)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 26)
     }
 
@@ -142,18 +142,18 @@ struct ShareReminderView: View {
 
                 Text(title.isEmpty ? "Your reminder" : title)
                     .font(Typeface.title(15))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(Theme.primaryText)
 
                 Caption(previewLine, size: 13)
 
                 Text("The moment they have a free stretch that fits, Actual will ask them directly if they want to do it then. You won't see their guess or how long it actually took, only whether they mark it done, if they choose to share that much.")
                     .font(Typeface.body(12.5))
-                    .foregroundStyle(Theme.inkSoft)
+                    .foregroundStyle(Theme.secondaryText)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 22)
     }
 
@@ -170,14 +170,14 @@ struct ShareReminderView: View {
         HStack {
             Text(SharedReminderLink.displayText(for: reminder))
                 .font(Typeface.body(13))
-                .foregroundStyle(Theme.inkSoft)
+                .foregroundStyle(Theme.secondaryText)
             Spacer()
             Button {
                 UIPasteboard.general.url = SharedReminderLink.url(for: reminder)
             } label: {
                 Text("Copy")
                     .font(Typeface.semibold(12.5))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(Theme.primaryText)
             }
             .buttonStyle(.plain)
             .disabled(!canShare)
@@ -186,9 +186,9 @@ struct ShareReminderView: View {
         .padding(.vertical, 12)
         .background(Theme.card, in: .rect(cornerRadius: 14))
         .overlay {
-            RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.line, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border, lineWidth: 1)
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 24)
     }
 
@@ -205,20 +205,20 @@ struct ShareReminderView: View {
                 .foregroundStyle(Theme.bg)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
-                .background(Theme.ink, in: .capsule)
+                .background(Theme.primaryText, in: .capsule)
             }
             // ShareLink has no completion callback, so this records the reminder as
             // sent the moment the share sheet is opened rather than waiting for
             // confirmation of where it went. Consistent with the rest of the app:
             // nothing here is gated behind an external system agreeing first.
             .simultaneousGesture(TapGesture().onEnded { recordAsSent() })
-            .padding(.horizontal, Theme.Padding.screen)
+            .padding(.horizontal, Theme.Spacing.screen)
             .padding(.top, 20)
             .padding(.bottom, 46)
         } else {
             Text("Add a title to share this.")
                 .font(Typeface.body(13))
-                .foregroundStyle(Theme.inkFaint)
+                .foregroundStyle(Theme.tertiaryText)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 30)
                 .padding(.bottom, 46)
@@ -249,7 +249,7 @@ struct ShareReminderView: View {
                 )) {
                     ForEach(Array(stride(from: 5, through: 240, by: 5)), id: \.self) { value in
                         Text(DurationFormatting.compact(minutes: value))
-                            .foregroundStyle(Theme.ink)
+                            .foregroundStyle(Theme.primaryText)
                             .tag(value)
                     }
                 }

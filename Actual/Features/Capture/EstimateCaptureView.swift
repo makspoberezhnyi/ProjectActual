@@ -175,7 +175,7 @@ struct EstimateCaptureView: View {
 
                         if let estimate {
                             historyCard(estimate)
-                                .padding(.horizontal, Theme.Padding.screen)
+                                .padding(.horizontal, Theme.Spacing.screen)
                                 .padding(.top, 14)
                         }
                     }
@@ -210,7 +210,7 @@ struct EstimateCaptureView: View {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(Theme.primaryText)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
@@ -221,7 +221,7 @@ struct EstimateCaptureView: View {
             Spacer()
             Color.clear.frame(width: 22, height: 22)
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 16)
         .padding(.bottom, 2)
     }
@@ -240,17 +240,17 @@ struct EstimateCaptureView: View {
                 TextField(
                     "",
                     text: $title,
-                    prompt: Text("What are you about to do").foregroundStyle(Theme.inkFaint)
+                    prompt: Text("What are you about to do").foregroundStyle(Theme.tertiaryText)
                 )
                 .font(Typeface.body(15))
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
                 .textInputAutocapitalization(.sentences)
                 .autocorrectionDisabled()
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
                 .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
                 .overlay {
-                    RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(Theme.line, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(Theme.border, lineWidth: 1)
                 }
             }
 
@@ -264,7 +264,7 @@ struct EstimateCaptureView: View {
                 }
             }
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 14)
     }
 
@@ -279,7 +279,7 @@ struct EstimateCaptureView: View {
                 Caption("Icon")
                 CategoryIconPicker(selection: $iconName)
             }
-            .padding(.horizontal, Theme.Padding.screen)
+            .padding(.horizontal, Theme.Spacing.screen)
             .padding(.top, 14)
             .transition(.opacity)
         }
@@ -300,7 +300,7 @@ struct EstimateCaptureView: View {
                 Chip(title: "+ custom", isDashed: true) { isAddingCustomTag = true }
             }
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 16)
     }
 
@@ -312,7 +312,7 @@ struct EstimateCaptureView: View {
 
             Text(DurationFormatting.padded(minutes: guessMinutes))
                 .font(Typeface.display(34))
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.primaryText)
 
             HStack(spacing: 8) {
                 ForEach(presets, id: \.self) { preset in
@@ -327,7 +327,7 @@ struct EstimateCaptureView: View {
             }
             .padding(.top, 2)
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 16)
     }
 
@@ -343,27 +343,27 @@ struct EstimateCaptureView: View {
             HStack(spacing: 10) {
                 Image(systemName: destinationName == nil ? "mappin.and.ellipse" : "mappin.circle.fill")
                     .font(.system(size: 15))
-                    .foregroundStyle(destinationName == nil ? Theme.inkFaint : Theme.accent)
+                    .foregroundStyle(destinationName == nil ? Theme.tertiaryText : Theme.accent)
 
                 Text(destinationName ?? "Add a destination, if this is a trip")
                     .font(Typeface.body(13))
-                    .foregroundStyle(destinationName == nil ? Theme.inkFaint : Theme.ink)
+                    .foregroundStyle(destinationName == nil ? Theme.tertiaryText : Theme.primaryText)
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.inkFaint)
+                    .foregroundStyle(Theme.tertiaryText)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
             .background(Theme.card, in: .rect(cornerRadius: 14))
             .overlay {
-                RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.line, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 14)
     }
 
@@ -392,7 +392,7 @@ struct EstimateCaptureView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(DurationFormatting.compact(minutes: estimate.minutes))
                         .font(Typeface.display(26))
-                        .foregroundStyle(Theme.ink)
+                        .foregroundStyle(Theme.primaryText)
                         .opacity(isMuted ? 0.65 : 1)
 
                     if let trend = trendText(estimate) {
@@ -402,7 +402,7 @@ struct EstimateCaptureView: View {
 
                 Text(explanation(estimate))
                     .font(Typeface.body(13))
-                    .foregroundStyle(Theme.inkSoft)
+                    .foregroundStyle(Theme.secondaryText)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -469,7 +469,7 @@ struct EstimateCaptureView: View {
                 }
             }
         }
-        .padding(.horizontal, Theme.Padding.screen)
+        .padding(.horizontal, Theme.Spacing.screen)
         .padding(.top, 10)
         .padding(.bottom, 24)
     }
@@ -495,7 +495,7 @@ struct EstimateCaptureView: View {
                 Picker("Minutes", selection: $guessMinutes) {
                     ForEach(Array(stride(from: 5, through: 480, by: 5)), id: \.self) { value in
                         Text(DurationFormatting.compact(minutes: value))
-                            .foregroundStyle(Theme.ink)
+                            .foregroundStyle(Theme.primaryText)
                             .tag(value)
                     }
                 }
