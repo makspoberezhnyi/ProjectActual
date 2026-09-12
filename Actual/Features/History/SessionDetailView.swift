@@ -1,23 +1,22 @@
 import SwiftUI
 
-// A closed session, looked back on.
-//
-// Reuses the same guess/route-said/actual layout `SessionEndView` shows the moment a
-// session closes — the only difference is this one has no "Done" button and no
-// resolution step, since both already happened. This is the view that makes a trip's
-// route visible again after the fact: previously the map only existed for the few
-// seconds around a session ending, with no way back to it from History.
+/// A closed session, looked back on.
+///
+/// Reuses the same guess/route-said/actual layout `SessionEndView` shows the moment a
+/// session closes — the only difference is this one has no "Done" button and no
+/// resolution step, since both already happened. This is the view that makes a trip's
+/// route visible again after the fact: previously the map only existed for the few
+/// seconds around a session ending, with no way back to it from History.
 struct SessionDetailView: View {
     let session: Session
     let categoryName: String
     let history: [SessionRecord]
     let onDismiss: () -> Void
-    // Nil for a session with no category to repeat, or an unresolved quick start.
+    /// Nil for a session with no category to repeat, or an unresolved quick start.
     let onStartAgain: (() -> Void)?
     let onDelete: () -> Void
 
     @State private var isConfirmingDelete = false
-    @State private var appeared = false
     private let engine = BiasEngine()
 
     private var estimate: RecalibratedEstimate? {
@@ -66,7 +65,6 @@ struct SessionDetailView: View {
                     }
 
                     Button {
-                        HapticFeedback.heavyImpact()
                         isConfirmingDelete = true
                     } label: {
                         Text("Delete this session")
@@ -78,10 +76,6 @@ struct SessionDetailView: View {
                 .padding(.horizontal, Theme.Padding.focused)
                 .padding(.bottom, 40)
             }
-            .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : -20)
-            .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
-            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: appeared)
         }
         .alert("Delete this session?", isPresented: $isConfirmingDelete) {
             Button("Cancel", role: .cancel) {}
@@ -89,10 +83,7 @@ struct SessionDetailView: View {
         } message: {
             Text("Removes it from your history and from the numbers this category is based on. This cannot be undone.")
         }
-        .onAppear { appeared = true }
     }
-
-    // MARK: - Header
 
     private var header: some View {
         HStack {
@@ -107,12 +98,11 @@ struct SessionDetailView: View {
             Spacer()
             Caption(session.endedAt?.formatted(.dateTime.weekday(.wide).month(.wide).day()) ?? "")
             Spacer()
+            Color.clear.frame(width: 22, height: 22)
         }
         .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
     }
-
-    // MARK: - Outcome
 
     private var outcome: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -161,81 +151,40 @@ struct SessionDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 22)
     }
 
-    // MARK: - Compare to usual
-
-    @ViewBuilder
     private func compareToUsual(_ estimate: RecalibratedEstimate) -> some View {
-        CardSurface(radius: Theme.Radius.panel, padding: 14) {
-            VStack(alignment: .leading, spacing: 6) {
+        CardSurface(radius: Theme.Radius.panel, padding: 18) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    SectionLabel(text: estimate.scope == .exact
-                                 ? "BASED ON YOUR HISTORY"
-                                 : "BASED ON THIS CATEGORY GENERALLY")
+                    Caption("Usually takes")
                     Spacer()
                     CountBadge(text: "\(estimate.instanceCount) sessions")
                 }
-
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(DurationFormatting.compact(minutes: estimate.minutes))
-                        .font(Typeface.display(26))
-                        .foregroundStyle(Theme.ink)
-
-                    if let trend = trendText(estimate) {
-                        Caption(trend, size: 12)
-                    }
-                }
-
-                Text(explanation(estimate))
-                    .font(Typeface.body(13))
-                    .foregroundStyle(Theme.inkSoft)
-                    .lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if estimate.confidence == .low {
-                    Caption(estimate.confidence.label, size: 11.5)
-                }
+                Text(DurationFormatting.compact(minutes: estimate.minutes))
+                    .font(Typeface.display(22))
+                    .foregroundStyle(Theme.ink)
             }
         }
     }
 
-    private func trendText(_ estimate: RecalibratedEstimate) -> String? {
-        guard let prior = estimate.priorMinutes, prior != estimate.minutes else { return nil }
-        let rising = estimate.minutes > prior
-        return "\(rising ? "↑" : "↓") \(rising ? "up" : "down") from \(DurationFormatting.compact(minutes: prior))"
-    }
-
-    private func explanation(_ estimate: RecalibratedEstimate) -> String {
-        let percent = DurationFormatting.percent(estimate.output.deviation)
-        let noun = session.contextTag.rawValue
-        let subject = categoryName.lowercased()
-
-        if estimate.output.scope == .categoryFallback {
-            return "Not enough history for \(noun) yet, so this is based on your \(subject) generally."
-        }
-        if estimate.output.deviation > 0.005 {
-            return "Your \(noun) \(subject)s have run about \(percent) longer than your guess recently."
-        }
-        if estimate.output.deviation < -0.005 {
-            return "Your \(noun) \(subject)s have run about \(percent) shorter than your guess recently."
-        }
-        return "Your \(noun) \(subject)s have been landing close to your guess recently."
-    }
-
-    // MARK: - Flagged note
-
     private var flaggedNote: some View {
-        CardSurface(radius: Theme.Radius.row, padding: 15) {
-            Text("This session's data may not be reliable.")
-                .font(Typeface.body(12))
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Auto-closed")
+                .font(Typeface.medium(13))
+                .foregroundStyle(Theme.ink)
+            Text("This one ran past its ceiling and closed on its own. Kept visible as an outlier rather than folded into your average.")
+                .font(Typeface.body(12.5))
                 .foregroundStyle(Theme.inkSoft)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, Theme.Padding.screen)
-        .padding(.bottom, 44)
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.Radius.row)
+                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+        }
     }
 }

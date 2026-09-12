@@ -1,21 +1,19 @@
 import SwiftUI
 
-// What fits the free stretch you have right now.
-//
-// It does not rank downtime against productive time, and it never says a choice was
-// wrong. It shows what has fit this window before and what is still pending, and logs
-// whatever actually happens the same neutral way as everything else.
+/// What fits the free stretch you have right now.
+///
+/// It does not rank downtime against productive time, and it never says a choice was
+/// wrong. It shows what has fit this window before and what is still pending, and logs
+/// whatever actually happens the same neutral way as everything else.
 struct GapFillerView: View {
     let window: TimeWindow
-    // What the window runs up against, which is what gives it meaning.
+    /// What the window runs up against, which is what gives it meaning.
     let nextCommitment: String?
     let suggestions: [Suggestion]
-    // The plain, unjudged fact about where time like this has gone lately.
+    /// The plain, unjudged fact about where time like this has gone lately.
     let honestNote: String?
     let onChoose: (Suggestion) -> Void
     let onDismiss: () -> Void
-
-    @State private var appeared = false
 
     var body: some View {
         ZStack {
@@ -33,10 +31,6 @@ struct GapFillerView: View {
                 }
                 .padding(.horizontal, Theme.Padding.screen)
                 .padding(.top, 22)
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : -20)
-                .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
-                .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1), value: appeared)
 
                 if suggestions.isEmpty {
                     CardSurface(radius: Theme.Radius.panel, padding: 16) {
@@ -46,10 +40,6 @@ struct GapFillerView: View {
                     }
                     .padding(.horizontal, Theme.Padding.screen)
                     .padding(.top, 22)
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : -20)
-                    .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.2), value: appeared)
                 }
 
                 Spacer(minLength: 12)
@@ -64,94 +54,93 @@ struct GapFillerView: View {
                     }
                     .padding(.horizontal, Theme.Padding.screen)
                     .padding(.bottom, 44)
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : -20)
-                    .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.3), value: appeared)
                 }
             }
         }
-        .onAppear { appeared = true }
     }
-
-    // MARK: - Header
 
     private var header: some View {
         HStack {
+            Caption(Date.now.formatted(.dateTime.hour().minute()))
+            Spacer()
             Button(action: onDismiss) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 22, height: 22)
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Theme.inkFaint)
+                    .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Close")
-            Spacer()
-            Caption(nextCommitment ?? "")
-                .foregroundStyle(Theme.ink)
-            Spacer()
+            .accessibilityLabel("Dismiss")
         }
         .padding(.horizontal, Theme.Padding.screen)
         .padding(.top, 22)
+        .padding(.bottom, 4)
     }
-
-    // MARK: - Headline
 
     private var headline: some View {
-        Text("What fits this window")
-            .font(Typeface.title(22))
+        Text(headlineText)
+            .font(Typeface.title(21))
             .foregroundStyle(Theme.ink)
+            .lineSpacing(4)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, Theme.Padding.screen)
-            .padding(.top, 22)
-            .padding(.bottom, 6)
+            .padding(.top, 18)
     }
 
-    // MARK: - Subheading
+    private var headlineText: String {
+        let duration = DurationFormatting.compact(minutes: window.minutes)
+        guard let nextCommitment, !nextCommitment.isEmpty else {
+            return "You have \(duration) free."
+        }
+        return "You have \(duration) free before \(nextCommitment)."
+    }
 
     private var subheading: some View {
-        Text("Suggested activities based on your history")
+        Text("Here's what's fit this window before, no ranking, just what's true and what's pending.")
             .font(Typeface.body(13))
             .foregroundStyle(Theme.inkSoft)
+            .lineSpacing(4)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, Theme.Padding.screen)
-            .padding(.bottom, 10)
+            .padding(.top, 10)
     }
+}
 
-    // MARK: - Suggestion Row
+/// One thing that would fit.
+struct SuggestionRow: View {
+    let suggestion: Suggestion
+    let onTap: () -> Void
 
-    private struct SuggestionRow: View {
-        let suggestion: Suggestion
-        let action: () -> Void
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 14) {
+                CategoryIconView(symbolName: suggestion.symbolName)
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.accentDim, in: .rect(cornerRadius: 12))
 
-        var body: some View {
-            Button(action: action) {
-                HStack(spacing: 12) {
-                    Image(systemName: suggestion.symbolName)
-                        .font(.system(size: 16))
-                        .foregroundStyle(Theme.inkSoft)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(suggestion.title)
-                            .font(Typeface.medium(14))
-                            .foregroundStyle(Theme.ink)
-                        Caption(suggestion.subtitle, size: 12)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.inkFaint)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(suggestion.title)
+                        .font(Typeface.medium(14))
+                        .foregroundStyle(Theme.ink)
+                    Caption(suggestion.subtitle, size: 12)
                 }
-                .padding(.horizontal, Theme.Padding.row)
-                .padding(.vertical, 14)
-                .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
-                .overlay {
-                    RoundedRectangle(cornerRadius: Theme.Radius.row)
-                        .strokeBorder(Theme.line, lineWidth: 1)
-                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Theme.inkFaint)
             }
-            .buttonStyle(.plain)
+            .padding(16)
+            .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.panel))
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.panel)
+                    .strokeBorder(Theme.line, lineWidth: 1)
+            }
         }
+        .buttonStyle(.plain)
     }
 }
 

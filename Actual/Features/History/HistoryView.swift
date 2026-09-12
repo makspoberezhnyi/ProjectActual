@@ -65,8 +65,7 @@ struct HistoryView: View {
                 empty
             } else {
                 List {
-                    ForEach(Array(days.enumerated()), id: \.element.date) { pair in
-                        let day = pair.element
+                    ForEach(days, id: \.date) { day in
                         Section {
                             ForEach(day.sessions) { session in
                                 row(for: session)
@@ -183,10 +182,8 @@ struct HistoryView: View {
     }
 
     private var selectionBar: some View {
-        HStack(spacing: 0) {
-            Text(selectedUUIDs.isEmpty ? "Select sessions to delete" : "\(selectedUUIDs.count) selected")
-                .font(Typeface.body(13))
-                .foregroundStyle(Theme.inkSoft)
+        HStack {
+            Caption(selectedUUIDs.isEmpty ? "Select sessions to delete" : "\(selectedUUIDs.count) selected")
             Spacer()
             Button(role: .destructive) {
                 deleteSelected()
@@ -199,8 +196,8 @@ struct HistoryView: View {
             .disabled(selectedUUIDs.isEmpty)
         }
         .padding(.horizontal, Theme.Padding.screen)
-        .padding(.vertical, 8)
-        .background(Theme.bg)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
         .transition(.opacity)
     }
 
@@ -260,13 +257,13 @@ struct HistoryView: View {
         .listRowBackground(Color.clear)
     }
 
-    // One row. Normally a trailing swipe carries the two things worth doing to a
-    // logged session without opening it first — fixing a mistake, or removing it —
-    // and a leading swipe repeats it. Delete sits at the very trailing edge, the same
-    // short swipe Mail and Reminders use for their own primary action, safe here
-    // because it's a single Session an undo toast can still put back. Swiping is
-    // replaced by a plain checkmark tap while multi-select is active, since a row
-    // can't sensibly answer to both gestures at once.
+    /// One row. Normally a trailing swipe carries the two things worth doing to a
+    /// logged session without opening it first — fixing a mistake, or removing it —
+    /// and a leading swipe repeats it. Delete sits at the very trailing edge, the same
+    /// short swipe Mail and Reminders use for their own primary action, safe here
+    /// because it's a single `Session` an undo toast can still put back. Swiping is
+    /// replaced by a plain checkmark tap while multi-select is active, since a row
+    /// can't sensibly answer to both gestures at once.
     private func row(for session: Session) -> some View {
         Button {
             if isSelecting {
@@ -287,55 +284,29 @@ struct HistoryView: View {
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Group {
-                if !isSelecting {
-                    Button(role: .destructive) {
-                        onDeleteSession(session)
-                    } label: {
-                        Label("Delete", systemImage: "trash.circle.fill")
-                            .font(Typeface.medium(13))
-                            .foregroundStyle(.white)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Theme.deleteButtonBgOpaque)
-                            )
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                    }
-
-                    Button {
-                        sessionPendingEdit = session
-                    } label: {
-                        Label("Edit", systemImage: "pencil.circle.fill")
-                            .font(Typeface.medium(13))
-                            .foregroundStyle(.white)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Theme.editButtonBgOpaque)
-                            )
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                    }
+            if !isSelecting {
+                Button(role: .destructive) {
+                    onDeleteSession(session)
+                } label: {
+                    Label("Delete", systemImage: "trash")
                 }
+
+                Button {
+                    sessionPendingEdit = session
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+                .tint(Theme.accent)
             }
         }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            Group {
-                if !isSelecting && session.categoryID != nil {
-                    Button {
-                        onStartAgain(session)
-                    } label: {
-                        Label("Start again", systemImage: "arrow.clockwise.circle.fill")
-                            .font(Typeface.medium(13))
-                            .foregroundStyle(.white)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Theme.startAgainButtonBgOpaque)
-                            )
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                    }
+            if !isSelecting, session.categoryID != nil {
+                Button {
+                    onStartAgain(session)
+                } label: {
+                    Label("Start again", systemImage: "arrow.clockwise")
                 }
+                .tint(Theme.accent)
             }
         }
     }
@@ -343,7 +314,7 @@ struct HistoryView: View {
     private func selectionIndicator(isSelected: Bool) -> some View {
         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
             .font(.system(size: 20))
-            .foregroundStyle(isSelected ? Theme.accent : Theme.inkFaint.opacity(0.5))
+            .foregroundStyle(isSelected ? Theme.accent : Theme.inkFaint)
     }
 
     private func totalMinutes(_ sessions: [Session]) -> Int {
@@ -363,8 +334,8 @@ struct HistoryView: View {
     }
 }
 
-// A logged session in the history list. Carries the same guess-beside-actual pairing
-// as the home list, plus how far off it was, which is the thing this screen is for.
+/// A logged session in the history list. Carries the same guess-beside-actual pairing
+/// as the home list, plus how far off it was, which is the thing this screen is for.
 struct HistoryRow: View {
     let session: Session
     let categoriesByID: [String: TaskCategory]
@@ -373,7 +344,7 @@ struct HistoryRow: View {
         session.categoryID.flatMap { categoriesByID[$0] }?.symbolName ?? "circle"
     }
 
-    // Only meaningful where a guess exists to have been wrong about.
+    /// Only meaningful where a guess exists to have been wrong about.
     private var deviation: Double? {
         guard let guess = session.estimatedMinutes, guess > 0,
               let actual = session.actualMinutes else { return nil }

@@ -1,19 +1,19 @@
 import SwiftUI
 
-// The "what was this" step, shown the instant a quick-started session ends.
-//
-// The friction lands at the one point where it costs almost nothing: right after the
-// person already knows what they just did, instead of making them stop and think before
-// they have even started.
-//
-// Asking for the context here, seconds after the fact, stays close enough to the moment
-// that it does not reopen the risk context tags exist to avoid — picking a tag long
-// afterward specifically to explain away a result.
+/// The "what was this" step, shown the instant a quick-started session ends.
+///
+/// The friction lands at the one point where it costs almost nothing: right after the
+/// person already knows what they just did, instead of making them stop and think before
+/// they have even started.
+///
+/// Asking for the context here, seconds after the fact, stays close enough to the moment
+/// that it does not reopen the risk context tags exist to avoid — picking a tag long
+/// afterward specifically to explain away a result.
 struct SessionResolutionView: View {
     let session: Session
     let categories: [TaskCategory]
     let history: [SessionRecord]
-    // Hands back the chosen category (nil means create one from `title`) and context.
+    /// Hands back the chosen category (nil means create one from `title`) and context.
     let onResolve: (_ categoryID: String?, _ title: String, _ contextTag: ContextTag, _ symbolName: String?) -> Void
     let onDismiss: () -> Void
 
@@ -22,15 +22,15 @@ struct SessionResolutionView: View {
     @State private var contextTag: ContextTag = .normal
     @State private var iconName: String = "circle"
 
-    // Whether what's typed is about to create a new category — the only case an icon
-    // choice means anything, since picking an existing chip already has one.
+    /// Whether what's typed is about to create a new category — the only case an icon
+    /// choice means anything, since picking an existing chip already has one.
     private var isNewCategory: Bool {
         selectedCategoryID == nil && !typedTitle.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    // The person's most frequent categories, which is what the chip row shows before
-    // anything has been typed — the same "most likely first" shortcut a blank search
-    // field would otherwise waste.
+    /// The person's most frequent categories, which is what the chip row shows before
+    /// anything has been typed — the same "most likely first" shortcut a blank search
+    /// field would otherwise waste.
     private var frequent: [TaskCategory] {
         let counts = Dictionary(grouping: history, by: \.categoryID).mapValues(\.count)
         return categories
@@ -39,10 +39,10 @@ struct SessionResolutionView: View {
             .map { $0 }
     }
 
-    // What the chip row shows: the frequent list while the field is empty, or whatever
-    // existing categories match what's been typed so far — a live search rather than a
-    // fixed set, so reusing a category already in history is a type-then-tap instead of
-    // retyping it character for character and hoping the app notices.
+    /// What the chip row shows: the frequent list while the field is empty, or whatever
+    /// existing categories match what's been typed so far — a live search rather than a
+    /// fixed set, so reusing a category already in history is a type-then-tap instead of
+    /// retyping it character for character and hoping the app notices.
     private var suggestions: [TaskCategory] {
         let trimmed = typedTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !trimmed.isEmpty else { return frequent }
@@ -56,32 +56,17 @@ struct SessionResolutionView: View {
         selectedCategoryID != nil || !typedTitle.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    @State private var appeared = false
-
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 0) {
                 header
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : -20)
-                    .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: appeared)
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 26) {
                         categorySection
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : -20)
-                            .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
-                            .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1), value: appeared)
-
                         contextSection
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : -20)
-                            .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
-                            .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.2), value: appeared)
                     }
                     .padding(.horizontal, Theme.Padding.focused)
                     .padding(.top, 26)
@@ -90,86 +75,80 @@ struct SessionResolutionView: View {
                 .scrollIndicators(.hidden)
 
                 actions
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : -20)
-                    .scaleEffect(appeared ? 1 : 0.95, anchor: .top)
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.3), value: appeared)
             }
         }
-        .onAppear { appeared = true }
     }
-
-    // MARK: - Header
 
     private var header: some View {
-        HStack {
-            Button(action: onDismiss) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
-            Spacer()
-            Caption("What was this")
-            Spacer()
-        }
-        .padding(.horizontal, Theme.Padding.screen)
-        .padding(.top, 22)
-    }
-
-    // MARK: - Category Section
-
-    private var categorySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Caption("What was this")
-
-            TextField("", text: $typedTitle, prompt: Text("Session title").foregroundStyle(Theme.inkFaint))
-                .font(Typeface.body(15))
+        VStack(alignment: .leading, spacing: 6) {
+            Caption("Ran for \(DurationFormatting.compact(minutes: session.actualMinutes ?? 0))")
+            Text("What was this?")
+                .font(Typeface.title(24))
                 .foregroundStyle(Theme.ink)
-                .textInputAutocapitalization(.sentences)
-                .autocorrectionDisabled()
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
-                .overlay {
-                    RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(Theme.line, lineWidth: 1)
-                }
-                // Editing away from a picked chip un-picks it — the field is back to
-                // being freeform text, exactly like it was before anything matched.
-                .onChange(of: typedTitle) { _, newValue in
-                    if let selectedCategoryID, categories.first(where: { $0.id == selectedCategoryID })?.name != newValue {
-                        self.selectedCategoryID = nil
-                    }
-                }
-
-            if isNewCategory {
-                EmojiIconButton(selection: $iconName)
-                    .padding(.horizontal, Theme.Padding.screen)
-                    .padding(.top, 14)
-            }
-
-            FlowLayout(spacing: 7, lineSpacing: 7) {
-                ForEach(suggestions, id: \.self) { category in
-                    Chip(title: category.name, isSelected: selectedCategoryID == category.id) {
-                        selectedCategoryID = category.id
-                        typedTitle = category.name
-                    }
-                }
-            }
+            Text("The time is already recorded. This just says what it counts toward.")
+                .font(Typeface.body(13))
+                .foregroundStyle(Theme.inkSoft)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
         }
         .padding(.horizontal, Theme.Padding.focused)
-        .padding(.top, 16)
+        .padding(.top, 26)
     }
 
-    // MARK: - Context Section
+    private var categorySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Caption("Category")
+
+            TextField(
+                "",
+                text: $typedTitle,
+                prompt: Text("Search or name a category").foregroundStyle(Theme.inkFaint)
+            )
+            .font(Typeface.body(15))
+            .foregroundStyle(Theme.ink)
+            .textInputAutocapitalization(.sentences)
+            .autocorrectionDisabled()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.row))
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(Theme.line, lineWidth: 1)
+            }
+            // Editing away from a picked chip un-picks it — the field is back to being
+            // freeform text, exactly like it was before anything matched.
+            .onChange(of: typedTitle) { _, newValue in
+                if let selectedCategoryID, categories.first(where: { $0.id == selectedCategoryID })?.name != newValue {
+                    self.selectedCategoryID = nil
+                }
+            }
+
+            if !suggestions.isEmpty {
+                FlowLayout(spacing: 8, lineSpacing: 8) {
+                    ForEach(suggestions) { category in
+                        Chip(title: category.name, isSelected: selectedCategoryID == category.id) {
+                            selectedCategoryID = category.id
+                            typedTitle = category.name
+                        }
+                    }
+                }
+            }
+
+            if isNewCategory {
+                HStack(spacing: 12) {
+                    EmojiIconButton(selection: $iconName)
+                    CategoryIconPicker(selection: $iconName)
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
 
     private var contextSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Caption("Context")
 
-            FlowLayout(spacing: 7, lineSpacing: 7) {
+            FlowLayout(spacing: 8, lineSpacing: 8) {
                 ForEach(ContextTag.defaults, id: \.self) { tag in
                     Chip(title: tag.displayName, isSelected: tag == contextTag) {
                         contextTag = tag
@@ -177,21 +156,31 @@ struct SessionResolutionView: View {
                 }
             }
         }
-        .padding(.horizontal, Theme.Padding.focused)
-        .padding(.top, 16)
     }
 
-    // MARK: - Actions
-
     private var actions: some View {
-        PrimaryButton(title: "Done") {
-            onResolve(selectedCategoryID, typedTitle.trimmingCharacters(in: .whitespaces), contextTag, isNewCategory ? iconName : nil)
+        VStack(spacing: 12) {
+            PrimaryButton(title: "Save") {
+                let trimmed = typedTitle.trimmingCharacters(in: .whitespaces)
+                let title = selectedCategoryID
+                    .flatMap { id in categories.first { $0.id == id }?.name }
+                    ?? trimmed
+                onResolve(selectedCategoryID, title, contextTag, isNewCategory ? iconName : nil)
+            }
+            .opacity(canResolve ? 1 : 0.4)
+            .disabled(!canResolve)
+
+            // Dismissing is allowed, but the session then sits plainly visible as
+            // unresolved rather than vanishing into a backlog.
+            Button(action: onDismiss) {
+                Text("Not now")
+                    .font(Typeface.body(13))
+                    .foregroundStyle(Theme.inkFaint)
+            }
+            .buttonStyle(.plain)
         }
-        .disabled(!canResolve)
-        .opacity(canResolve ? 1 : 0.4)
         .padding(.horizontal, Theme.Padding.focused)
-        .padding(.top, 10)
-        .padding(.bottom, 24)
+        .padding(.bottom, 46)
     }
 }
 
