@@ -1,6 +1,8 @@
 # Xcode
 DerivedData/
 build/
+build-sim/
+build_device/
 *.xcuserstate
 xcuserdata/
 *.xcscmblueprint

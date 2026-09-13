@@ -2,10 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Opening a shared reminder link drops straight into the app. Merged with the
-	     keys Xcode generates from the INFOPLIST_KEY_ build settings. -->
-	<!-- A trip has to keep being timed once the phone is in a pocket, or the arrival
-	     is never seen and the session never closes itself. -->
+	<key>CFBundleDisplayName</key>
+	<string>Tempo</string>
+	<key>CFBundleName</key>
+	<string>Tempo</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>
@@ -22,8 +22,14 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>actual</string>
+				<string>tempo</string>
 			</array>
 		</dict>
 	</array>
+    
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Tempo needs calendar access to suggest your upcoming events as timers.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Tempo needs reminders access to suggest your tasks as timers.</string>
 </dict>
 </plist>

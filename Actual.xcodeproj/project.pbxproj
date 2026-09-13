@@ -6,6 +6,47 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A100000000000000000092 /* ActualWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A100000000000000000012 /* ActualWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A100000000000000000081 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A100000000000000000090 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A100000000000000000040;
+			remoteInfo = Actual;
+		};
+		A100000000000000000083 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A100000000000000000090 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A100000000000000000042;
+			remoteInfo = ActualWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A100000000000000000091 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A100000000000000000092 /* ActualWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		A100000000000000000010 /* Actual.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Actual.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A100000000000000000011 /* ActualTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ActualTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A100000000000000000012 /* ActualWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ActualWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A100000000000000000001 /* Actual */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -28,30 +69,6 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
-
-/* Begin PBXFileReference section */
-		A100000000000000000010 /* Actual.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Actual.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A100000000000000000011 /* ActualTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ActualTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A100000000000000000012 /* ActualWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ActualWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-/* End PBXFileReference section */
-
-/* Begin PBXBuildFile section */
-		A100000000000000000092 /* ActualWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A100000000000000000012 /* ActualWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-/* End PBXBuildFile section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		A100000000000000000091 /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				A100000000000000000092 /* ActualWidgets.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A100000000000000000020 /* Frameworks */ = {
@@ -78,6 +95,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		55720E7E3056BCC800703192 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000004 /* ActualWidgets */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		A100000000000000000030 = {
 			isa = PBXGroup;
 			children = (
@@ -85,6 +110,7 @@
 				A100000000000000000001 /* Actual */,
 				A100000000000000000002 /* ActualTests */,
 				A100000000000000000031 /* Products */,
+				55720E7E3056BCC800703192 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -158,8 +184,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				A100000000000000000004 /* ActualWidgets */,
 				A100000000000000000003 /* Shared */,
+				A100000000000000000004 /* ActualWidgets */,
 			);
 			name = ActualWidgets;
 			productName = ActualWidgets;
@@ -179,12 +205,12 @@
 					A100000000000000000040 = {
 						CreatedOnToolsVersion = 26.6;
 					};
-					A100000000000000000042 = {
-						CreatedOnToolsVersion = 26.6;
-					};
 					A100000000000000000041 = {
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = A100000000000000000040;
+					};
+					A100000000000000000042 = {
+						CreatedOnToolsVersion = 26.6;
 					};
 				};
 			};
@@ -270,23 +296,6 @@
 		};
 /* End PBXTargetDependency section */
 
-/* Begin PBXContainerItemProxy section */
-		A100000000000000000081 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A100000000000000000090 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A100000000000000000040;
-			remoteInfo = Actual;
-		};
-		A100000000000000000083 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A100000000000000000090 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A100000000000000000042;
-			remoteInfo = ActualWidgets;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin XCBuildConfiguration section */
 		A1000000000000000000A0 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -345,17 +354,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = Supporting/Actual.entitlements;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Supporting/Actual.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 7F5T6T9VC9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Supporting/Info.plist;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Actual reads your calendar only to notice the open stretches between what you already have on.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Actual watches a trip in the background so it can notice you have arrived and stop the timer itself, without you having to remember.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Actual uses your location once, when a trip starts, to ask a routing service how long the drive should take.";
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Actual reads your calendar only to notice the open stretches between what you already have on.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Actual reads only the name and due date of unfinished reminders, so it can offer one that fits a free window.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -376,17 +386,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = Supporting/Actual.entitlements;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Supporting/Actual.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 7F5T6T9VC9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Supporting/Info.plist;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Actual reads your calendar only to notice the open stretches between what you already have on.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Actual watches a trip in the background so it can notice you have arrived and stop the timer itself, without you having to remember.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Actual uses your location once, when a trip starts, to ask a routing service how long the drive should take.";
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Actual reads your calendar only to notice the open stretches between what you already have on.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Actual reads only the name and due date of unfinished reminders, so it can offer one that fits a free window.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -409,6 +420,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7F5T6T9VC9;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.actual.ActualTests;
@@ -425,6 +437,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7F5T6T9VC9;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.actual.ActualTests;
@@ -441,6 +454,7 @@
 				CODE_SIGN_ENTITLEMENTS = Supporting/ActualWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7F5T6T9VC9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Supporting/ActualWidgets-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Actual;
@@ -466,6 +480,7 @@
 				CODE_SIGN_ENTITLEMENTS = Supporting/ActualWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7F5T6T9VC9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Supporting/ActualWidgets-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Actual;
@@ -488,15 +503,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A100000000000000000052 /* Build configuration list for PBXProject "Actual" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1000000000000000000A0 /* Debug */,
-				A1000000000000000000A1 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		A100000000000000000050 /* Build configuration list for PBXNativeTarget "Actual" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -511,6 +517,15 @@
 			buildConfigurations = (
 				A1000000000000000000A4 /* Debug */,
 				A1000000000000000000A5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A100000000000000000052 /* Build configuration list for PBXProject "Actual" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000000000000000000A0 /* Debug */,
+				A1000000000000000000A1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
