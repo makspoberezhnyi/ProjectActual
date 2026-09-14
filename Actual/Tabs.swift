@@ -585,13 +585,6 @@ struct LogTabView: View {
                 estimatedMinutes: mins,
                 startDate: session.startedAt ?? Date()
             )
-            
-            if match.isSport, let actType = match.activityType {
-                let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
-                if healthEnabled {
-                    HealthKitManager.shared.launchNativeWorkout(activityType: actType)
-                }
-            }
         }
         
         isTyping = true

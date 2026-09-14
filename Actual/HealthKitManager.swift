@@ -385,23 +385,6 @@ public final class HealthKitManager: @unchecked Sendable {
         }
     }
     
-    // MARK: - Native Pre-Made Workout Trigger
-    public func launchNativeWorkout(activityType: HKWorkoutActivityType, isOutdoor: Bool = true) {
-        let configuration = HKWorkoutConfiguration()
-        configuration.activityType = activityType
-        configuration.locationType = isOutdoor ? .outdoor : .indoor
-        
-        if let store = healthStore {
-            store.startWatchApp(with: configuration) { success, error in
-                if let error {
-                    print("Watch app launch info: \(error.localizedDescription)")
-                }
-            }
-        }
-        
-        openFitnessApp()
-    }
-    
     // MARK: - Save Mindful Session
     public func saveMindfulSession(
         start: Date,
