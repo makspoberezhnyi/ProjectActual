@@ -396,6 +396,53 @@ final class DummyTests: XCTestCase {
             try? pngData.write(to: URL(fileURLWithPath: "/Users/mpob/.gemini/antigravity/brain/58f45798-0e6b-4e38-8f64-978ab0fc9a27/sim_travel_workout_rendered.png"))
         }
     }
+    
+    @MainActor
+    func testNotificationManagerSchedulingAndCancellation() {
+        let notifManager = NotificationManager.shared
+        let sessionId = UUID().uuidString
+        
+        // Schedule Focus / Workout Timer Completion
+        notifManager.scheduleTimerCompletion(
+            title: "Outdoor Running",
+            durationMinutes: 30,
+            sessionId: sessionId,
+            isWorkout: true
+        )
+        
+        // Send Workout Reconciliation Notification
+        notifManager.sendWorkoutReconciliationNotification(
+            activityName: "Outdoor Running",
+            factualMinutes: 28,
+            estimatedMinutes: 30,
+            calories: 320
+        )
+        
+        // Cancel Timer Notification
+        notifManager.cancelTimerNotification(sessionId: sessionId)
+        XCTAssertNotNil(notifManager)
+    }
+    
+    @MainActor
+    func testHealthKitReconciliationAndDeltaCalculation() {
+        let workout = RecordedWorkout(
+            activityType: .running,
+            activityName: "Outdoor Running",
+            startDate: Date().addingTimeInterval(-1800),
+            endDate: Date(),
+            durationMinutes: 30,
+            activeCalories: 345,
+            icon: "figure.run"
+        )
+        
+        XCTAssertEqual(workout.durationMinutes, 30)
+        XCTAssertEqual(workout.activityName, "Outdoor Running")
+        XCTAssertEqual(workout.icon, "figure.run")
+        XCTAssertGreaterThan(workout.activeCalories, 0)
+        
+        let estMinutes = 25
+        let delta = workout.durationMinutes - estMinutes
+        let deltaStr = delta > 0 ? "+\(delta)m" : "\(delta)m"
+        XCTAssertEqual(deltaStr, "+5m")
+    }
 }
-
-

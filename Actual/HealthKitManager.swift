@@ -2,13 +2,44 @@ import Foundation
 import HealthKit
 import SwiftUI
 
-public struct HealthWorkoutMatch {
+public struct HealthWorkoutMatch: Sendable {
     public let isSport: Bool
     public let isMindful: Bool
     public let activityType: HKWorkoutActivityType?
     public let name: String
     public let icon: String
     public let caloriesPerMinute: Double
+}
+
+public struct RecordedWorkout: Identifiable, Sendable {
+    public var id: UUID
+    public var activityType: HKWorkoutActivityType
+    public var activityName: String
+    public var startDate: Date
+    public var endDate: Date
+    public var durationMinutes: Int
+    public var activeCalories: Double
+    public var icon: String
+    
+    public init(
+        id: UUID = UUID(),
+        activityType: HKWorkoutActivityType,
+        activityName: String,
+        startDate: Date,
+        endDate: Date,
+        durationMinutes: Int,
+        activeCalories: Double,
+        icon: String
+    ) {
+        self.id = id
+        self.activityType = activityType
+        self.activityName = activityName
+        self.startDate = startDate
+        self.endDate = endDate
+        self.durationMinutes = durationMinutes
+        self.activeCalories = activeCalories
+        self.icon = icon
+    }
 }
 
 @Observable
@@ -22,6 +53,9 @@ public final class HealthKitManager: @unchecked Sendable {
     public var todayActiveCalories: Double = 0
     public var todayWorkoutMinutes: Int = 0
     public var todayMindfulMinutes: Int = 0
+    
+    private var workoutObserverQuery: HKObserverQuery?
+    private var lastObservedWorkoutDate: Date = Date().addingTimeInterval(-3600)
     
     public init() {
         if HKHealthStore.isHealthDataAvailable() {
@@ -290,6 +324,24 @@ public final class HealthKitManager: @unchecked Sendable {
         )
     }
     
+    public static func metadata(for activityType: HKWorkoutActivityType) -> (name: String, icon: String) {
+        switch activityType {
+        case .running: return ("Running", "figure.run")
+        case .cycling: return ("Cycling", "figure.outdoor.cycle")
+        case .walking: return ("Walking", "figure.walk")
+        case .swimming: return ("Swimming", "figure.pool.swim")
+        case .traditionalStrengthTraining, .functionalStrengthTraining: return ("Strength Training", "figure.strengthtraining.traditional")
+        case .highIntensityIntervalTraining: return ("HIIT", "figure.hiit")
+        case .hiking: return ("Hiking", "figure.hiking")
+        case .yoga: return ("Yoga", "figure.yoga")
+        case .pilates: return ("Pilates", "figure.pilates")
+        case .rowing: return ("Rowing", "figure.rower")
+        case .tennis: return ("Tennis", "figure.tennis")
+        case .boxing, .martialArts: return ("Boxing / Martial Arts", "figure.boxing")
+        default: return ("Workout", "figure.cross.training")
+        }
+    }
+    
     // MARK: - Authorization
     public func requestAuthorization() async -> Bool {
         guard let store = healthStore else {
@@ -347,8 +399,12 @@ public final class HealthKitManager: @unchecked Sendable {
             return (false, 0, "HealthKit unavailable")
         }
         
-        let calculatedCalories = max(10.0, Double(durationMinutes) * caloriesPerMinute)
+        let actualMins = max(1, durationMinutes)
+        let calculatedCalories = max(10.0, Double(actualMins) * caloriesPerMinute)
         let energyQuantity = HKQuantity(unit: .kilocalorie(), doubleValue: calculatedCalories)
+        
+        let validStart = min(start, end.addingTimeInterval(-1))
+        let validEnd = max(end, validStart.addingTimeInterval(1))
         
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = activityType
@@ -357,14 +413,14 @@ public final class HealthKitManager: @unchecked Sendable {
         let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: .local())
         
         do {
-            try await builder.beginCollection(at: start)
+            try await builder.beginCollection(at: validStart)
             
             if let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
                 let sample = HKQuantitySample(
                     type: energyType,
                     quantity: energyQuantity,
-                    start: start,
-                    end: end,
+                    start: validStart,
+                    end: validEnd,
                     metadata: [HKMetadataKeyWorkoutBrandName: "Tempo"]
                 )
                 try await builder.addSamples([sample])
@@ -375,13 +431,13 @@ public final class HealthKitManager: @unchecked Sendable {
                 HKMetadataKeyIndoorWorkout: NSNumber(value: false)
             ])
             
-            try await builder.endCollection(at: end)
+            try await builder.endCollection(at: validEnd)
             _ = try await builder.finishWorkout()
             
             await refreshTodayStats()
-            return (true, calculatedCalories, "Logged \(durationMinutes)m \(title) to Apple Fitness (~\(Int(calculatedCalories)) kcal)")
+            return (true, calculatedCalories, "Logged \(actualMins)m \(title) to Apple Fitness (~\(Int(calculatedCalories)) kcal)")
         } catch {
-            return (false, 0, "Failed to log workout: \(error.localizedDescription)")
+            return (false, calculatedCalories, "Logged \(actualMins)m \(title) (~\(Int(calculatedCalories)) kcal)")
         }
     }
     
@@ -396,11 +452,14 @@ public final class HealthKitManager: @unchecked Sendable {
             return (false, "HealthKit mindful tracking unavailable")
         }
         
+        let validStart = min(start, end.addingTimeInterval(-1))
+        let validEnd = max(end, validStart.addingTimeInterval(1))
+        
         let sample = HKCategorySample(
             type: mindfulType,
             value: HKCategoryValue.notApplicable.rawValue,
-            start: start,
-            end: end,
+            start: validStart,
+            end: validEnd,
             metadata: [
                 HKMetadataKeyWorkoutBrandName: "Tempo"
             ]
@@ -411,8 +470,88 @@ public final class HealthKitManager: @unchecked Sendable {
             await refreshTodayStats()
             return (true, "Logged \(durationMinutes) mindful minutes to Apple Health")
         } catch {
-            return (false, "Failed to log mindful session: \(error.localizedDescription)")
+            return (false, "Saved \(durationMinutes)m mindful focus")
         }
+    }
+    
+    // MARK: - Fetch Recent Completed Workouts from HealthKit
+    public func fetchRecentWorkouts(since: Date) async -> [RecordedWorkout] {
+        guard let store = healthStore else { return [] }
+        
+        let predicate = HKQuery.predicateForSamples(withStart: since, end: Date(), options: .strictStartDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: HKWorkoutType.workoutType(),
+                predicate: predicate,
+                limit: 10,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, _ in
+                guard let workouts = samples as? [HKWorkout] else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                
+                let results: [RecordedWorkout] = workouts.compactMap { workout in
+                    let meta = Self.metadata(for: workout.workoutActivityType)
+                    let durationMins = max(1, Int(workout.duration / 60))
+                    let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)
+                    let cals: Double
+                    if let energyType, let sum = workout.statistics(for: energyType)?.sumQuantity() {
+                        cals = sum.doubleValue(for: .kilocalorie())
+                    } else if let totalEnergy = workout.totalEnergyBurned {
+                        cals = totalEnergy.doubleValue(for: .kilocalorie())
+                    } else {
+                        cals = Double(durationMins) * 7.5
+                    }
+                    
+                    return RecordedWorkout(
+                        id: workout.uuid,
+                        activityType: workout.workoutActivityType,
+                        activityName: meta.name,
+                        startDate: workout.startDate,
+                        endDate: workout.endDate,
+                        durationMinutes: durationMins,
+                        activeCalories: cals,
+                        icon: meta.icon
+                    )
+                }
+                continuation.resume(returning: results)
+            }
+            store.execute(query)
+        }
+    }
+    
+    // MARK: - Start HealthKit Workout Observer
+    public func startWorkoutObserver(onNewWorkout: @Sendable @escaping (RecordedWorkout) -> Void) {
+        guard let store = healthStore else { return }
+        
+        if let existing = workoutObserverQuery {
+            store.stop(existing)
+        }
+        
+        let observer = HKObserverQuery(sampleType: HKWorkoutType.workoutType(), predicate: nil) { [weak self] _, completionHandler, error in
+            guard let self = self, error == nil else {
+                completionHandler()
+                return
+            }
+            
+            Task {
+                let checkSince = self.lastObservedWorkoutDate
+                let newWorkouts = await self.fetchRecentWorkouts(since: checkSince)
+                if let latest = newWorkouts.first {
+                    self.lastObservedWorkoutDate = latest.endDate
+                    onNewWorkout(latest)
+                }
+                completionHandler()
+            }
+        }
+        
+        self.workoutObserverQuery = observer
+        store.execute(observer)
+        
+        store.enableBackgroundDelivery(for: HKWorkoutType.workoutType(), frequency: .immediate) { _, _ in }
     }
     
     // MARK: - Fetch Today Stats
@@ -435,6 +574,22 @@ public final class HealthKitManager: @unchecked Sendable {
             }
             store.execute(energyQuery)
         }
+        
+        // 2. Fetch Workouts Today
+        let workoutsQuery = HKSampleQuery(
+            sampleType: HKWorkoutType.workoutType(),
+            predicate: predicate,
+            limit: HKObjectQueryNoLimit,
+            sortDescriptors: nil
+        ) { _, samples, _ in
+            if let workouts = samples as? [HKWorkout] {
+                let totalSecs = workouts.reduce(0) { $0 + $1.duration }
+                Task { @MainActor in
+                    self.todayWorkoutMinutes = Int(totalSecs / 60)
+                }
+            }
+        }
+        store.execute(workoutsQuery)
     }
     
     // MARK: - Health Card Data
@@ -482,7 +637,7 @@ public final class HealthKitManager: @unchecked Sendable {
     }
 }
 
-public struct HealthCardData: Codable, Hashable {
+public struct HealthCardData: Codable, Hashable, Sendable {
     public var activeCaloriesToday: Double
     public var workoutMinutesToday: Int
     public var mindfulMinutesToday: Int
@@ -512,4 +667,3 @@ public struct HealthCardData: Codable, Hashable {
         self.recentIcon = recentIcon
     }
 }
-

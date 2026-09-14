@@ -208,6 +208,11 @@ struct LogTabView: View {
         .onAppear {
             eventKit.requestAccessAndFetch()
             syncPendingWidgetSessions()
+            HealthKitManager.shared.startWorkoutObserver { workout in
+                Task { @MainActor in
+                    handleHealthKitWorkoutFinished(workout)
+                }
+            }
         }
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
             syncPendingWidgetSessions()
@@ -217,6 +222,14 @@ struct LogTabView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .syncWidgetSessionsNotification)) { _ in
             syncPendingWidgetSessions()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .finishSessionFromNotification)) { notif in
+            if let targetId = notif.userInfo?["sessionId"] as? String,
+               let targetSession = sessions.first(where: { $0.sessionIdentifier == targetId && $0.isRunning }) {
+                stopSession(targetSession, endCommandText: "Finished via Notification")
+            } else if let runningSession = sessions.last(where: { $0.isRunning }) {
+                stopSession(runningSession, endCommandText: "Finished via Notification")
+            }
         }
     }
     
@@ -585,6 +598,12 @@ struct LogTabView: View {
                 estimatedMinutes: mins,
                 startDate: session.startedAt ?? Date()
             )
+            NotificationManager.shared.scheduleTimerCompletion(
+                title: intent.text,
+                durationMinutes: mins,
+                sessionId: session.sessionIdentifier,
+                isWorkout: match.isSport
+            )
         }
         
         isTyping = true
@@ -830,6 +849,12 @@ struct LogTabView: View {
             estimatedMinutes: minutes,
             startDate: session.startedAt ?? Date()
         )
+        NotificationManager.shared.scheduleTimerCompletion(
+            title: title,
+            durationMinutes: minutes,
+            sessionId: session.sessionIdentifier,
+            isWorkout: mode == .walking || mode == .cycling
+        )
     }
     
     private func stopSession(_ session: Session, endCommandText: String) {
@@ -839,6 +864,7 @@ struct LogTabView: View {
         session.endCommandText = endCommandText
         
         LiveActivityManager.shared.endLiveActivity(actualMinutes: actual)
+        NotificationManager.shared.cancelTimerNotification(sessionId: session.sessionIdentifier)
         
         // Bidirectional sync with Apple Calendar or Reminders
         var syncNote = ""
@@ -901,11 +927,71 @@ struct LogTabView: View {
                 }
             }
         } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 session.tempoEndResponse = baseResponse
                 self.isTyping = false
                 try? context.save()
             }
+        }
+    }
+    
+    private func handleHealthKitWorkoutFinished(_ workout: RecordedWorkout) {
+        // If an active session is running, reconcile it
+        if let runningSession = sessions.last(where: { $0.isRunning }) {
+            let match = HealthKitManager.detectActivity(from: runningSession.rawText)
+            if match.isSport {
+                runningSession.endedAt = workout.endDate
+                runningSession.actualMinutes = workout.durationMinutes
+                runningSession.endCommandText = "Workout Completed in Apple Fitness"
+                
+                let est = runningSession.estimatedMinutes ?? workout.durationMinutes
+                let delta = workout.durationMinutes - est
+                let deltaStr = delta > 0 ? "+\(delta)m" : (delta < 0 ? "\(delta)m" : "on time")
+                let ratioText = runningSession.biasRatio != nil ? String(format: "%.1fx", runningSession.biasRatio!) : "-"
+                
+                runningSession.tempoEndResponse = "Done. Logged \(workout.durationMinutes)m (Est: \(est)m, \(deltaStr), Ratio: \(ratioText)) • 🏃 \(workout.activityName) recorded in Apple Fitness (~\(Int(workout.activeCalories)) kcal)"
+                
+                LiveActivityManager.shared.endLiveActivity(actualMinutes: workout.durationMinutes)
+                NotificationManager.shared.cancelTimerNotification(sessionId: runningSession.sessionIdentifier)
+                NotificationManager.shared.sendWorkoutReconciliationNotification(
+                    activityName: workout.activityName,
+                    factualMinutes: workout.durationMinutes,
+                    estimatedMinutes: est,
+                    calories: Int(workout.activeCalories)
+                )
+                try? context.save()
+                return
+            }
+        }
+        
+        // Otherwise, add reconciled standalone workout to timeline
+        let alreadyLogged = sessions.contains { s in
+            guard let start = s.startedAt else { return false }
+            return abs(start.timeIntervalSince(workout.startDate)) < 60
+        }
+        
+        if !alreadyLogged {
+            let session = Session(
+                rawText: "\(workout.activityName) (\(workout.durationMinutes)m)",
+                estimatedMinutes: workout.durationMinutes,
+                startedAt: workout.startDate,
+                tempoResponse: "🏃 \(workout.activityName) synced from Apple Fitness.",
+                tempoEndResponse: "Done. Logged \(workout.durationMinutes)m • ~\(Int(workout.activeCalories)) kcal burned in Apple Fitness.",
+                isRetroactive: true,
+                integrationSource: "healthkit",
+                createdAt: workout.endDate
+            )
+            session.endedAt = workout.endDate
+            session.actualMinutes = workout.durationMinutes
+            context.insert(session)
+            try? context.save()
+            
+            NotificationManager.shared.sendWorkoutReconciliationNotification(
+                activityName: workout.activityName,
+                factualMinutes: workout.durationMinutes,
+                estimatedMinutes: nil,
+                calories: Int(workout.activeCalories)
+            )
         }
     }
     
@@ -1013,6 +1099,12 @@ struct LogTabView: View {
             isLinkedToCalendar: item.isCalendarEvent,
             isLinkedToReminders: !item.isCalendarEvent
         )
+        NotificationManager.shared.scheduleTimerCompletion(
+            title: item.title,
+            durationMinutes: item.estimatedMinutes,
+            sessionId: session.sessionIdentifier,
+            isWorkout: false
+        )
         
         isTyping = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -1046,6 +1138,13 @@ struct LogTabView: View {
             taskTitle: taskTitle,
             estimatedMinutes: minutes,
             startDate: session.startedAt ?? Date()
+        )
+        let match = HealthKitManager.detectActivity(from: taskTitle)
+        NotificationManager.shared.scheduleTimerCompletion(
+            title: taskTitle,
+            durationMinutes: minutes,
+            sessionId: session.sessionIdentifier,
+            isWorkout: match.isSport
         )
         
         isTyping = true
@@ -1085,6 +1184,13 @@ struct LogTabView: View {
             linkedEventIdentifier: session.linkedEventIdentifier,
             isLinkedToCalendar: session.isLinkedToCalendar,
             isLinkedToReminders: session.isLinkedToReminders
+        )
+        let match = HealthKitManager.detectActivity(from: session.rawText)
+        NotificationManager.shared.scheduleTimerCompletion(
+            title: session.rawText,
+            durationMinutes: minutes,
+            sessionId: session.sessionIdentifier,
+            isWorkout: match.isSport
         )
         
         isTyping = true
@@ -1795,6 +1901,7 @@ struct LogTabView: View {
         context.delete(session)
         try? context.save()
         LiveActivityManager.shared.cancelAllLiveActivities()
+        NotificationManager.shared.cancelTimerNotification(sessionId: session.sessionIdentifier)
     }
     
     private func cancelRunningSession(_ session: Session) {
@@ -1813,6 +1920,7 @@ struct LogTabView: View {
         context.delete(session)
         try? context.save()
         LiveActivityManager.shared.cancelAllLiveActivities()
+        NotificationManager.shared.cancelTimerNotification(sessionId: session.sessionIdentifier)
     }
     
     @ViewBuilder
@@ -1856,7 +1964,11 @@ struct LogTabView: View {
                 }
             } else if let response = session.tempoResponse {
                 let match = HealthKitManager.detectActivity(from: session.rawText)
-                if !(session.isRunning && match.isSport) {
+                if match.isSport {
+                    if !session.isRunning && ((session.isRetroactive ?? false) || session.tempoEndResponse == nil) {
+                        aiBubble(text: response)
+                    }
+                } else {
                     if !(session.isRetroactive ?? false) || session.isRunning {
                         aiBubble(text: response)
                     }

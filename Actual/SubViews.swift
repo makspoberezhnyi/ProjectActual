@@ -1140,6 +1140,7 @@ struct IntegrationsView: View {
     @AppStorage("integration_reminders_enabled") private var remindersEnabled: Bool = true
     @AppStorage("integration_health_enabled") private var healthEnabled: Bool = true
     @AppStorage("integration_maps_enabled") private var mapsEnabled: Bool = true
+    @AppStorage("integration_notifications_enabled") private var notificationsEnabled: Bool = true
     
     @AppStorage("integration_notion_enabled") private var notionEnabled: Bool = false
     @AppStorage("integration_todoist_enabled") private var todoistEnabled: Bool = false
@@ -1223,6 +1224,24 @@ struct IntegrationsView: View {
                             )
                             .onChange(of: mapsEnabled) { _, newValue in
                                 UserDefaults.standard.set(newValue, forKey: "integration_maps_enabled")
+                            }
+                            
+                            Divider().opacity(0.15)
+                            
+                            integrationToggleRow(
+                                title: "Notifications & Timer Alerts",
+                                subtitle: "Alerts when estimated focus or workout finishes, and routine reminders",
+                                icon: "bell.badge.fill",
+                                iconColor: Color.red,
+                                isOn: $notificationsEnabled
+                            )
+                            .onChange(of: notificationsEnabled) { _, newValue in
+                                UserDefaults.standard.set(newValue, forKey: "integration_notifications_enabled")
+                                if newValue {
+                                    Task {
+                                        _ = await NotificationManager.shared.requestAuthorization()
+                                    }
+                                }
                             }
                         }
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))

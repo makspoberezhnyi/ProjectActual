@@ -65,6 +65,10 @@ final class Session {
         self.createdAt = createdAt ?? Date()
     }
     
+    var sessionIdentifier: String {
+        "\(persistentModelID)"
+    }
+    
     var timestamp: Date {
         createdAt ?? startedAt ?? Date()
     }
