@@ -20,7 +20,6 @@ struct ParsedIntent {
     var destinationQuery: String? = nil
     var isNextMeetingTravel: Bool = false
     var travelTransportMode: TravelTransportMode? = nil
-    var isHealthQuery: Bool = false
 }
 
 final class ChatParser {
@@ -102,24 +101,6 @@ final class ChatParser {
             if text.contains("check") || text.contains("show") || text.contains("what") || text.contains("open") || text.contains("view") || text.contains("get") || text.contains("list") || text.contains("my") || text.contains("please") {
                 return true
             }
-        }
-        return false
-    }
-    
-    // MARK: - Health & Fitness Query Parsing
-    static func isHealthQuery(_ input: String) -> Bool {
-        let text = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        let exactPhrases = [
-            "health", "fitness", "apple health", "apple fitness", "workout stats", "fitness stats",
-            "health stats", "health summary", "fitness summary", "activity rings", "fitness rings",
-            "my rings", "move ring", "exercise ring", "how many calories", "calories burned",
-            "check health", "check fitness", "open health", "open fitness", "view health", "view fitness"
-        ]
-        if exactPhrases.contains(text) || exactPhrases.contains(where: { text == "\($0)?" || text == "\($0)!" }) {
-            return true
-        }
-        if (text.contains("health") || text.contains("fitness") || text.contains("ring") || text.contains("calorie")) && (text.contains("check") || text.contains("show") || text.contains("what") || text.contains("my") || text.contains("how many") || text.contains("summary") || text.contains("stats")) {
-            return true
         }
         return false
     }
@@ -316,21 +297,6 @@ final class ChatParser {
         if isCalendarOrScheduleQuery(input) {
             let target = detectIntegrationTarget(input)
             return ParsedIntent(text: input, estimatedMinutes: nil, isRetroactive: false, isStopCommand: false, isSuggestionRequest: false, isScheduleCheck: true, integrationTarget: target)
-        }
-        
-        // 3b. Health & Fitness Queries
-        if isHealthQuery(input) {
-            return ParsedIntent(
-                text: input,
-                estimatedMinutes: nil,
-                isRetroactive: false,
-                isStopCommand: false,
-                isSuggestionRequest: false,
-                isScheduleCheck: false,
-                integrationTarget: nil,
-                isConversational: false,
-                isHealthQuery: true
-            )
         }
         
         // 4. Conversational Small Talk (Greetings, "what's up", "who are you", motivation, stats)

@@ -67,7 +67,6 @@ struct ContentView: View {
             if newPhase == .active {
                 updateCalibrationAndWidget()
                 NotificationCenter.default.post(name: .syncWidgetSessionsNotification, object: nil)
-                NotificationCenter.default.post(name: .syncHealthKitWorkoutsNotification, object: nil)
             }
         }
     }

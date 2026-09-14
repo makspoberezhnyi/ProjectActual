@@ -1138,7 +1138,6 @@ struct IntegrationsView: View {
     
     @AppStorage("integration_calendar_enabled") private var calendarEnabled: Bool = true
     @AppStorage("integration_reminders_enabled") private var remindersEnabled: Bool = true
-    @AppStorage("integration_health_enabled") private var healthEnabled: Bool = true
     @AppStorage("integration_maps_enabled") private var mapsEnabled: Bool = true
     @AppStorage("integration_notifications_enabled") private var notificationsEnabled: Bool = true
     
@@ -1148,7 +1147,6 @@ struct IntegrationsView: View {
     @AppStorage("integration_slack_enabled") private var slackEnabled: Bool = false
     @AppStorage("integration_github_enabled") private var githubEnabled: Bool = false
     @AppStorage("integration_music_enabled") private var musicEnabled: Bool = false
-    @Bindable private var healthKit = HealthKitManager.shared
     
     var body: some View {
         ZStack {
@@ -1195,23 +1193,7 @@ struct IntegrationsView: View {
                                 }
                             }
                             
-                            Divider().opacity(0.15)
-                            
-                            integrationToggleRow(
-                                title: "Apple Health & Fitness",
-                                subtitle: "Log workouts (running, gym, cycling, sports) & mindful sessions",
-                                icon: "heart.fill",
-                                iconColor: Color(red: 1.0, green: 0.18, blue: 0.33),
-                                isOn: $healthEnabled
-                            )
-                            .onChange(of: healthEnabled) { _, newValue in
-                                UserDefaults.standard.set(newValue, forKey: "integration_health_enabled")
-                                if newValue {
-                                    Task {
-                                        _ = await healthKit.requestAuthorization()
-                                    }
-                                }
-                            }
+
                             
                             Divider().opacity(0.15)
                             

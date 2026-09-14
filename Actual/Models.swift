@@ -17,8 +17,6 @@ final class Session {
     var schedulePayload: String?
     var travelPayload: String?
     var isTravelQuery: Bool?
-    var isHealthQuery: Bool?
-    var healthPayload: String?
     var integrationSource: String?
     var linkedEventIdentifier: String?
     var isLinkedToCalendar: Bool?
@@ -37,8 +35,6 @@ final class Session {
         schedulePayload: String? = nil,
         travelPayload: String? = nil,
         isTravelQuery: Bool? = nil,
-        isHealthQuery: Bool? = nil,
-        healthPayload: String? = nil,
         integrationSource: String? = nil,
         linkedEventIdentifier: String? = nil,
         isLinkedToCalendar: Bool? = nil,
@@ -56,8 +52,6 @@ final class Session {
         self.schedulePayload = schedulePayload
         self.travelPayload = travelPayload
         self.isTravelQuery = isTravelQuery
-        self.isHealthQuery = isHealthQuery
-        self.healthPayload = healthPayload
         self.integrationSource = integrationSource
         self.linkedEventIdentifier = linkedEventIdentifier
         self.isLinkedToCalendar = isLinkedToCalendar
@@ -91,21 +85,12 @@ final class Session {
         return result
     }
     
-    var healthCardData: HealthCardData? {
-        guard let payload = healthPayload,
-              let data = payload.data(using: .utf8),
-              let result = try? JSONDecoder().decode(HealthCardData.self, from: data) else {
-            return nil
-        }
-        return result
-    }
-    
     var isRunning: Bool {
-        startedAt != nil && endedAt == nil && !(isScheduleQuery ?? false) && !(isTravelQuery ?? false) && !(isHealthQuery ?? false)
+        startedAt != nil && endedAt == nil && !(isScheduleQuery ?? false) && !(isTravelQuery ?? false)
     }
     
     var isActualTask: Bool {
-        startedAt != nil && !(isScheduleQuery ?? false) && !(isTravelQuery ?? false) && !(isHealthQuery ?? false)
+        startedAt != nil && !(isScheduleQuery ?? false) && !(isTravelQuery ?? false)
     }
     
     var biasRatio: Double? {

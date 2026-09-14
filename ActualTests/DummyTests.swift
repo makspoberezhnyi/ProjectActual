@@ -218,204 +218,16 @@ final class DummyTests: XCTestCase {
         }
     }
     
-    func testHealthKitDetectionAndActivityMatching() {
-        // 1. Running
-        let runMatch = HealthKitManager.detectActivity(from: "Morning run 5k 30m")
-        XCTAssertTrue(runMatch.isSport)
-        XCTAssertFalse(runMatch.isMindful)
-        XCTAssertEqual(runMatch.activityType, .running)
-        XCTAssertEqual(runMatch.name, "Outdoor Running")
-        XCTAssertGreaterThan(runMatch.caloriesPerMinute, 10.0)
-        
-        // 2. Gym / Weightlifting
-        let gymMatch = HealthKitManager.detectActivity(from: "Gym leg day squats & deadlifts 45m")
-        XCTAssertTrue(gymMatch.isSport)
-        XCTAssertEqual(gymMatch.activityType, .traditionalStrengthTraining)
-        XCTAssertEqual(gymMatch.name, "Traditional Strength Training")
-        
-        // 3. Cycling
-        let bikeMatch = HealthKitManager.detectActivity(from: "Peloton indoor cycle 45m")
-        XCTAssertTrue(bikeMatch.isSport)
-        XCTAssertEqual(bikeMatch.activityType, .cycling)
-        
-        // 4. Swimming
-        let swimMatch = HealthKitManager.detectActivity(from: "Pool laps freestyle 30m")
-        XCTAssertTrue(swimMatch.isSport)
-        XCTAssertEqual(swimMatch.activityType, .swimming)
-        
-        // 5. Boxing
-        let boxingMatch = HealthKitManager.detectActivity(from: "Heavy bag boxing workout 40m")
-        XCTAssertTrue(boxingMatch.isSport)
-        XCTAssertEqual(boxingMatch.activityType, .boxing)
-        
-        // 6. Yoga
-        let yogaMatch = HealthKitManager.detectActivity(from: "Vinyasa yoga flow 60m")
-        XCTAssertTrue(yogaMatch.isSport)
-        XCTAssertEqual(yogaMatch.activityType, .yoga)
-        
-        // 7. Tennis
-        let tennisMatch = HealthKitManager.detectActivity(from: "Tennis match with Alex 60m")
-        XCTAssertTrue(tennisMatch.isSport)
-        XCTAssertEqual(tennisMatch.activityType, .tennis)
-        
-        // 8. HIIT
-        let hiitMatch = HealthKitManager.detectActivity(from: "Tabata HIIT circuit 20m")
-        XCTAssertTrue(hiitMatch.isSport)
-        XCTAssertEqual(hiitMatch.activityType, .highIntensityIntervalTraining)
-        
-        // 9. Mindful Minutes
-        let mindfulMatch = HealthKitManager.detectActivity(from: "Evening meditation & breathwork 15m")
-        XCTAssertFalse(mindfulMatch.isSport)
-        XCTAssertTrue(mindfulMatch.isMindful)
-        XCTAssertEqual(mindfulMatch.name, "Mindful Session")
-        
-        // 10. Focus / Coding
-        let codingMatch = HealthKitManager.detectActivity(from: "Deep work coding SwiftUI features 90m")
-        XCTAssertFalse(codingMatch.isSport)
-        XCTAssertTrue(codingMatch.isMindful)
-        
-        // 11. Normal task
-        let genericTask = HealthKitManager.detectActivity(from: "Submit quarterly tax report")
-        XCTAssertFalse(genericTask.isSport)
-        XCTAssertFalse(genericTask.isMindful)
-    }
-    
-    @MainActor
-    func testHealthChatQueriesAndSessionCardRendering() throws {
-        // 1. Check parsing of "run 30m"
-        let runIntent = ChatParser.parse("run 30m")
-        XCTAssertEqual(runIntent.estimatedMinutes, 30)
-        XCTAssertFalse(runIntent.isConversational)
-        XCTAssertFalse(runIntent.isStopCommand)
-        let runMatch = HealthKitManager.detectActivity(from: runIntent.text)
-        XCTAssertTrue(runMatch.isSport)
-        XCTAssertEqual(runMatch.activityType, .running)
-        
-        // 2. Check health query intents
-        let healthQuery1 = ChatParser.parse("check health")
-        XCTAssertTrue(healthQuery1.isHealthQuery)
-        
-        let healthQuery2 = ChatParser.parse("fitness stats")
-        XCTAssertTrue(healthQuery2.isHealthQuery)
-        
-        let healthQuery3 = ChatParser.parse("how many calories today")
-        XCTAssertTrue(healthQuery3.isHealthQuery)
-        
-        // 3. Render Health Card Snapshot
-        let sampleData = HealthCardData(
-            activeCaloriesToday: 420,
-            workoutMinutesToday: 35,
-            mindfulMinutesToday: 20,
-            isAuthorized: true,
-            recentActivityName: "Outdoor Running",
-            recentCalories: 345,
-            recentMinutes: 30,
-            recentIcon: "figure.run"
-        )
-        let sampleSession = Session(
-            rawText: "check health",
-            tempoResponse: "Here is your Apple Health & Fitness activity for today:",
-            isHealthQuery: true
-        )
-        if let encoded = try? JSONEncoder().encode(sampleData) {
-            sampleSession.healthPayload = String(data: encoded, encoding: .utf8)
-        }
-        
-        let schema = Schema([Session.self])
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: schema, configurations: config)
-        container.mainContext.insert(sampleSession)
-        
-        let logTabView = LogTabView(sessions: [sampleSession], calibrationScore: .constant(1.0))
-            .modelContainer(container)
-            .preferredColorScheme(.dark)
-        
-        let hosting = UIHostingController(rootView: logTabView)
-        hosting.view.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
-        hosting.view.layoutIfNeeded()
-        XCTAssertNotNil(hosting.view)
-        
-        let renderer = UIGraphicsImageRenderer(size: hosting.view.bounds.size)
-        let img = renderer.image { _ in
-            hosting.view.drawHierarchy(in: hosting.view.bounds, afterScreenUpdates: true)
-        }
-        if let pngData = img.pngData() {
-            try? pngData.write(to: URL(fileURLWithPath: "/Users/mpob/.gemini/antigravity/brain/58f45798-0e6b-4e38-8f64-978ab0fc9a27/sim_health_query_rendered.png"))
-        }
-    }
-    
-    @MainActor
-    func testTravelCardAndActiveWorkoutCardRendering() throws {
-        let travelResult = TravelAssessmentResult(
-            destinationTitle: "Manufaktura",
-            destinationAddress: "Ogrodowa 19A, 91-065 Łódź",
-            travelDurationMinutes: 14,
-            distanceMeters: 4800,
-            distanceString: "4.8 km",
-            transportTypeName: "Car",
-            transportMode: .driving,
-            latitude: 51.7797,
-            longitude: 19.4478
-        )
-        let travelSession = Session(
-            rawText: "how long to drive to Manufaktura",
-            tempoResponse: "🚗 The drive to Manufaktura will take approximately 14m (4.8 km).",
-            isTravelQuery: true
-        )
-        if let encoded = try? JSONEncoder().encode(travelResult) {
-            travelSession.travelPayload = String(data: encoded, encoding: .utf8)
-        }
-        
-        let workoutSession = Session(
-            rawText: "Run 30m",
-            estimatedMinutes: 30,
-            startedAt: Date().addingTimeInterval(-420), // 7 mins ago
-            tempoResponse: "🏃 Outdoor Running workout timer started (30m). Tracking with Apple Fitness."
-        )
-        
-        let schema = Schema([Session.self])
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: schema, configurations: config)
-        container.mainContext.insert(travelSession)
-        container.mainContext.insert(workoutSession)
-        
-        let logTabView = LogTabView(sessions: [travelSession, workoutSession], calibrationScore: .constant(1.0))
-            .modelContainer(container)
-            .preferredColorScheme(.dark)
-        
-        let hosting = UIHostingController(rootView: logTabView)
-        hosting.view.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
-        hosting.view.layoutIfNeeded()
-        XCTAssertNotNil(hosting.view)
-        
-        let renderer = UIGraphicsImageRenderer(size: hosting.view.bounds.size)
-        let img = renderer.image { _ in
-            hosting.view.drawHierarchy(in: hosting.view.bounds, afterScreenUpdates: true)
-        }
-        if let pngData = img.pngData() {
-            try? pngData.write(to: URL(fileURLWithPath: "/Users/mpob/.gemini/antigravity/brain/58f45798-0e6b-4e38-8f64-978ab0fc9a27/sim_travel_workout_rendered.png"))
-        }
-    }
-    
     @MainActor
     func testNotificationManagerSchedulingAndCancellation() {
         let notifManager = NotificationManager.shared
         let sessionId = UUID().uuidString
         
-        // Schedule Focus / Workout Timer Completion
+        // Schedule Focus Timer Completion
         notifManager.scheduleTimerCompletion(
-            title: "Outdoor Running",
+            title: "Design Mockups",
             durationMinutes: 30,
-            sessionId: sessionId,
-            isWorkout: true
-        )
-        
-        // Send Workout Reconciliation Notification
-        notifManager.sendWorkoutReconciliationNotification(
-            activityName: "Outdoor Running",
-            factualMinutes: 28,
-            estimatedMinutes: 30,
-            calories: 320
+            sessionId: sessionId
         )
         
         // Cancel Timer Notification
@@ -424,30 +236,7 @@ final class DummyTests: XCTestCase {
     }
     
     @MainActor
-    func testHealthKitReconciliationAndDeltaCalculation() {
-        let workout = RecordedWorkout(
-            activityType: .running,
-            activityName: "Outdoor Running",
-            startDate: Date().addingTimeInterval(-1800),
-            endDate: Date(),
-            durationMinutes: 30,
-            activeCalories: 345,
-            icon: "figure.run"
-        )
-        
-        XCTAssertEqual(workout.durationMinutes, 30)
-        XCTAssertEqual(workout.activityName, "Outdoor Running")
-        XCTAssertEqual(workout.icon, "figure.run")
-        XCTAssertGreaterThan(workout.activeCalories, 0)
-        
-        let estMinutes = 25
-        let delta = workout.durationMinutes - estMinutes
-        let deltaStr = delta > 0 ? "+\(delta)m" : "\(delta)m"
-        XCTAssertEqual(deltaStr, "+5m")
-    }
-    
-    @MainActor
-    func testFlowAStopSessionAndParsing() throws {
+    func testStandardStopSessionAndParsing() throws {
         // 1. Verify Stop / Finished parsing
         let finishIntent = ChatParser.parse("Finished")
         XCTAssertTrue(finishIntent.isStopCommand)
@@ -458,32 +247,28 @@ final class DummyTests: XCTestCase {
         let stopIntent = ChatParser.parse("stop")
         XCTAssertTrue(stopIntent.isStopCommand)
         
-        // 2. Create and run a workout session
-        let workoutSession = Session(
-            rawText: "Running 30m",
+        // 2. Create and run a focus session
+        let session = Session(
+            rawText: "Coding SwiftUI 30m",
             estimatedMinutes: 30,
             startedAt: Date().addingTimeInterval(-1800),
-            tempoResponse: "🏃 Outdoor Running workout timer started (30m). Tracking with Apple Fitness."
+            tempoResponse: "Timer started. Focus."
         )
-        XCTAssertTrue(workoutSession.isRunning)
+        XCTAssertTrue(session.isRunning)
         
         // 3. Emulate stopSession execution
-        workoutSession.endedAt = Date()
-        let actual = max(1, Int(Date().timeIntervalSince(workoutSession.startedAt ?? Date()) / 60))
-        workoutSession.actualMinutes = actual
-        workoutSession.endCommandText = "Finished"
+        session.endedAt = Date()
+        let actual = max(1, Int(Date().timeIntervalSince(session.startedAt ?? Date()) / 60))
+        session.actualMinutes = actual
+        session.endCommandText = "Finished"
         
-        let ratioText = workoutSession.biasRatio != nil ? String(format: "%.1fx", workoutSession.biasRatio!) : "-"
-        let baseResponse = "Done. Logged \(actual)m. (Ratio: \(ratioText))"
-        let match = HealthKitManager.detectActivity(from: workoutSession.rawText)
-        let estimatedKcal = Int(Double(actual) * (match.caloriesPerMinute > 0 ? match.caloriesPerMinute : 8.0))
-        workoutSession.tempoEndResponse = "\(baseResponse) • 🏃 \(match.name) logged to Apple Fitness (~\(estimatedKcal) kcal)"
+        let ratioText = session.biasRatio != nil ? String(format: "%.1fx", session.biasRatio!) : "-"
+        session.tempoEndResponse = "Done. Logged \(actual)m. (Ratio: \(ratioText))"
         
         // 4. Assertions
-        XCTAssertFalse(workoutSession.isRunning)
-        XCTAssertEqual(workoutSession.actualMinutes, 30)
-        XCTAssertNotNil(workoutSession.tempoEndResponse)
-        XCTAssertTrue(workoutSession.tempoEndResponse?.contains("Outdoor Running logged to Apple Fitness") == true)
-        XCTAssertTrue(workoutSession.tempoEndResponse?.contains("kcal") == true)
+        XCTAssertFalse(session.isRunning)
+        XCTAssertEqual(session.actualMinutes, 30)
+        XCTAssertNotNil(session.tempoEndResponse)
+        XCTAssertTrue(session.tempoEndResponse?.contains("Done. Logged 30m.") == true)
     }
 }

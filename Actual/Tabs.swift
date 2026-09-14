@@ -208,12 +208,6 @@ struct LogTabView: View {
         .onAppear {
             eventKit.requestAccessAndFetch()
             syncPendingWidgetSessions()
-            HealthKitManager.shared.startWorkoutObserver { workout in
-                Task { @MainActor in
-                    handleHealthKitWorkoutFinished(workout)
-                }
-            }
-            syncRecentHealthKitWorkouts()
         }
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
             syncPendingWidgetSessions()
@@ -223,9 +217,6 @@ struct LogTabView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .syncWidgetSessionsNotification)) { _ in
             syncPendingWidgetSessions()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .syncHealthKitWorkoutsNotification)) { _ in
-            syncRecentHealthKitWorkouts()
         }
         .onReceive(NotificationCenter.default.publisher(for: .finishSessionFromNotification)) { notif in
             if let targetId = notif.userInfo?["sessionId"] as? String,
@@ -467,32 +458,6 @@ struct LogTabView: View {
                     }
                 }
             }
-            
-            let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
-            if healthEnabled {
-                let match = HealthKitManager.detectActivity(from: prior.rawText)
-                let start = prior.startedAt ?? endedAt.addingTimeInterval(-Double(actual * 60))
-                if match.isSport, let actType = match.activityType {
-                    Task {
-                        _ = await HealthKitManager.shared.saveWorkout(
-                            activityType: actType,
-                            title: match.name,
-                            start: start,
-                            end: endedAt,
-                            durationMinutes: actual,
-                            caloriesPerMinute: match.caloriesPerMinute
-                        )
-                    }
-                } else if match.isMindful {
-                    Task {
-                        _ = await HealthKitManager.shared.saveMindfulSession(
-                            start: start,
-                            end: endedAt,
-                            durationMinutes: actual
-                        )
-                    }
-                }
-            }
         }
     }
     
@@ -557,12 +522,6 @@ struct LogTabView: View {
             return
         }
         
-        // 3b. Apple Health & Fitness Queries
-        if intent.isHealthQuery {
-            handleHealthQuery(userText: savedText)
-            return
-        }
-        
         // 4. Stop Command
         if intent.isStopCommand {
             if let runningSession = sessions.last(where: { $0.isRunning }) {
@@ -592,7 +551,6 @@ struct LogTabView: View {
             return
         }
         
-        let match = HealthKitManager.detectActivity(from: intent.text)
         let mins = intent.estimatedMinutes ?? 25
         
         let session = Session(
@@ -614,8 +572,7 @@ struct LogTabView: View {
             NotificationManager.shared.scheduleTimerCompletion(
                 title: intent.text,
                 durationMinutes: mins,
-                sessionId: session.sessionIdentifier,
-                isWorkout: match.isSport
+                sessionId: session.sessionIdentifier
             )
         }
         
@@ -627,96 +584,13 @@ struct LogTabView: View {
                 session.actualMinutes = mins
                 let actual = mins
                 let ratioText = session.biasRatio != nil ? String(format: "%.1fx", session.biasRatio!) : "-"
-                
-                if match.isSport, let actType = match.activityType {
-                    let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
-                    if healthEnabled {
-                        Task {
-                            let res = await HealthKitManager.shared.saveWorkout(
-                                activityType: actType,
-                                title: match.name,
-                                start: session.startedAt ?? Date(),
-                                end: session.endedAt ?? Date(),
-                                durationMinutes: actual,
-                                caloriesPerMinute: match.caloriesPerMinute
-                            )
-                            await MainActor.run {
-                                session.tempoResponse = "🏃 \(match.name) logged to Apple Fitness (~\(Int(res.calories)) kcal)."
-                                session.tempoEndResponse = "Done. Logged \(actual)m. (Ratio: \(ratioText))"
-                                try? context.save()
-                            }
-                        }
-                        self.isTyping = false
-                        return
-                    }
-                } else if match.isMindful {
-                    let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
-                    if healthEnabled {
-                        Task {
-                            _ = await HealthKitManager.shared.saveMindfulSession(
-                                start: session.startedAt ?? Date(),
-                                end: session.endedAt ?? Date(),
-                                durationMinutes: actual
-                            )
-                            await MainActor.run {
-                                session.tempoResponse = "🧘 \(match.name) logged to Apple Health."
-                                session.tempoEndResponse = "Done. Logged \(actual)m. (Ratio: \(ratioText))"
-                                try? context.save()
-                            }
-                        }
-                        self.isTyping = false
-                        return
-                    }
-                }
-                
                 session.tempoResponse = "Got it."
                 session.tempoEndResponse = "Logged \(actual)m. (Ratio: \(ratioText))"
             } else {
-                if match.isSport {
-                    session.tempoResponse = "🏃 \(match.name) workout timer started (\(mins)m). Tracking with Apple Fitness."
-                } else if match.isMindful {
-                    session.tempoResponse = "🧘 \(match.name) started (\(mins)m). Tracking with Apple Health."
-                } else {
-                    session.tempoResponse = "Timer started. Focus."
-                }
+                session.tempoResponse = "Timer started. Focus."
             }
             isTyping = false
             try? context.save()
-        }
-    }
-    
-    private func handleHealthQuery(userText: String) {
-        let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
-        let querySession = Session(
-            rawText: userText,
-            isHealthQuery: true,
-            createdAt: Date()
-        )
-        context.insert(querySession)
-        
-        if !healthEnabled {
-            querySession.tempoResponse = "Apple Health & Fitness integration is turned off in Settings."
-            querySession.endedAt = Date()
-            try? context.save()
-            return
-        }
-        
-        isTyping = true
-        
-        Task {
-            _ = await HealthKitManager.shared.requestAuthorization()
-            let cardData = await HealthKitManager.shared.fetchTodayHealthCardData()
-            let encodedData = try? JSONEncoder().encode(cardData)
-            let jsonString = encodedData != nil ? String(data: encodedData!, encoding: .utf8) : nil
-            
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            
-            await MainActor.run {
-                querySession.healthPayload = jsonString
-                querySession.tempoResponse = "Here is your Apple Health & Fitness activity for today:"
-                self.isTyping = false
-                try? context.save()
-            }
         }
     }
     
@@ -865,8 +739,7 @@ struct LogTabView: View {
         NotificationManager.shared.scheduleTimerCompletion(
             title: title,
             durationMinutes: minutes,
-            sessionId: session.sessionIdentifier,
-            isWorkout: mode == .walking || mode == .cycling
+            sessionId: session.sessionIdentifier
         )
     }
     
@@ -898,129 +771,9 @@ struct LogTabView: View {
         }
         
         let ratioText = session.biasRatio != nil ? String(format: "%.1fx", session.biasRatio!) : "-"
-        let baseResponse = "Done. Logged \(actual)m.\(syncNote) (Ratio: \(ratioText))"
-        
-        // Apple Health & Fitness Workout / Mindful Sync
-        let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
-        let match = HealthKitManager.detectActivity(from: session.rawText)
-        
+        session.tempoEndResponse = "Done. Logged \(actual)m.\(syncNote) (Ratio: \(ratioText))"
         self.isTyping = false
-        
-        if healthEnabled && match.isSport, let actType = match.activityType {
-            let estimatedKcal = Int(Double(actual) * (match.caloriesPerMinute > 0 ? match.caloriesPerMinute : 8.0))
-            session.tempoEndResponse = "\(baseResponse) • 🏃 \(match.name) logged to Apple Fitness (~\(estimatedKcal) kcal)"
-            try? context.save()
-            
-            let start = session.startedAt ?? Date().addingTimeInterval(-Double(actual * 60))
-            let end = session.endedAt ?? Date()
-            Task {
-                let res = await HealthKitManager.shared.saveWorkout(
-                    activityType: actType,
-                    title: match.name,
-                    start: start,
-                    end: end,
-                    durationMinutes: actual,
-                    caloriesPerMinute: match.caloriesPerMinute
-                )
-                if res.calories > 0 && Int(res.calories) != estimatedKcal {
-                    await MainActor.run {
-                        session.tempoEndResponse = "\(baseResponse) • 🏃 \(match.name) logged to Apple Fitness (~\(Int(res.calories)) kcal)"
-                        try? context.save()
-                    }
-                }
-            }
-        } else if healthEnabled && match.isMindful {
-            session.tempoEndResponse = "\(baseResponse) • 🧘 \(actual)m logged to Apple Health"
-            try? context.save()
-            
-            let start = session.startedAt ?? Date().addingTimeInterval(-Double(actual * 60))
-            let end = session.endedAt ?? Date()
-            Task {
-                _ = await HealthKitManager.shared.saveMindfulSession(
-                    start: start,
-                    end: end,
-                    durationMinutes: actual
-                )
-            }
-        } else {
-            session.tempoEndResponse = baseResponse
-            try? context.save()
-        }
-    }
-    
-    private func syncRecentHealthKitWorkouts() {
-        Task {
-            let recentWorkouts = await HealthKitManager.shared.fetchRecentWorkouts(since: Date().addingTimeInterval(-7200))
-            guard let latest = recentWorkouts.first else { return }
-            await MainActor.run {
-                if let runningSession = sessions.last(where: { $0.isRunning }) {
-                    let match = HealthKitManager.detectActivity(from: runningSession.rawText)
-                    if match.isSport {
-                        handleHealthKitWorkoutFinished(latest)
-                    }
-                }
-            }
-        }
-    }
-    
-    private func handleHealthKitWorkoutFinished(_ workout: RecordedWorkout) {
-        // If an active session is running, reconcile it
-        if let runningSession = sessions.last(where: { $0.isRunning }) {
-            let match = HealthKitManager.detectActivity(from: runningSession.rawText)
-            if match.isSport {
-                runningSession.endedAt = workout.endDate
-                runningSession.actualMinutes = workout.durationMinutes
-                runningSession.endCommandText = "Workout Completed in Apple Fitness"
-                
-                let est = runningSession.estimatedMinutes ?? workout.durationMinutes
-                let delta = workout.durationMinutes - est
-                let deltaStr = delta > 0 ? "+\(delta)m" : (delta < 0 ? "\(delta)m" : "on time")
-                let ratioText = runningSession.biasRatio != nil ? String(format: "%.1fx", runningSession.biasRatio!) : "-"
-                
-                runningSession.tempoEndResponse = "Done. Logged \(workout.durationMinutes)m (Est: \(est)m, \(deltaStr), Ratio: \(ratioText)) • 🏃 \(workout.activityName) recorded in Apple Fitness (~\(Int(workout.activeCalories)) kcal)"
-                
-                LiveActivityManager.shared.endLiveActivity(actualMinutes: workout.durationMinutes)
-                NotificationManager.shared.cancelTimerNotification(sessionId: runningSession.sessionIdentifier)
-                NotificationManager.shared.sendWorkoutReconciliationNotification(
-                    activityName: workout.activityName,
-                    factualMinutes: workout.durationMinutes,
-                    estimatedMinutes: est,
-                    calories: Int(workout.activeCalories)
-                )
-                try? context.save()
-                return
-            }
-        }
-        
-        // Otherwise, add reconciled standalone workout to timeline
-        let alreadyLogged = sessions.contains { s in
-            guard let start = s.startedAt else { return false }
-            return abs(start.timeIntervalSince(workout.startDate)) < 60
-        }
-        
-        if !alreadyLogged {
-            let session = Session(
-                rawText: "\(workout.activityName) (\(workout.durationMinutes)m)",
-                estimatedMinutes: workout.durationMinutes,
-                startedAt: workout.startDate,
-                tempoResponse: "🏃 \(workout.activityName) synced from Apple Fitness.",
-                tempoEndResponse: "Done. Logged \(workout.durationMinutes)m • ~\(Int(workout.activeCalories)) kcal burned in Apple Fitness.",
-                isRetroactive: true,
-                integrationSource: "healthkit",
-                createdAt: workout.endDate
-            )
-            session.endedAt = workout.endDate
-            session.actualMinutes = workout.durationMinutes
-            context.insert(session)
-            try? context.save()
-            
-            NotificationManager.shared.sendWorkoutReconciliationNotification(
-                activityName: workout.activityName,
-                factualMinutes: workout.durationMinutes,
-                estimatedMinutes: nil,
-                calories: Int(workout.activeCalories)
-            )
-        }
+        try? context.save()
     }
     
     private func handleScheduleQuery(userText: String = "Check calendar & reminders", target: IntegrationTarget = .both) {
@@ -1130,8 +883,7 @@ struct LogTabView: View {
         NotificationManager.shared.scheduleTimerCompletion(
             title: item.title,
             durationMinutes: item.estimatedMinutes,
-            sessionId: session.sessionIdentifier,
-            isWorkout: false
+            sessionId: session.sessionIdentifier
         )
         
         isTyping = true
@@ -1167,12 +919,10 @@ struct LogTabView: View {
             estimatedMinutes: minutes,
             startDate: session.startedAt ?? Date()
         )
-        let match = HealthKitManager.detectActivity(from: taskTitle)
         NotificationManager.shared.scheduleTimerCompletion(
             title: taskTitle,
             durationMinutes: minutes,
-            sessionId: session.sessionIdentifier,
-            isWorkout: match.isSport
+            sessionId: session.sessionIdentifier
         )
         
         isTyping = true
@@ -1213,12 +963,10 @@ struct LogTabView: View {
             isLinkedToCalendar: session.isLinkedToCalendar,
             isLinkedToReminders: session.isLinkedToReminders
         )
-        let match = HealthKitManager.detectActivity(from: session.rawText)
         NotificationManager.shared.scheduleTimerCompletion(
             title: session.rawText,
             durationMinutes: minutes,
-            sessionId: session.sessionIdentifier,
-            isWorkout: match.isSport
+            sessionId: session.sessionIdentifier
         )
         
         isTyping = true
@@ -1245,173 +993,8 @@ struct LogTabView: View {
             scheduleQuerySequence(for: session)
         } else if session.isTravelQuery == true {
             travelQuerySequence(for: session)
-        } else if session.isHealthQuery == true {
-            healthQuerySequence(for: session)
         } else {
             standardSessionSequence(for: session)
-        }
-    }
-    
-    @ViewBuilder
-    private func healthQuerySequence(for session: Session) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            userBubble(text: session.rawText, est: nil)
-                .contextMenu { Button("Delete", role: .destructive) { context.delete(session) } }
-            
-            if session.healthPayload == nil {
-                HStack(spacing: 8) {
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color(red: 1.0, green: 0.18, blue: 0.33))
-                    Text("Fetching Apple Fitness & Health activity...")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.75))
-                    ProgressView()
-                        .scaleEffect(0.65)
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8))
-                .padding(.leading, 2)
-            } else if let healthData = session.healthCardData {
-                healthCardView(data: healthData, session: session)
-            } else {
-                aiBubble(text: session.tempoResponse ?? "Apple Health sync active.")
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private func healthCardView(data: HealthCardData, session: Session) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 1.0, green: 0.18, blue: 0.33).opacity(0.18))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Color(red: 1.0, green: 0.18, blue: 0.33))
-                }
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Apple Health & Fitness")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                    Text("Today's Activity & Exercise")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.55))
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Theme.brandSuccess)
-                        .frame(width: 6, height: 6)
-                    Text("Connected")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.brandSuccess)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Theme.brandSuccess.opacity(0.12), in: Capsule())
-            }
-            
-            // Rings Metric Grid
-            HStack(spacing: 8) {
-                // Move / Calories
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color(red: 1.0, green: 0.22, blue: 0.38))
-                        Text("Move")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
-                    Text("\(Int(data.activeCaloriesToday))")
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.primary)
-                    + Text(" kcal")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                
-                // Exercise
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "figure.run")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color(red: 0.65, green: 0.95, blue: 0.2))
-                        Text("Exercise")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
-                    Text("\(data.workoutMinutesToday)")
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.primary)
-                    + Text(" min")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                
-                // Mindful
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "figure.mind.and.body")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color(red: 0.2, green: 0.75, blue: 0.95))
-                        Text("Mindful")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
-                    Text("\(data.mindfulMinutesToday)")
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.primary)
-                    + Text(" min")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            
-            // Open Fitness App Button
-            Button {
-                HealthKitManager.shared.openFitnessApp()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.up.forward.app.fill")
-                        .font(.system(size: 11))
-                    Text("Open Fitness App")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(Color.primary.opacity(0.08), in: Capsule())
-            }
-        }
-        .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
-        )
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06), radius: 8, x: 0, y: 3)
-        .padding(.trailing, 16)
-        .contextMenu {
-            Button("Delete", role: .destructive) { context.delete(session) }
         }
     }
     
@@ -1570,113 +1153,7 @@ struct LogTabView: View {
         }
     }
     
-    @ViewBuilder
-    private func activeWorkoutCard(session: Session, match: HealthWorkoutMatch) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 1.0, green: 0.22, blue: 0.38).opacity(0.18))
-                        .frame(width: 38, height: 38)
-                    Image(systemName: match.icon)
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(Color(red: 1.0, green: 0.22, blue: 0.38))
-                }
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(match.name)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                    
-                    let est = session.estimatedMinutes ?? 30
-                    let estCals = Int(Double(est) * match.caloriesPerMinute)
-                    Text("\(est)m Goal • ~\(estCals) kcal est.")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(Color(red: 0.65, green: 0.95, blue: 0.2))
-                        .frame(width: 7, height: 7)
-                    Text("Workout Active")
-                        .font(.system(size: 10, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color(red: 0.65, green: 0.95, blue: 0.2))
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(red: 0.65, green: 0.95, blue: 0.2).opacity(0.12), in: Capsule())
-            }
-            
-            HStack(spacing: 8) {
-                // Live Workout Timer Display
-                TimelineView(.animation) { timeline in
-                    let elapsed = max(0, timeline.date.timeIntervalSince(session.startedAt ?? Date()))
-                    let minutes = Int(elapsed) / 60
-                    let seconds = Int(elapsed) % 60
-                    HStack(spacing: 6) {
-                        Circle().fill(Color.green).frame(width: 6, height: 6)
-                            .opacity(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.0) < 0.5 ? 1 : 0.3)
-                        Text(String(format: "%02d:%02d", minutes, seconds))
-                            .font(.system(size: 15, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.primary)
-                    }
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 8)
-                    .background(Color.primary.opacity(0.06), in: Capsule())
-                }
-                
-                Button {
-                    HealthKitManager.shared.openFitnessApp()
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color(red: 1.0, green: 0.22, blue: 0.38))
-                        Text("Open Fitness")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
-                    }
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 8)
-                    .background(Color.primary.opacity(0.08), in: Capsule())
-                }
-                
-                Button {
-                    stopSession(session, endCommandText: "Finished")
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 11))
-                        Text("Finish")
-                    }
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Theme.brandSuccess, in: Capsule())
-                }
-            }
-        }
-        .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
-        )
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06), radius: 8, x: 0, y: 3)
-        .padding(.trailing, 16)
-        .contextMenu {
-            Button("Finish & Log", systemImage: "checkmark.circle") {
-                stopSession(session, endCommandText: "Stopped")
-            }
-            Button("Cancel & Discard", systemImage: "xmark.circle", role: .destructive) {
-                cancelRunningSession(session)
-            }
-        }
-    }
+
     
     @ViewBuilder
     private func scheduleQuerySequence(for session: Session) -> some View {
@@ -1991,54 +1468,27 @@ struct LogTabView: View {
                     }
                 }
             } else if let response = session.tempoResponse {
-                let match = HealthKitManager.detectActivity(from: session.rawText)
-                if match.isSport {
-                    if !session.isRunning && ((session.isRetroactive ?? false) || session.tempoEndResponse == nil) {
-                        aiBubble(text: response)
-                    }
-                } else {
-                    if !(session.isRetroactive ?? false) || session.isRunning {
-                        aiBubble(text: response)
-                    }
+                if !(session.isRetroactive ?? false) || session.isRunning {
+                    aiBubble(text: response)
                 }
             }
             
             if session.isRunning && session.tempoResponse != nil {
-                let match = HealthKitManager.detectActivity(from: session.rawText)
-                if match.isSport {
-                    activeWorkoutCard(session: session, match: match)
-                } else {
-                    HStack(spacing: 8) {
-                        liveTimerBubble(startDate: session.startedAt ?? Date())
-                            .onTapGesture {
+                HStack(spacing: 8) {
+                    liveTimerBubble(startDate: session.startedAt ?? Date())
+                        .onTapGesture {
+                            stopSession(session, endCommandText: "Stopped")
+                        }
+                        .contextMenu {
+                            Button("Finish & Log", systemImage: "checkmark.circle") {
                                 stopSession(session, endCommandText: "Stopped")
                             }
-                            .contextMenu {
-                                Button("Finish & Log", systemImage: "checkmark.circle") {
-                                    stopSession(session, endCommandText: "Stopped")
-                                }
-                                Button("Cancel & Discard", systemImage: "xmark.circle", role: .destructive) {
-                                    cancelRunningSession(session)
-                                }
+                            Button("Cancel & Discard", systemImage: "xmark.circle", role: .destructive) {
+                                cancelRunningSession(session)
                             }
-                        
-                        if match.isMindful {
-                            HStack(spacing: 5) {
-                                Image(systemName: "figure.mind.and.body")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(Color(red: 0.2, green: 0.75, blue: 0.95))
-                                Text("Apple Health")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.primary.opacity(0.8))
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .overlay(Capsule().strokeBorder(Color.cyan.opacity(0.25), lineWidth: 0.8))
                         }
-                        
-                        Spacer()
-                    }
+                    
+                    Spacer()
                 }
             }
             
@@ -2470,7 +1920,6 @@ struct CoreTabView: View {
 extension Notification.Name {
     static let checkScheduleNotification = Notification.Name("checkScheduleNotification")
     static let syncWidgetSessionsNotification = Notification.Name("syncWidgetSessionsNotification")
-    static let syncHealthKitWorkoutsNotification = Notification.Name("syncHealthKitWorkoutsNotification")
 }
 
 // MARK: - DATE JUMP SHEET

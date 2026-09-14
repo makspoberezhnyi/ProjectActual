@@ -87,15 +87,13 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     public func scheduleTimerCompletion(
         title: String,
         durationMinutes: Int,
-        sessionId: String,
-        isWorkout: Bool = false
+        sessionId: String
     ) {
         let notificationsEnabled = UserDefaults.standard.object(forKey: "integration_notifications_enabled") as? Bool ?? true
         guard notificationsEnabled else { return }
         
         let content = UNMutableNotificationContent()
-        let emoji = isWorkout ? "🏃" : "⏱️"
-        content.title = "\(emoji) \(title) - Time's Up!"
+        content.title = "⏱️ \(title) - Time's Up!"
         content.body = "Your \(durationMinutes)m estimate has finished. Tap to review or finish your session."
         content.sound = .default
         content.categoryIdentifier = Self.sessionCategoryIdentifier
@@ -118,39 +116,6 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     
     public func cancelTimerNotification(sessionId: String) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["session_\(sessionId)"])
-    }
-    
-    // MARK: - HealthKit Workout Reconciliation Notification
-    public func sendWorkoutReconciliationNotification(
-        activityName: String,
-        factualMinutes: Int,
-        estimatedMinutes: Int?,
-        calories: Int
-    ) {
-        let notificationsEnabled = UserDefaults.standard.object(forKey: "integration_notifications_enabled") as? Bool ?? true
-        guard notificationsEnabled else { return }
-        
-        let content = UNMutableNotificationContent()
-        content.title = "🏃 \(activityName) Recorded"
-        
-        if let est = estimatedMinutes {
-            let delta = factualMinutes - est
-            let deltaStr = delta > 0 ? "+\(delta)m" : (delta < 0 ? "\(delta)m" : "on time")
-            content.body = "Logged \(factualMinutes)m (Est: \(est)m, \(deltaStr)) • \(calories) kcal burned in Apple Fitness."
-        } else {
-            content.body = "Logged \(factualMinutes)m • \(calories) kcal burned in Apple Fitness."
-        }
-        
-        content.sound = .default
-        
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-        let request = UNNotificationRequest(
-            identifier: "workout_reconciled_\(UUID().uuidString)",
-            content: content,
-            trigger: trigger
-        )
-        
-        UNUserNotificationCenter.current().add(request)
     }
     
     // MARK: - Routine & Habit Notification
