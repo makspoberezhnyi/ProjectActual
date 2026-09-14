@@ -136,22 +136,22 @@ struct LogTabView: View {
                         .defaultScrollAnchor(.bottom)
                         .onChange(of: sessions.count) { _, _ in
                             if let last = sessions.last {
-                                withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                                withAnimation(AppMotion.smoothOut) { proxy.scrollTo(last.id, anchor: .bottom) }
                             }
                         }
                         .onChange(of: sessions.last?.schedulePayload) { _, _ in
                             if let last = sessions.last {
-                                withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                                withAnimation(AppMotion.smoothOut) { proxy.scrollTo(last.id, anchor: .bottom) }
                             }
                         }
                         .onChange(of: isTyping) { _, isTypingNow in
                             if isTypingNow {
-                                withAnimation { proxy.scrollTo("typing", anchor: .bottom) }
+                                withAnimation(AppMotion.smoothOut) { proxy.scrollTo("typing", anchor: .bottom) }
                             }
                         }
                         .onChange(of: targetScrollId) { _, target in
                             if let target {
-                                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                withAnimation(AppMotion.smoothOut) {
                                     proxy.scrollTo(target, anchor: .top)
                                 }
                                 targetScrollId = nil
@@ -412,6 +412,7 @@ struct LogTabView: View {
                     .background(.ultraThinMaterial, in: Circle())
                     .overlay(Circle().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0))
             }
+            .pressable(scale: 0.92)
             
             TextField("What are you doing?", text: $inputText)
                 .font(.system(size: 15, weight: .medium, design: .rounded))
@@ -431,10 +432,14 @@ struct LogTabView: View {
                         .background(Color.blue, in: Circle())
                         .shadow(color: Color.blue.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
-                .transition(.scale.combined(with: .opacity))
+                .pressable(scale: 0.90)
+                .transition(.asymmetric(
+                    insertion: .scale(scale: AppMotion.scaleCard).combined(with: .opacity).animation(AppMotion.pop),
+                    removal: .scale(scale: 0.90).combined(with: .opacity).animation(AppMotion.exit)
+                ))
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: inputText.isEmpty)
+        .animation(AppMotion.snappy, value: inputText.isEmpty)
     }
     
     private func finalizeActiveRunningSessions(endedAt: Date = Date()) {
@@ -1612,10 +1617,13 @@ struct LogTabView: View {
                 
                 HStack(spacing: 8) {
                     Circle().fill(Color.green).frame(width: 7, height: 7)
-                        .opacity(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.0) < 0.5 ? 1 : 0.3)
+                        .scaleEffect(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.0) < 0.5 ? 1.15 : 0.85)
+                        .opacity(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.0) < 0.5 ? 1 : 0.4)
+                        .animation(AppMotion.snappy, value: timeline.date)
                     
                     Text(String(format: "%02d:%02d", minutes, seconds))
                         .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .contentTransition(.numericText(countsDown: false))
                         .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.95) : Color.black.opacity(0.9))
                     
                     Text("Running")
@@ -1634,6 +1642,7 @@ struct LogTabView: View {
                         style: .continuous
                     )
                 )
+                .shadow(color: Color.blue.opacity(0.12), radius: 6, x: 0, y: 2)
                 
                 Spacer(minLength: 36)
             }
@@ -1653,24 +1662,20 @@ struct LogTabView: View {
             }
             .padding(.bottom, 2)
             
-            HStack(spacing: 5) {
-                Circle().frame(width: 6, height: 6).opacity(0.35)
-                Circle().frame(width: 6, height: 6).opacity(0.55)
-                Circle().frame(width: 6, height: 6).opacity(0.85)
-            }
-            .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.7) : Color.black.opacity(0.5))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(
-                colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.165) : Color(red: 0.91, green: 0.91, blue: 0.93),
-                in: UnevenRoundedRectangle(
-                    topLeadingRadius: 18,
-                    bottomLeadingRadius: 4,
-                    bottomTrailingRadius: 18,
-                    topTrailingRadius: 18,
-                    style: .continuous
+            TypingDotsView()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.165) : Color(red: 0.91, green: 0.91, blue: 0.93),
+                    in: UnevenRoundedRectangle(
+                        topLeadingRadius: 18,
+                        bottomLeadingRadius: 4,
+                        bottomTrailingRadius: 18,
+                        topTrailingRadius: 18,
+                        style: .continuous
+                    )
                 )
-            )
+                .shimmer()
             
             Spacer(minLength: 36)
         }

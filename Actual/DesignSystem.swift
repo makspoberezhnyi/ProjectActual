@@ -86,3 +86,157 @@ public struct GlassCard<Content: View>: View {
             }
     }
 }
+
+// MARK: - Motion System (transitions.dev & transitions-polish)
+
+public enum AppMotion {
+    // Durations
+    public static let stagger: Double = 0.04    // 40ms per-item stagger
+    public static let micro: Double = 0.08      // 80ms micro-interaction / intent delay
+    public static let quick: Double = 0.15      // 150ms modal/dropdown close, text swap
+    public static let fast: Double = 0.25       // 250ms modal/dropdown open, tabs sliding
+    public static let medium: Double = 0.35     // 350ms panel close, card transitions
+    public static let slow: Double = 0.40       // 400ms panel open, skeleton reveal
+    public static let verySlow: Double = 0.50   // 500ms emphasis / celebration
+    
+    // Springs & Easings
+    public static let smoothOut = Animation.spring(response: 0.35, dampingFraction: 0.82)
+    public static let snappy = Animation.spring(response: 0.25, dampingFraction: 0.75)
+    public static let pop = Animation.spring(response: 0.30, dampingFraction: 0.60)
+    public static let bounce = Animation.spring(response: 0.38, dampingFraction: 0.65)
+    public static let exit = Animation.easeOut(duration: quick)
+    public static let linear = Animation.linear(duration: 1.5).repeatForever(autoreverses: false)
+    
+    // Scale & Distance Tokens
+    public static let scaleCard: CGFloat = 0.96
+    public static let scaleSmall: CGFloat = 0.98
+    public static let distanceMicro: CGFloat = 4
+    public static let distanceBase: CGFloat = 8
+    public static let distanceMedium: CGFloat = 12
+}
+
+// MARK: - Tactile Press Button Style (transitions.dev scale & spring return)
+public struct PressableScaleButtonStyle: ButtonStyle {
+    var scale: CGFloat = AppMotion.scaleCard
+    
+    public init(scale: CGFloat = AppMotion.scaleCard) {
+        self.scale = scale
+    }
+    
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(AppMotion.snappy, value: configuration.isPressed)
+    }
+}
+
+public extension ButtonStyle where Self == PressableScaleButtonStyle {
+    static var pressable: PressableScaleButtonStyle {
+        PressableScaleButtonStyle()
+    }
+    static func pressable(scale: CGFloat) -> PressableScaleButtonStyle {
+        PressableScaleButtonStyle(scale: scale)
+    }
+}
+
+// MARK: - Shimmer Text & Thinking States (15-shimmer-text & 28-thinking-states)
+public struct ShimmerModifier: ViewModifier {
+    @State private var phase: CGFloat = -1.0
+    var isActive: Bool = true
+    
+    public func body(content: Content) -> some View {
+        if isActive {
+            content
+                .overlay {
+                    GeometryReader { geo in
+                        LinearGradient(
+                            colors: [
+                                .clear,
+                                Color.white.opacity(0.4),
+                                .clear
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: geo.size.width * 1.5)
+                        .offset(x: phase * geo.size.width * 1.5)
+                    }
+                    .mask(content)
+                }
+                .onAppear {
+                    withAnimation(.linear(duration: 1.8).repeatForever(autoreverses: false)) {
+                        phase = 1.0
+                    }
+                }
+        } else {
+            content
+        }
+    }
+}
+
+public extension View {
+    func shimmer(isActive: Bool = true) -> some View {
+        modifier(ShimmerModifier(isActive: isActive))
+    }
+    
+    func pressable(scale: CGFloat = AppMotion.scaleCard) -> some View {
+        buttonStyle(PressableScaleButtonStyle(scale: scale))
+    }
+}
+
+// MARK: - Error Shake Modifier (12-error-state-shake)
+public struct ShakeEffect: GeometryEffect {
+    public var amount: CGFloat = 8
+    public var shakesPerUnit: CGFloat = 3
+    public var animatableData: CGFloat
+
+    public init(shakes: CGFloat, amount: CGFloat = 8) {
+        self.animatableData = shakes
+        self.amount = amount
+    }
+
+    public func effectValue(size: CGSize) -> ProjectionTransform {
+        let translation = amount * sin(animatableData * .pi * shakesPerUnit)
+        return ProjectionTransform(CGAffineTransform(translationX: translation, y: 0))
+    }
+}
+
+public extension View {
+    func shake(trigger: CGFloat, amount: CGFloat = 8) -> some View {
+        modifier(ShakeEffect(shakes: trigger, amount: amount))
+    }
+}
+
+// MARK: - Staggered Typing Dots (transitions.dev 28-thinking-states)
+public struct TypingDotsView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var dotScales: [CGFloat] = [1.0, 1.0, 1.0]
+    
+    public init() {}
+    
+    public var body: some View {
+        HStack(spacing: 5) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .frame(width: 6, height: 6)
+                    .scaleEffect(dotScales[index])
+                    .opacity(0.35 + Double(index) * 0.25)
+            }
+        }
+        .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.7) : Color.black.opacity(0.5))
+        .onAppear {
+            for i in 0..<3 {
+                withAnimation(
+                    Animation.easeInOut(duration: 0.6)
+                        .repeatForever(autoreverses: true)
+                        .delay(Double(i) * 0.15)
+                ) {
+                    dotScales[i] = 1.35
+                }
+            }
+        }
+    }
+}
+
+

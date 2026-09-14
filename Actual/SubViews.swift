@@ -359,12 +359,13 @@ struct InsightsTabView: View {
                     )
                     .frame(width: 170, height: 170)
                     .rotationEffect(.degrees(-90))
-                    .animation(.spring(response: 0.8, dampingFraction: 0.7), value: calibrationScore)
+                    .animation(AppMotion.smoothOut, value: calibrationScore)
                 
                 // Center Score Display
                 VStack(spacing: 2) {
                     Text("\(Int(calibrationScore * 100))%")
                         .font(.system(size: 48, weight: .heavy, design: .rounded))
+                        .contentTransition(.numericText())
                         .foregroundStyle(.primary)
                     
                     Text(calibrationScore >= 0.8 ? "Synchronized" : (calibrationScore >= 0.6 ? "Calibrating" : "Discrepancy"))
