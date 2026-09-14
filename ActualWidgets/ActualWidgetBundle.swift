@@ -207,13 +207,31 @@ struct TempoLiveActivityLockScreenBanner: View {
     @Environment(\.colorScheme) var colorScheme
     var context: ActivityViewContext<TempoActivityAttributes>
     
+    private var bannerBackground: Color {
+        colorScheme == .light
+            ? Color(red: 0.96, green: 0.97, blue: 0.99).opacity(0.96)
+            : Color(red: 0.08, green: 0.10, blue: 0.14).opacity(0.96)
+    }
+    
+    private var buttonBorder: Color {
+        colorScheme == .light
+            ? Color.black.opacity(0.12)
+            : Color.white.opacity(0.30)
+    }
+    
+    private var buttonBackground: Color {
+        colorScheme == .light
+            ? Color.black.opacity(0.06)
+            : Color.white.opacity(0.18)
+    }
+    
     var body: some View {
         VStack(spacing: 10) {
             HStack(spacing: 12) {
                 // Glass Icon Orb
                 ZStack {
                     Circle()
-                        .fill(WidgetTheme.blue.opacity(0.28))
+                        .fill(WidgetTheme.blue.opacity(colorScheme == .light ? 0.14 : 0.28))
                         .frame(width: 36, height: 36)
                     
                     Image(systemName: "timer")
@@ -224,12 +242,12 @@ struct TempoLiveActivityLockScreenBanner: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.taskTitle)
                         .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                         .lineLimit(1)
                     
                     Text("Target: \(context.attributes.estimatedMinutes)m Focus")
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.72))
+                        .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
                 }
                 
                 Spacer()
@@ -239,7 +257,7 @@ struct TempoLiveActivityLockScreenBanner: View {
                     Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(.white)
+                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                     
                     Text("ELAPSED")
                         .font(.system(size: 8, weight: .heavy, design: .rounded))
@@ -264,11 +282,11 @@ struct TempoLiveActivityLockScreenBanner: View {
                         Text("Done")
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.18), in: Capsule())
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.30), lineWidth: 1))
+                    .background(buttonBackground, in: Capsule())
+                    .overlay(Capsule().strokeBorder(buttonBorder, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
@@ -276,10 +294,10 @@ struct TempoLiveActivityLockScreenBanner: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color(red: 0.08, green: 0.10, blue: 0.14).opacity(0.96))
+                .fill(bannerBackground)
         )
-        .activityBackgroundTint(Color(red: 0.08, green: 0.10, blue: 0.14).opacity(0.96))
-        .activitySystemActionForegroundColor(.white)
+        .activityBackgroundTint(bannerBackground)
+        .activitySystemActionForegroundColor(WidgetTheme.primaryText(for: colorScheme))
     }
 }
 
