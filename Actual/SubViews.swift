@@ -1055,14 +1055,14 @@ struct SettingsView: View {
     private func checkPermissions() {
         let calStatus = EKEventStore.authorizationStatus(for: .event)
         if #available(iOS 17.0, *) {
-            calendarAuthStatus = (calStatus == .authorized || calStatus == .fullAccess) ? "Connected" : "Access Needed"
+            calendarAuthStatus = (calStatus == .fullAccess) ? "Connected" : "Access Needed"
         } else {
             calendarAuthStatus = (calStatus == .authorized) ? "Connected" : "Access Needed"
         }
         
         let remStatus = EKEventStore.authorizationStatus(for: .reminder)
         if #available(iOS 17.0, *) {
-            remindersAuthStatus = (remStatus == .authorized || remStatus == .fullAccess) ? "Connected" : "Access Needed"
+            remindersAuthStatus = (remStatus == .fullAccess) ? "Connected" : "Access Needed"
         } else {
             remindersAuthStatus = (remStatus == .authorized) ? "Connected" : "Access Needed"
         }

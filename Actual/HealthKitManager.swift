@@ -15,7 +15,7 @@ public struct HealthWorkoutMatch {
 }
 
 @Observable
-public final class HealthKitManager {
+public final class HealthKitManager: @unchecked Sendable {
     public static let shared = HealthKitManager()
     
     public let healthStore: HKHealthStore?
@@ -239,7 +239,7 @@ public final class HealthKitManager {
             return HealthWorkoutMatch(
                 isSport: true,
                 isMindful: false,
-                activityType: .dance,
+                activityType: .cardioDance,
                 name: "Dance",
                 icon: "figure.dance",
                 caloriesPerMinute: 6.5
@@ -357,7 +357,7 @@ public final class HealthKitManager {
             activityType: activityType,
             start: start,
             end: end,
-            duration: TimeInterval(durationMinutes * 60),
+            workoutEvents: nil,
             totalEnergyBurned: energyQuantity,
             totalDistance: nil,
             metadata: [
@@ -400,12 +400,8 @@ public final class HealthKitManager {
             let plan = WorkoutPlan(.goal(singleGoal))
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: Date())
             
-            do {
-                try await WorkoutScheduler.shared.schedule(plan, at: components)
-                return true
-            } catch {
-                return false
-            }
+            await WorkoutScheduler.shared.schedule(plan, at: components)
+            return true
         }
         #endif
         return false

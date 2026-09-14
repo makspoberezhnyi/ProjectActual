@@ -287,13 +287,15 @@ class EventKitManager {
         if #available(iOS 17.0, *) {
             do {
                 let status = EKEventStore.authorizationStatus(for: .event)
-                if status == .authorized || status == .fullAccess { return true }
+                if status == .fullAccess { return true }
                 return try await store.requestFullAccessToEvents()
             } catch {
                 return false
             }
         } else {
             do {
+                let status = EKEventStore.authorizationStatus(for: .event)
+                if status == .authorized { return true }
                 return try await store.requestAccess(to: .event)
             } catch {
                 return false
@@ -305,13 +307,15 @@ class EventKitManager {
         if #available(iOS 17.0, *) {
             do {
                 let status = EKEventStore.authorizationStatus(for: .reminder)
-                if status == .authorized || status == .fullAccess { return true }
+                if status == .fullAccess { return true }
                 return try await store.requestFullAccessToReminders()
             } catch {
                 return false
             }
         } else {
             do {
+                let status = EKEventStore.authorizationStatus(for: .reminder)
+                if status == .authorized { return true }
                 return try await store.requestAccess(to: .reminder)
             } catch {
                 return false
