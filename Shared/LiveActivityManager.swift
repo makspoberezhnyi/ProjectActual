@@ -2,7 +2,8 @@ import Foundation
 import ActivityKit
 import WidgetKit
 
-public class LiveActivityManager {
+@MainActor
+final public class LiveActivityManager: Sendable {
     public static let shared = LiveActivityManager()
     
     private var currentActivity: Activity<TempoActivityAttributes>?
@@ -46,8 +47,9 @@ public class LiveActivityManager {
             isRunning: false
         )
         
-        for activity in Activity<TempoActivityAttributes>.activities {
-            Task {
+        let activitiesToEnd = Activity<TempoActivityAttributes>.activities
+        Task { @MainActor in
+            for activity in activitiesToEnd {
                 await activity.end(
                     ActivityContent(state: finalState, staleDate: nil),
                     dismissalPolicy: .immediate

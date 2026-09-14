@@ -1,5 +1,11 @@
 import Foundation
 
+enum IntegrationTarget: String, Codable {
+    case calendar = "calendar"
+    case reminders = "reminders"
+    case both = "both"
+}
+
 struct ParsedIntent {
     var text: String
     var estimatedMinutes: Int?
@@ -7,6 +13,7 @@ struct ParsedIntent {
     var isStopCommand: Bool
     var isSuggestionRequest: Bool
     var isScheduleCheck: Bool
+    var integrationTarget: IntegrationTarget?
 }
 
 final class ChatParser {
@@ -59,6 +66,22 @@ final class ChatParser {
         return false
     }
     
+    static func detectIntegrationTarget(_ input: String) -> IntegrationTarget {
+        let text = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasCal = text.contains("cal") || text.contains("event") || text.contains("meeting")
+        let hasRem = text.contains("remind") || text.contains("task") || text.contains("todo") || text.contains("to-do")
+        
+        if hasCal && hasRem {
+            return .both
+        } else if hasCal {
+            return .calendar
+        } else if hasRem {
+            return .reminders
+        } else {
+            return .both
+        }
+    }
+    
     static func isCalendarOrScheduleQuery(_ input: String) -> Bool {
         let text = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let keywords = [
@@ -68,8 +91,8 @@ final class ChatParser {
             "what's next", "what next", "what to do", "suggest", "suggestions", "what should i do"
         ]
         if keywords.contains(text) { return true }
-        if text.contains("calendar") || text.contains("reminder") || text.contains("schedule") {
-            if text.contains("check") || text.contains("show") || text.contains("what") || text.contains("open") || text.contains("view") || text.contains("get") || text.contains("list") {
+        if text.contains("calendar") || text.contains("reminder") || text.contains("schedule") || text.contains("task") || text.contains("event") {
+            if text.contains("check") || text.contains("show") || text.contains("what") || text.contains("open") || text.contains("view") || text.contains("get") || text.contains("list") || text.contains("my") || text.contains("please") {
                 return true
             }
         }
@@ -80,15 +103,16 @@ final class ChatParser {
         let text = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         
         if text == "stop" || text == "done" || text == "finish" || text == "finished" || text == "end" {
-            return ParsedIntent(text: input, estimatedMinutes: nil, isRetroactive: false, isStopCommand: true, isSuggestionRequest: false, isScheduleCheck: false)
+            return ParsedIntent(text: input, estimatedMinutes: nil, isRetroactive: false, isStopCommand: true, isSuggestionRequest: false, isScheduleCheck: false, integrationTarget: nil)
         }
         
         if isCalendarOrScheduleQuery(input) {
-            return ParsedIntent(text: input, estimatedMinutes: nil, isRetroactive: false, isStopCommand: false, isSuggestionRequest: false, isScheduleCheck: true)
+            let target = detectIntegrationTarget(input)
+            return ParsedIntent(text: input, estimatedMinutes: nil, isRetroactive: false, isStopCommand: false, isSuggestionRequest: false, isScheduleCheck: true, integrationTarget: target)
         }
         
         let minutes = extractMinutes(from: text)
         let isRetro = text.contains("did") || text.contains("just") || text.contains("completed")
-        return ParsedIntent(text: input, estimatedMinutes: minutes, isRetroactive: isRetro, isStopCommand: false, isSuggestionRequest: false, isScheduleCheck: false)
+        return ParsedIntent(text: input, estimatedMinutes: minutes, isRetroactive: isRetro, isStopCommand: false, isSuggestionRequest: false, isScheduleCheck: false, integrationTarget: nil)
     }
 }

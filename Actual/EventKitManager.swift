@@ -8,7 +8,13 @@ public struct ScheduleItem: Identifiable, Hashable, Codable {
     public var estimatedMinutes: Int
     public var isCalendarEvent: Bool
     
-    public init(id: String = UUID().uuidString, title: String, timeString: String? = nil, estimatedMinutes: Int = 25, isCalendarEvent: Bool = false) {
+    public init(
+        id: String = UUID().uuidString,
+        title: String,
+        timeString: String? = nil,
+        estimatedMinutes: Int = 25,
+        isCalendarEvent: Bool = false
+    ) {
         self.id = id
         self.title = title
         self.timeString = timeString
@@ -28,13 +34,9 @@ class EventKitManager {
     
     func requestAccessAndFetch() {
         Task {
-            let items = await fetchScheduleDetails()
+            let items = await fetchItems(for: .both)
             let suggestionStrings = items.map { item in
-                if let time = item.timeString, !time.isEmpty {
-                    return "\(item.title) (\(item.estimatedMinutes)m)"
-                } else {
-                    return "\(item.title) (\(item.estimatedMinutes)m)"
-                }
+                "\(item.title) (\(item.estimatedMinutes)m)"
             }
             
             await MainActor.run {
@@ -43,55 +45,48 @@ class EventKitManager {
         }
     }
     
-    func fetchScheduleDetails() async -> [ScheduleItem] {
-        let calendarAuth = await requestCalendarAccess()
-        let remindersAuth = await requestRemindersAccess()
-        
+    func fetchItems(for target: IntegrationTarget) async -> [ScheduleItem] {
         var results: [ScheduleItem] = []
         let timeFormatter = DateFormatter()
         timeFormatter.timeStyle = .short
         
-        if calendarAuth {
-            let events = fetchTodayEventObjects()
-            for event in events {
-                let duration = event.endDate.timeIntervalSince(event.startDate)
-                let mins = max(10, min(180, Int(duration / 60)))
-                let timeStr = timeFormatter.string(from: event.startDate)
-                let item = ScheduleItem(
-                    title: event.title ?? "Calendar Event",
-                    timeString: timeStr,
-                    estimatedMinutes: mins,
-                    isCalendarEvent: true
-                )
-                results.append(item)
-            }
-        }
-        
-        if remindersAuth {
-            let reminders = await fetchIncompleteReminderObjects()
-            for reminder in reminders {
-                var timeStr = "Reminder"
-                if let due = reminder.dueDateComponents?.date {
-                    timeStr = timeFormatter.string(from: due)
+        if target == .calendar || target == .both {
+            let calendarAuth = await requestCalendarAccess()
+            if calendarAuth {
+                let events = fetchTodayEventObjects()
+                for event in events {
+                    let duration = event.endDate.timeIntervalSince(event.startDate)
+                    let mins = max(10, min(180, Int(duration / 60)))
+                    let timeStr = timeFormatter.string(from: event.startDate)
+                    let item = ScheduleItem(
+                        title: event.title ?? "Calendar Event",
+                        timeString: timeStr,
+                        estimatedMinutes: mins,
+                        isCalendarEvent: true
+                    )
+                    results.append(item)
                 }
-                let item = ScheduleItem(
-                    title: reminder.title ?? "Task",
-                    timeString: timeStr,
-                    estimatedMinutes: 25,
-                    isCalendarEvent: false
-                )
-                results.append(item)
             }
         }
         
-        // Fallbacks if no calendar/reminders exist
-        if results.isEmpty {
-            results = [
-                ScheduleItem(title: "Deep Work", timeString: "Recommended", estimatedMinutes: 25, isCalendarEvent: false),
-                ScheduleItem(title: "Quick Focus", timeString: "Short Burst", estimatedMinutes: 15, isCalendarEvent: false),
-                ScheduleItem(title: "Sprint Session", timeString: "Deep Focus", estimatedMinutes: 45, isCalendarEvent: false),
-                ScheduleItem(title: "Inbox & Review", timeString: "Daily Review", estimatedMinutes: 20, isCalendarEvent: false)
-            ]
+        if target == .reminders || target == .both {
+            let remindersAuth = await requestRemindersAccess()
+            if remindersAuth {
+                let reminders = await fetchIncompleteReminderObjects()
+                for reminder in reminders {
+                    var timeStr = "Reminder"
+                    if let due = reminder.dueDateComponents?.date {
+                        timeStr = timeFormatter.string(from: due)
+                    }
+                    let item = ScheduleItem(
+                        title: reminder.title ?? "Task",
+                        timeString: timeStr,
+                        estimatedMinutes: 25,
+                        isCalendarEvent: false
+                    )
+                    results.append(item)
+                }
+            }
         }
         
         return results

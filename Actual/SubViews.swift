@@ -312,6 +312,9 @@ struct InsightsTabView: View {
                         // 3-Metric Glass Grid
                         metricsGrid
                         
+                        // Discovered Routines & Habits Section
+                        habitsSection
+                        
                         // Recent Calibration Performance Cards
                         recentLogsSection
                     }
@@ -449,6 +452,92 @@ struct InsightsTabView: View {
         guard !diffs.isEmpty else { return "±0m" }
         let avg = diffs.reduce(0, +) / diffs.count
         return "±\(avg)m"
+    }
+    
+    // Discovered Habits & Recurring Patterns
+    private var habitsSection: some View {
+        let patterns = RoutineEngine.shared.minePatterns(from: sessions)
+        
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Discovered Routines & Habits")
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.primary.opacity(0.9))
+                Spacer()
+                if !patterns.isEmpty {
+                    Text("\(patterns.count) active")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.brandMint)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Theme.brandMint.opacity(0.12), in: Capsule())
+                }
+            }
+            .padding(.leading, 4)
+            
+            if patterns.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "clock.badge.waveform")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.primary.opacity(0.3))
+                    Text("Learning your schedule")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.6))
+                    Text("Log regular activities like meals or workouts at consistent times. Tempo will automatically recognize recurring habits and prompt you when it's time.")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.4))
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(20)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+                )
+            } else {
+                ForEach(patterns) { pattern in
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.orange.opacity(0.15))
+                                .frame(width: 38, height: 38)
+                            Image(systemName: pattern.isDayOfWeekSpecific ? "figure.run" : "bolt.fill")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(Color.orange)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(pattern.taskTitle)
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.95))
+                            
+                            Text(pattern.recurrenceDescription)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.55))
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(alignment: .trailing, spacing: 3) {
+                            Text("\(pattern.typicalMinutes)m")
+                                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Theme.brandMint)
+                            
+                            Text("\(pattern.occurrencesCount)x logged")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.35))
+                        }
+                    }
+                    .padding(14)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+                    )
+                }
+            }
+        }
     }
     
     // Recent Logs Breakdown

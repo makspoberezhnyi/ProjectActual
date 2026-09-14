@@ -15,6 +15,7 @@ final class Session {
     var isRetroactive: Bool?
     var isScheduleQuery: Bool?
     var schedulePayload: String?
+    var integrationSource: String?
     var createdAt: Date?
     
     init(
@@ -27,6 +28,7 @@ final class Session {
         isRetroactive: Bool? = nil,
         isScheduleQuery: Bool? = nil,
         schedulePayload: String? = nil,
+        integrationSource: String? = nil,
         createdAt: Date? = Date()
     ) {
         self.rawText = rawText
@@ -38,6 +40,7 @@ final class Session {
         self.isRetroactive = isRetroactive
         self.isScheduleQuery = isScheduleQuery
         self.schedulePayload = schedulePayload
+        self.integrationSource = integrationSource
         self.createdAt = createdAt ?? Date()
     }
     

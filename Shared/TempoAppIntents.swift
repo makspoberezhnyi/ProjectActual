@@ -59,9 +59,7 @@ public struct StopFocusIntent: AppIntent {
         
         // End all active Live Activities immediately
         for activity in Activity<TempoActivityAttributes>.activities {
-            Task {
-                await activity.end(nil, dismissalPolicy: .immediate)
-            }
+            await activity.end(nil, dismissalPolicy: .immediate)
         }
         
         WidgetCenter.shared.reloadAllTimelines()

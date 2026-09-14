@@ -47,7 +47,7 @@ public struct WidgetSnapshotData: Codable {
     }
 }
 
-public class WidgetDataStore {
+final public class WidgetDataStore: @unchecked Sendable {
     public static let shared = WidgetDataStore()
     private let appGroupID = "group.app.actual.Actual"
     private let snapshotKey = "tempo_widget_snapshot"

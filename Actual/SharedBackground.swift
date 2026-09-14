@@ -2,8 +2,6 @@ import SwiftUI
 
 struct SharedBackground: View {
     @Environment(\.colorScheme) var colorScheme
-    @State private var time: Float = 0.0
-    let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
     
     var body: some View {
         Group {
@@ -19,18 +17,18 @@ struct SharedBackground: View {
                     Color(white: 0.1), Color(red: 0.05, green: 0.1, blue: 0.15), Color(white: 0.1)
                 ]
                 
-                MeshGradient(
-                    width: 3,
-                    height: 3,
-                    points: [
-                        [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
-                        [0.0, 0.5 + sin(time) * 0.05], [0.5, 0.5 + cos(time) * 0.05], [1.0, 0.5 - sin(time) * 0.05],
-                        [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
-                    ],
-                    colors: colorScheme == .dark ? darkColors : lightColors
-                )
-                .onReceive(timer) { _ in
-                    time += 0.02
+                TimelineView(.animation) { timeline in
+                    let time = Float(timeline.date.timeIntervalSinceReferenceDate * 0.4)
+                    MeshGradient(
+                        width: 3,
+                        height: 3,
+                        points: [
+                            [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
+                            [0.0, 0.5 + sin(time) * 0.05], [0.5, 0.5 + cos(time) * 0.05], [1.0, 0.5 - sin(time) * 0.05],
+                            [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
+                        ],
+                        colors: colorScheme == .dark ? darkColors : lightColors
+                    )
                 }
             } else {
                 Color(UIColor.systemBackground)

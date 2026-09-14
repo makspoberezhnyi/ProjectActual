@@ -13,6 +13,7 @@ struct LogTabView: View {
     @State private var isTyping: Bool = false
     
     @Bindable private var eventKit = EventKitManager.shared
+    @Bindable private var routineEngine = RoutineEngine.shared
     
     var groupedSessions: [(Date, [Session])] {
         let calendar = Calendar.current
@@ -62,13 +63,19 @@ struct LogTabView: View {
                                     }
                                 }
                                 
-                                // Interactive In-Chat Suggestions: Only show when idle (before a task starts or after completion)
+                                // Interactive In-Chat Proactive Routine Suggestions: Only show when idle
                                 if !isRunningSession && !isConfiguringTask && !isTyping {
+                                    let activeRoutines = routineEngine.getActiveSuggestions(sessions: sessions)
+                                    ForEach(activeRoutines) { suggestion in
+                                        routinePromptCard(suggestion: suggestion)
+                                            .id("routine_\(suggestion.id)")
+                                    }
+                                    
                                     suggestionChatBubble()
                                         .id("suggestions")
                                 }
                                 
-                                if isTyping {
+                                if isTyping && !(sessions.last?.isScheduleQuery == true && sessions.last?.schedulePayload == nil) {
                                     typingBubble()
                                         .id("typing")
                                 }
@@ -178,6 +185,104 @@ struct LogTabView: View {
     
     // Suggestion bubble with 2-column grid for zero clipping
     @ViewBuilder
+    private func routinePromptCard(suggestion: RoutineSuggestion) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "bolt.badge.clock.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.orange)
+                    Text(suggestion.headline)
+                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.55))
+                    Spacer()
+                    Button {
+                        withAnimation(.spring()) {
+                            routineEngine.dismiss(suggestionId: suggestion.id)
+                        }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.primary.opacity(0.4))
+                            .padding(4)
+                    }
+                }
+                
+                Text(suggestion.promptMessage)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                
+                HStack(spacing: 8) {
+                    Button {
+                        startRoutineSession(taskTitle: suggestion.pattern.taskTitle, minutes: suggestion.recommendedMinutes)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 9))
+                            Text("Start \(suggestion.recommendedMinutes)m")
+                        }
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Theme.brandMint, in: Capsule())
+                    }
+                    
+                    Button {
+                        logRoutineRetroactively(taskTitle: suggestion.pattern.taskTitle, minutes: suggestion.recommendedMinutes)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Log Done (\(suggestion.recommendedMinutes)m)")
+                        }
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.primary.opacity(0.08), in: Capsule())
+                    }
+                }
+                .padding(.top, 2)
+            }
+            .padding(14)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [Color.orange.opacity(0.5), Theme.brandMint.opacity(0.4)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.2
+                    )
+            )
+            .padding(.trailing, 16)
+            
+            Spacer(minLength: 0)
+        }
+    }
+    
+    private var combinedSuggestions: [String] {
+        var list: [String] = []
+        let patterns = routineEngine.minePatterns(from: sessions)
+        for p in patterns.prefix(2) {
+            list.append("\(p.taskTitle) (\(p.typicalMinutes)m)")
+        }
+        for s in eventKit.suggestions {
+            if !list.contains(where: { $0.lowercased().starts(with: s.lowercased().prefix(4)) }) {
+                list.append(s)
+            }
+        }
+        if list.isEmpty {
+            list = ["Deep Work (25m)", "Quick Focus (15m)", "Review (20m)", "Break (10m)"]
+        }
+        return Array(list.prefix(4))
+    }
+    
+    @ViewBuilder
     private func suggestionChatBubble() -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 12) {
@@ -192,9 +297,9 @@ struct LogTabView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
                 
-                if !eventKit.suggestions.isEmpty {
+                if !combinedSuggestions.isEmpty {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                        ForEach(eventKit.suggestions.prefix(4), id: \.self) { suggestion in
+                        ForEach(combinedSuggestions, id: \.self) { suggestion in
                             Button {
                                 inputText = suggestion
                                 submit()
@@ -229,7 +334,7 @@ struct LogTabView: View {
         HStack(spacing: 8) {
             // Quick Action: Check Calendar & Reminders
             Button {
-                handleScheduleQuery(userText: "Check calendar & reminders")
+                handleScheduleQuery(userText: "Check calendar & reminders", target: .both)
             } label: {
                 Image(systemName: "calendar.badge.clock")
                     .font(.system(size: 16, weight: .bold))
@@ -248,19 +353,7 @@ struct LogTabView: View {
                 .foregroundStyle(.primary)
                 .onSubmit { submit() }
             
-            if inputText.isEmpty {
-                Button {
-                    inputText = "Quick Focus (15m)"
-                    submit()
-                } label: {
-                    Image(systemName: "dial.low.fill")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.primary.opacity(0.7))
-                        .frame(width: 44, height: 44)
-                        .background(.ultraThinMaterial, in: Circle())
-                        .overlay(Circle().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0))
-                }
-            } else {
+            if !inputText.isEmpty {
                 Button { submit() } label: {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 16, weight: .bold))
@@ -268,8 +361,10 @@ struct LogTabView: View {
                         .frame(width: 44, height: 44)
                         .background(colorScheme == .dark ? Color.white : Color.black, in: Circle())
                 }
+                .transition(.scale.combined(with: .opacity))
             }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: inputText.isEmpty)
     }
     
     private func submit() {
@@ -296,12 +391,12 @@ struct LogTabView: View {
         inputText = ""
         
         if intent.isScheduleCheck {
-            handleScheduleQuery(userText: savedText)
+            handleScheduleQuery(userText: savedText, target: intent.integrationTarget ?? .both)
             return
         }
         
         if intent.isSuggestionRequest {
-            handleScheduleQuery(userText: savedText)
+            handleScheduleQuery(userText: savedText, target: intent.integrationTarget ?? .both)
             return
         }
         
@@ -370,7 +465,7 @@ struct LogTabView: View {
         }
     }
     
-    private func handleScheduleQuery(userText: String = "Check calendar & reminders") {
+    private func handleScheduleQuery(userText: String = "Check calendar & reminders", target: IntegrationTarget = .both) {
         let querySession = Session(
             rawText: userText,
             estimatedMinutes: nil,
@@ -379,12 +474,13 @@ struct LogTabView: View {
             isScheduleQuery: true,
             createdAt: Date()
         )
+        querySession.integrationSource = target.rawValue
         context.insert(querySession)
         try? context.save()
         isTyping = true
         
         Task {
-            let items = await eventKit.fetchScheduleDetails()
+            let items = await eventKit.fetchItems(for: target)
             let encodedData = try? JSONEncoder().encode(items)
             let jsonString = encodedData != nil ? String(data: encodedData!, encoding: .utf8) : nil
             
@@ -396,15 +492,31 @@ struct LogTabView: View {
                 let calCount = items.filter { $0.isCalendarEvent }.count
                 let remCount = items.filter { !$0.isCalendarEvent }.count
                 
-                if calCount > 0 && remCount > 0 {
-                    querySession.tempoResponse = "Here are your upcoming calendar events and reminders for today:"
-                } else if calCount > 0 {
-                    querySession.tempoResponse = "Here are your upcoming calendar events for today:"
-                } else if remCount > 0 {
-                    querySession.tempoResponse = "Here are your pending tasks from Reminders:"
-                } else {
-                    querySession.tempoResponse = "No upcoming calendar events found for today. Here are suggested focus sessions:"
+                switch target {
+                case .calendar:
+                    if calCount > 0 {
+                        querySession.tempoResponse = "Found \(calCount) event\(calCount == 1 ? "" : "s") in Apple Calendar for today:"
+                    } else {
+                        querySession.tempoResponse = "No upcoming events scheduled in Apple Calendar for today."
+                    }
+                case .reminders:
+                    if remCount > 0 {
+                        querySession.tempoResponse = "Found \(remCount) pending task\(remCount == 1 ? "" : "s") in Apple Reminders:"
+                    } else {
+                        querySession.tempoResponse = "No pending tasks found in Apple Reminders."
+                    }
+                case .both:
+                    if calCount > 0 && remCount > 0 {
+                        querySession.tempoResponse = "Here are your upcoming calendar events and reminders for today:"
+                    } else if calCount > 0 {
+                        querySession.tempoResponse = "Found \(calCount) event\(calCount == 1 ? "" : "s") in Apple Calendar:"
+                    } else if remCount > 0 {
+                        querySession.tempoResponse = "Found \(remCount) task\(remCount == 1 ? "" : "s") in Apple Reminders:"
+                    } else {
+                        querySession.tempoResponse = "No scheduled events or reminders found for today."
+                    }
                 }
+                
                 querySession.endedAt = Date()
                 isTyping = false
                 try? context.save()
@@ -434,6 +546,47 @@ struct LogTabView: View {
             isTyping = false
             try? context.save()
         }
+    }
+    
+    private func startRoutineSession(taskTitle: String, minutes: Int) {
+        let session = Session(
+            rawText: "\(taskTitle) (\(minutes)m)",
+            estimatedMinutes: minutes,
+            startedAt: Date(),
+            createdAt: Date()
+        )
+        context.insert(session)
+        try? context.save()
+        
+        LiveActivityManager.shared.startLiveActivity(
+            taskTitle: taskTitle,
+            estimatedMinutes: minutes,
+            startDate: session.startedAt ?? Date()
+        )
+        
+        isTyping = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            session.tempoResponse = "Timer started for \(taskTitle). Focus."
+            isTyping = false
+            try? context.save()
+        }
+    }
+    
+    private func logRoutineRetroactively(taskTitle: String, minutes: Int) {
+        let started = Date().addingTimeInterval(-Double(minutes) * 60)
+        let session = Session(
+            rawText: "\(taskTitle) (\(minutes)m)",
+            estimatedMinutes: minutes,
+            startedAt: started,
+            tempoResponse: "Got it.",
+            tempoEndResponse: "Logged \(taskTitle) (\(minutes)m) as completed.",
+            isRetroactive: true,
+            createdAt: Date()
+        )
+        session.endedAt = Date()
+        session.actualMinutes = minutes
+        context.insert(session)
+        try? context.save()
     }
     
     private func setEstimate(_ minutes: Int, for session: Session) {
@@ -475,25 +628,116 @@ struct LogTabView: View {
     
     @ViewBuilder
     private func scheduleQuerySequence(for session: Session) -> some View {
-        VStack(spacing: 8) {
-            userBubble(text: session.rawText, est: nil)
-                .contextMenu { Button("Delete", role: .destructive) { context.delete(session) } }
+        let source = session.integrationSource ?? "both"
+        let isCalOnly = source == "calendar"
+        let isRemOnly = source == "reminders"
+        
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Spacer()
+                userBubble(text: session.rawText, est: nil)
+                    .contextMenu { Button("Delete", role: .destructive) { context.delete(session) } }
+            }
             
-            if let response = session.tempoResponse {
-                aiBubble(text: response)
-                
+            if session.schedulePayload == nil {
+                // Small sleek loading state with REAL app icon
+                HStack(spacing: 8) {
+                    if isCalOnly {
+                        RealCalendarAppIcon(size: 20)
+                        Text("Checking Apple Calendar...")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(.primary.opacity(0.75))
+                    } else if isRemOnly {
+                        RealRemindersAppIcon(size: 20)
+                        Text("Checking Apple Reminders...")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(.primary.opacity(0.75))
+                    } else {
+                        RealUnifiedIntegrationIcon(size: 20)
+                        Text("Checking Calendar & Reminders...")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(.primary.opacity(0.75))
+                    }
+                    ProgressView()
+                        .scaleEffect(0.65)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8))
+                .padding(.leading, 2)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            } else {
                 let items = session.scheduleItems
-                if !items.isEmpty {
+                if items.isEmpty {
+                    // Clean single message with REAL app icon - not in bloated nested bubbles
+                    HStack(spacing: 10) {
+                        if isCalOnly {
+                            RealCalendarAppIcon(size: 22)
+                        } else if isRemOnly {
+                            RealRemindersAppIcon(size: 22)
+                        } else {
+                            RealUnifiedIntegrationIcon(size: 22)
+                        }
+                        
+                        Text(session.tempoResponse ?? "No scheduled items found.")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(.primary.opacity(0.9))
+                        
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8)
+                    )
+                    .padding(.trailing, 24)
+                } else {
+                    // Header label with REAL app icon
+                    HStack(spacing: 7) {
+                        if isCalOnly {
+                            RealCalendarAppIcon(size: 18)
+                            Text("Apple Calendar")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.85))
+                        } else if isRemOnly {
+                            RealRemindersAppIcon(size: 18)
+                            Text("Apple Reminders")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.85))
+                        } else {
+                            RealUnifiedIntegrationIcon(size: 18)
+                            Text("Calendar & Reminders")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.85))
+                        }
+                        
+                        Text("•")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.primary.opacity(0.3))
+                        
+                        Text("\(items.count) item\(items.count == 1 ? "" : "s")")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(Theme.brandMint)
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(Capsule().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8))
+                    .padding(.leading, 2)
+                    
                     VStack(spacing: 8) {
                         ForEach(items) { item in
                             HStack(spacing: 12) {
-                                ZStack {
-                                    Circle()
-                                        .fill(item.isCalendarEvent ? Theme.brandMint.opacity(0.18) : Color.cyan.opacity(0.18))
-                                        .frame(width: 34, height: 34)
-                                    Image(systemName: item.isCalendarEvent ? "calendar" : "checklist")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(item.isCalendarEvent ? Theme.brandMint : Color.cyan)
+                                if item.isCalendarEvent {
+                                    RealCalendarAppIcon(size: 28)
+                                } else {
+                                    RealRemindersAppIcon(size: 28)
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 2) {
@@ -506,14 +750,14 @@ struct LogTabView: View {
                                         if let time = item.timeString, !time.isEmpty {
                                             Text(time)
                                                 .font(.system(size: 11, weight: .medium, design: .rounded))
-                                                .foregroundStyle(.primary.opacity(0.55))
+                                                .foregroundStyle(.primary.opacity(0.6))
                                             Text("•")
                                                 .font(.system(size: 9))
                                                 .foregroundStyle(.primary.opacity(0.3))
                                         }
                                         Text("\(item.estimatedMinutes)m Focus")
                                             .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(Theme.brandMint)
+                                            .foregroundStyle(item.isCalendarEvent ? Color.red.opacity(0.9) : Color.blue.opacity(0.9))
                                     }
                                 }
                                 
@@ -544,7 +788,6 @@ struct LogTabView: View {
                         }
                     }
                     .padding(.trailing, 16)
-                    .padding(.top, 2)
                 }
             }
         }
@@ -605,7 +848,7 @@ struct LogTabView: View {
                 }
             }
             
-            if !session.isRunning, let actual = session.actualMinutes {
+            if !session.isRunning, session.actualMinutes != nil {
                 if let endCmd = session.endCommandText { userBubble(text: endCmd, est: nil) }
                 if let endResponse = session.tempoEndResponse { aiBubble(text: endResponse) }
             }
@@ -686,6 +929,105 @@ struct LogTabView: View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0))
             Spacer()
+        }
+    }
+}
+
+// MARK: - REAL APPLE APP ICONS
+struct RealCalendarAppIcon: View {
+    var size: CGFloat = 24
+    
+    private var weekdayString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: Date()).uppercased()
+    }
+    
+    private var dayString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: Date())
+    }
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.15), radius: 1.5, x: 0, y: 1)
+            
+            VStack(spacing: 0) {
+                // Red top strip
+                ZStack {
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: size * 0.22,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 0,
+                        topTrailingRadius: size * 0.22,
+                        style: .continuous
+                    )
+                    .fill(Color(red: 0.95, green: 0.23, blue: 0.23))
+                    
+                    Text(weekdayString)
+                        .font(.system(size: size * 0.22, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+                .frame(height: size * 0.32)
+                
+                // Day number in center
+                Text(dayString)
+                    .font(.system(size: size * 0.44, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.black.opacity(0.85))
+                    .frame(maxHeight: .infinity)
+            }
+        }
+        .frame(width: size, height: size)
+        .overlay(
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
+        )
+    }
+}
+
+struct RealRemindersAppIcon: View {
+    var size: CGFloat = 24
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.15), radius: 1.5, x: 0, y: 1)
+            
+            VStack(alignment: .leading, spacing: size * 0.09) {
+                HStack(spacing: size * 0.08) {
+                    Circle().fill(Color(red: 0.98, green: 0.55, blue: 0.14)).frame(width: size * 0.17, height: size * 0.17)
+                    Capsule().fill(Color(red: 0.82, green: 0.82, blue: 0.85)).frame(width: size * 0.44, height: size * 0.07)
+                }
+                HStack(spacing: size * 0.08) {
+                    Circle().fill(Color(red: 0.18, green: 0.56, blue: 0.98)).frame(width: size * 0.17, height: size * 0.17)
+                    Capsule().fill(Color(red: 0.82, green: 0.82, blue: 0.85)).frame(width: size * 0.44, height: size * 0.07)
+                }
+                HStack(spacing: size * 0.08) {
+                    Circle().fill(Color(red: 0.38, green: 0.82, blue: 0.38)).frame(width: size * 0.17, height: size * 0.17)
+                    Capsule().fill(Color(red: 0.82, green: 0.82, blue: 0.85)).frame(width: size * 0.32, height: size * 0.07)
+                }
+            }
+            .padding(.horizontal, size * 0.13)
+        }
+        .frame(width: size, height: size)
+        .overlay(
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
+        )
+    }
+}
+
+struct RealUnifiedIntegrationIcon: View {
+    var size: CGFloat = 24
+    
+    var body: some View {
+        HStack(spacing: -size * 0.28) {
+            RealCalendarAppIcon(size: size * 0.88)
+            RealRemindersAppIcon(size: size * 0.88)
         }
     }
 }

@@ -4,14 +4,10 @@ import WidgetKit
 
 struct ContentView: View {
     @Environment(\.modelContext) private var context
-    @Query private var allSessions: [Session]
+    @Query(sort: \Session.createdAt, order: .forward) private var sessions: [Session]
     
     @State private var calibrationScore: Double = 0.5
     @State private var selectedTab: Int = 0
-    
-    var sessions: [Session] {
-        allSessions.sorted { $0.timestamp < $1.timestamp }
-    }
     
     var isRunning: Bool {
         sessions.contains(where: { $0.isRunning })
@@ -49,6 +45,14 @@ struct ContentView: View {
                 if url.host == "calendar" || url.host == "schedule" || url.host == "reminders" {
                     selectedTab = 0
                     NotificationCenter.default.post(name: .checkScheduleNotification, object: nil)
+                } else if url.host == "log" || url.host == "chat" {
+                    selectedTab = 0
+                } else if url.host == "insights" {
+                    selectedTab = 3
+                } else if url.host == "history" {
+                    selectedTab = 2
+                } else if url.host == "core" {
+                    selectedTab = 1
                 }
             }
         }
@@ -83,5 +87,6 @@ struct ContentView: View {
         )
         WidgetDataStore.shared.saveSnapshot(snapshot)
         WidgetCenter.shared.reloadAllTimelines()
+        RoutineEngine.shared.scheduleRoutineNotifications(sessions: sessions)
     }
 }
