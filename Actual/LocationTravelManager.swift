@@ -234,6 +234,9 @@ public final class LocationTravelManager: NSObject, CLLocationManagerDelegate {
     // MARK: - Travel Time & ETA Calculations via MapKit
     
     public func calculateTravel(to query: String, mode: TravelTransportMode = .driving) async -> TravelAssessmentResult? {
+        let mapsEnabled = UserDefaults.standard.object(forKey: "integration_maps_enabled") as? Bool ?? true
+        guard mapsEnabled else { return nil }
+        
         requestAuthorization()
         
         let startLoc = effectiveLocation
@@ -383,25 +386,43 @@ public final class LocationTravelManager: NSObject, CLLocationManagerDelegate {
             longitude: destination.placemark.coordinate.longitude
         )
         let crowMeters = startLoc.distance(from: destLoc)
+        let distKm = crowMeters / 1000.0
         
         let estimatedSecs: Double
         let routeDistanceMeters: Double
         switch mode {
         case .driving:
-            // Average driving speed ~45 km/h with 1.25 urban curvature factor
-            routeDistanceMeters = crowMeters * 1.25
-            estimatedSecs = (routeDistanceMeters / 12.5)
+            if distKm > 30 {
+                // Highway / expressway driving: ~85 km/h (23.6 m/s) with 1.15 curvature
+                routeDistanceMeters = crowMeters * 1.15
+                estimatedSecs = (routeDistanceMeters / 23.6) + 120
+            } else {
+                // Urban driving: ~45 km/h (12.5 m/s) with 1.25 curvature
+                routeDistanceMeters = crowMeters * 1.25
+                estimatedSecs = (routeDistanceMeters / 12.5) + 60
+            }
         case .transit:
-            // City transport: average speed ~25 km/h + 5 min wait/transfer buffer
-            routeDistanceMeters = crowMeters * 1.3
-            estimatedSecs = (routeDistanceMeters / 6.94) + 300
+            if distKm > 40 {
+                // Intercity / regional rail (e.g. PKP Intercity, Fast Airport Rail):
+                // Average speed ~85 km/h (23.6 m/s) + 10 min station & transfer buffer
+                routeDistanceMeters = crowMeters * 1.15
+                estimatedSecs = (routeDistanceMeters / 23.6) + 600
+            } else if distKm > 12 {
+                // Commuter rail / Fast metro: ~45 km/h (12.5 m/s) + 6 min transfer buffer
+                routeDistanceMeters = crowMeters * 1.25
+                estimatedSecs = (routeDistanceMeters / 12.5) + 360
+            } else {
+                // Urban City Transport (bus / tram / local subway): ~28 km/h (7.78 m/s) + 4 min wait buffer
+                routeDistanceMeters = crowMeters * 1.30
+                estimatedSecs = (routeDistanceMeters / 7.78) + 240
+            }
         case .walking:
-            // Walking: average ~4.8 km/h (1.33 m/s) with 1.2 pedestrian detour factor
-            routeDistanceMeters = crowMeters * 1.2
+            // Walking: ~4.8 km/h (1.33 m/s) with 1.2 pedestrian detour factor
+            routeDistanceMeters = crowMeters * 1.20
             estimatedSecs = (routeDistanceMeters / 1.33)
         case .cycling:
-            // Cycling: average ~18 km/h (5.0 m/s) with 1.2 bike route factor
-            routeDistanceMeters = crowMeters * 1.2
+            // Cycling: ~18 km/h (5.0 m/s) with 1.2 bike route factor
+            routeDistanceMeters = crowMeters * 1.20
             estimatedSecs = (routeDistanceMeters / 5.0)
         }
         
@@ -420,34 +441,46 @@ public final class LocationTravelManager: NSObject, CLLocationManagerDelegate {
         )
     }
     
-    public func estimateFallbackResult(for query: String, mode: TravelTransportMode = .driving) -> TravelAssessmentResult {
-        let mins: Int
-        let distMeters: Double
-        let distStr: String
+    public func estimateFallbackResult(for query: String, knownDistanceMeters: Double? = nil, mode: TravelTransportMode = .driving) -> TravelAssessmentResult {
+        let distMeters = knownDistanceMeters ?? {
+            switch mode {
+            case .driving: return 14000
+            case .transit: return 13000
+            case .walking: return 7000
+            case .cycling: return 7500
+            }
+        }()
+        
+        let distKm = distMeters / 1000.0
+        let estimatedSecs: Double
         switch mode {
         case .driving:
-            mins = 25
-            distMeters = 12000
-            distStr = "12.0 km"
+            if distKm > 30 {
+                estimatedSecs = (distMeters / 23.6) + 120
+            } else {
+                estimatedSecs = (distMeters / 12.5) + 60
+            }
         case .transit:
-            mins = 38
-            distMeters = 13500
-            distStr = "13.5 km"
+            if distKm > 40 {
+                estimatedSecs = (distMeters / 23.6) + 600
+            } else if distKm > 12 {
+                estimatedSecs = (distMeters / 12.5) + 360
+            } else {
+                estimatedSecs = (distMeters / 7.78) + 240
+            }
         case .walking:
-            mins = 95
-            distMeters = 8000
-            distStr = "8.0 km"
+            estimatedSecs = (distMeters / 1.33)
         case .cycling:
-            mins = 32
-            distMeters = 8500
-            distStr = "8.5 km"
+            estimatedSecs = (distMeters / 5.0)
         }
+        
+        let mins = max(1, Int(ceil(estimatedSecs / 60.0)))
         return TravelAssessmentResult(
             destinationTitle: query,
             destinationAddress: "Estimated route",
             travelDurationMinutes: mins,
             distanceMeters: distMeters,
-            distanceString: distStr,
+            distanceString: formatDistance(meters: distMeters),
             transportTypeName: mode.displayName,
             transportMode: mode
         )

@@ -1168,8 +1168,11 @@ struct IntegrationsView: View {
                                 RealCalendarAppIcon(size: 28)
                             }
                             .onChange(of: calendarEnabled) { _, newValue in
+                                UserDefaults.standard.set(newValue, forKey: "integration_calendar_enabled")
                                 if newValue {
                                     EventKitManager.shared.requestAccessAndFetch()
+                                } else {
+                                    EventKitManager.shared.suggestions.removeAll()
                                 }
                             }
                             
@@ -1183,8 +1186,11 @@ struct IntegrationsView: View {
                                 RealRemindersAppIcon(size: 28)
                             }
                             .onChange(of: remindersEnabled) { _, newValue in
+                                UserDefaults.standard.set(newValue, forKey: "integration_reminders_enabled")
                                 if newValue {
                                     EventKitManager.shared.requestAccessAndFetch()
+                                } else {
+                                    EventKitManager.shared.suggestions.removeAll()
                                 }
                             }
                             
@@ -1198,6 +1204,7 @@ struct IntegrationsView: View {
                                 isOn: $healthEnabled
                             )
                             .onChange(of: healthEnabled) { _, newValue in
+                                UserDefaults.standard.set(newValue, forKey: "integration_health_enabled")
                                 if newValue {
                                     Task {
                                         _ = await healthKit.requestAuthorization()
@@ -1214,6 +1221,9 @@ struct IntegrationsView: View {
                                 iconColor: Color(red: 0.2, green: 0.78, blue: 0.35),
                                 isOn: $mapsEnabled
                             )
+                            .onChange(of: mapsEnabled) { _, newValue in
+                                UserDefaults.standard.set(newValue, forKey: "integration_maps_enabled")
+                            }
                         }
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .overlay(

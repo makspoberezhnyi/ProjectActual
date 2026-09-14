@@ -213,7 +213,7 @@ struct TempoLiveActivityLockScreenBanner: View {
                 // Glass Icon Orb
                 ZStack {
                     Circle()
-                        .fill(WidgetTheme.blue.opacity(colorScheme == .light ? 0.15 : 0.22))
+                        .fill(WidgetTheme.blue.opacity(0.28))
                         .frame(width: 36, height: 36)
                     
                     Image(systemName: "timer")
@@ -224,12 +224,12 @@ struct TempoLiveActivityLockScreenBanner: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.taskTitle)
                         .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
+                        .foregroundStyle(.white)
                         .lineLimit(1)
                     
                     Text("Target: \(context.attributes.estimatedMinutes)m Focus")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.72))
                 }
                 
                 Spacer()
@@ -239,7 +239,7 @@ struct TempoLiveActivityLockScreenBanner: View {
                     Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
+                        .foregroundStyle(.white)
                     
                     Text("ELAPSED")
                         .font(.system(size: 8, weight: .heavy, design: .rounded))
@@ -264,17 +264,22 @@ struct TempoLiveActivityLockScreenBanner: View {
                         Text("Done")
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                     }
-                    .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(WidgetTheme.actionButtonBackground(for: colorScheme), in: Capsule())
-                    .overlay(Capsule().strokeBorder(WidgetTheme.glassStroke(for: colorScheme), lineWidth: 1))
+                    .background(Color.white.opacity(0.18), in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.30), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(14)
-        .activityBackgroundTint(colorScheme == .light ? Color.white.opacity(0.85) : Color.black.opacity(0.72))
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color(red: 0.08, green: 0.10, blue: 0.14).opacity(0.96))
+        )
+        .activityBackgroundTint(Color(red: 0.08, green: 0.10, blue: 0.14).opacity(0.96))
+        .activitySystemActionForegroundColor(.white)
     }
 }
 

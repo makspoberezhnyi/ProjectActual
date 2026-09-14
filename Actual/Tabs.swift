@@ -585,19 +585,6 @@ struct LogTabView: View {
                 estimatedMinutes: mins,
                 startDate: session.startedAt ?? Date()
             )
-            
-            if match.isSport, let actType = match.activityType {
-                let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
-                if healthEnabled {
-                    Task {
-                        _ = await HealthKitManager.shared.scheduleWorkoutPlan(
-                            activityType: actType,
-                            minutes: mins,
-                            title: match.name
-                        )
-                    }
-                }
-            }
         }
         
         isTyping = true
@@ -667,12 +654,21 @@ struct LogTabView: View {
     }
     
     private func handleHealthQuery(userText: String) {
+        let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
         let querySession = Session(
             rawText: userText,
             isHealthQuery: true,
             createdAt: Date()
         )
         context.insert(querySession)
+        
+        if !healthEnabled {
+            querySession.tempoResponse = "Apple Health & Fitness integration is turned off in Settings."
+            querySession.endedAt = Date()
+            try? context.save()
+            return
+        }
+        
         isTyping = true
         
         Task {
@@ -693,6 +689,7 @@ struct LogTabView: View {
     }
     
     private func handleTravelQuery(userText: String, destination: String?, isNextMeeting: Bool, transportMode: TravelTransportMode? = nil) {
+        let mapsEnabled = UserDefaults.standard.object(forKey: "integration_maps_enabled") as? Bool ?? true
         let chosenMode = transportMode ?? .driving
         let session = Session(
             rawText: userText,
@@ -700,6 +697,14 @@ struct LogTabView: View {
             createdAt: Date()
         )
         context.insert(session)
+        
+        if !mapsEnabled {
+            session.tempoResponse = "Apple Maps integration is turned off in Settings."
+            session.endedAt = Date()
+            try? context.save()
+            return
+        }
+        
         isTyping = true
         
         Task {
@@ -757,8 +762,9 @@ struct LogTabView: View {
         guard let currentResult = session.travelResult else { return }
         if currentResult.transportMode == newMode { return }
         
-        // Immediate optimistic UI update with realistic fallback
-        let estimated = LocationTravelManager.shared.estimateFallbackResult(for: currentResult.destinationTitle, mode: newMode)
+        // Immediate optimistic UI update with realistic distance-aware fallback
+        let existingDist = currentResult.distanceMeters > 0 ? currentResult.distanceMeters : nil
+        let estimated = LocationTravelManager.shared.estimateFallbackResult(for: currentResult.destinationTitle, knownDistanceMeters: existingDist, mode: newMode)
         let encoder = JSONEncoder()
         if let data = try? encoder.encode(estimated), let jsonStr = String(data: data, encoding: .utf8) {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -892,6 +898,9 @@ struct LogTabView: View {
     }
     
     private func handleScheduleQuery(userText: String = "Check calendar & reminders", target: IntegrationTarget = .both) {
+        let calendarEnabled = UserDefaults.standard.object(forKey: "integration_calendar_enabled") as? Bool ?? true
+        let remindersEnabled = UserDefaults.standard.object(forKey: "integration_reminders_enabled") as? Bool ?? true
+        
         let querySession = Session(
             rawText: userText,
             estimatedMinutes: nil,
@@ -902,6 +911,26 @@ struct LogTabView: View {
         )
         querySession.integrationSource = target.rawValue
         context.insert(querySession)
+        
+        if target == .calendar && !calendarEnabled {
+            querySession.tempoResponse = "Apple Calendar integration is turned off in Settings."
+            querySession.endedAt = Date()
+            try? context.save()
+            return
+        }
+        if target == .reminders && !remindersEnabled {
+            querySession.tempoResponse = "Apple Reminders integration is turned off in Settings."
+            querySession.endedAt = Date()
+            try? context.save()
+            return
+        }
+        if target == .both && !calendarEnabled && !remindersEnabled {
+            querySession.tempoResponse = "Both Apple Calendar and Reminders integrations are turned off in Settings."
+            querySession.endedAt = Date()
+            try? context.save()
+            return
+        }
+        
         try? context.save()
         isTyping = true
         
