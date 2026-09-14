@@ -95,22 +95,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		55720E7E3056BCC800703192 /* Recovered References */ = {
-			isa = PBXGroup;
-			children = (
-				A100000000000000000004 /* ActualWidgets */,
-			);
-			name = "Recovered References";
-			sourceTree = "<group>";
-		};
 		A100000000000000000030 = {
 			isa = PBXGroup;
 			children = (
 				A100000000000000000003 /* Shared */,
 				A100000000000000000001 /* Actual */,
+				A100000000000000000004 /* ActualWidgets */,
 				A100000000000000000002 /* ActualTests */,
 				A100000000000000000031 /* Products */,
-				55720E7E3056BCC800703192 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -363,10 +355,6 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Supporting/Info.plist;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Actual reads your calendar only to notice the open stretches between what you already have on.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Actual watches a trip in the background so it can notice you have arrived and stop the timer itself, without you having to remember.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Actual uses your location once, when a trip starts, to ask a routing service how long the drive should take.";
-				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Actual reads only the name and due date of unfinished reminders, so it can offer one that fits a free window.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -395,10 +383,6 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Supporting/Info.plist;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Actual reads your calendar only to notice the open stretches between what you already have on.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Actual watches a trip in the background so it can notice you have arrived and stop the timer itself, without you having to remember.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Actual uses your location once, when a trip starts, to ask a routing service how long the drive should take.";
-				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Actual reads only the name and due date of unfinished reminders, so it can offer one that fits a free window.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
