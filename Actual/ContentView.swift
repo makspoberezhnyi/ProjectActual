@@ -4,6 +4,7 @@ import WidgetKit
 
 struct ContentView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \Session.createdAt, order: .forward) private var sessions: [Session]
     
     @State private var calibrationScore: Double = 0.5
@@ -62,6 +63,12 @@ struct ContentView: View {
         .onChange(of: sessions) { _, _ in
             updateCalibrationAndWidget()
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                updateCalibrationAndWidget()
+                NotificationCenter.default.post(name: .syncWidgetSessionsNotification, object: nil)
+            }
+        }
     }
     
     private func updateCalibrationAndWidget() {
@@ -87,6 +94,14 @@ struct ContentView: View {
         )
         WidgetDataStore.shared.saveSnapshot(snapshot)
         WidgetCenter.shared.reloadAllTimelines()
+        
+        if runningSession == nil {
+            let storeSnapshot = WidgetDataStore.shared.loadSnapshot()
+            if !storeSnapshot.isRunning {
+                LiveActivityManager.shared.cancelAllLiveActivities()
+            }
+        }
+        
         RoutineEngine.shared.scheduleRoutineNotifications(sessions: sessions)
     }
 }

@@ -7,14 +7,30 @@ public struct PendingSessionData: Codable {
     public var actualMinutes: Int?
     public var startedAt: Date
     public var endedAt: Date?
+    public var linkedEventIdentifier: String?
+    public var isLinkedToCalendar: Bool?
+    public var isLinkedToReminders: Bool?
     
-    public init(id: UUID = UUID(), rawText: String, estimatedMinutes: Int, actualMinutes: Int? = nil, startedAt: Date = Date(), endedAt: Date? = nil) {
+    public init(
+        id: UUID = UUID(),
+        rawText: String,
+        estimatedMinutes: Int,
+        actualMinutes: Int? = nil,
+        startedAt: Date = Date(),
+        endedAt: Date? = nil,
+        linkedEventIdentifier: String? = nil,
+        isLinkedToCalendar: Bool? = nil,
+        isLinkedToReminders: Bool? = nil
+    ) {
         self.id = id
         self.rawText = rawText
         self.estimatedMinutes = estimatedMinutes
         self.actualMinutes = actualMinutes
         self.startedAt = startedAt
         self.endedAt = endedAt
+        self.linkedEventIdentifier = linkedEventIdentifier
+        self.isLinkedToCalendar = isLinkedToCalendar
+        self.isLinkedToReminders = isLinkedToReminders
     }
 }
 
@@ -71,20 +87,41 @@ final public class WidgetDataStore: @unchecked Sendable {
         }
     }
     
-    public func startSession(title: String, minutes: Int) {
+    public func startSession(
+        title: String,
+        minutes: Int,
+        startDate: Date = Date(),
+        linkedEventIdentifier: String? = nil,
+        isLinkedToCalendar: Bool? = nil,
+        isLinkedToReminders: Bool? = nil,
+        id: UUID = UUID()
+    ) {
+        // Auto-finalize any previously open pending sessions
+        var pending = loadPendingSessions()
+        let now = startDate
+        for i in 0..<pending.count {
+            if pending[i].endedAt == nil {
+                pending[i].endedAt = now
+                let elapsed = max(1, Int(now.timeIntervalSince(pending[i].startedAt) / 60))
+                pending[i].actualMinutes = elapsed
+            }
+        }
+        
         var current = loadSnapshot()
         current.isRunning = true
         current.activeTaskTitle = title
         current.activeTaskEstimatedMinutes = minutes
-        current.activeTaskStartedAt = Date()
+        current.activeTaskStartedAt = startDate
         saveSnapshot(current)
         
-        // Add to pending queue
-        var pending = loadPendingSessions()
         let newSession = PendingSessionData(
+            id: id,
             rawText: title,
             estimatedMinutes: minutes,
-            startedAt: Date()
+            startedAt: startDate,
+            linkedEventIdentifier: linkedEventIdentifier,
+            isLinkedToCalendar: isLinkedToCalendar,
+            isLinkedToReminders: isLinkedToReminders
         )
         pending.append(newSession)
         savePendingSessions(pending)
@@ -93,9 +130,10 @@ final public class WidgetDataStore: @unchecked Sendable {
     public func stopActiveSession() {
         var current = loadSnapshot()
         var elapsed = 0
+        let now = Date()
         if let start = current.activeTaskStartedAt {
-            elapsed = Int(Date().timeIntervalSince(start) / 60)
-            current.todayMinutes += max(1, elapsed)
+            elapsed = max(1, Int(now.timeIntervalSince(start) / 60))
+            current.todayMinutes += elapsed
             current.todayCompletedCount += 1
         }
         
@@ -105,14 +143,18 @@ final public class WidgetDataStore: @unchecked Sendable {
         current.activeTaskStartedAt = nil
         saveSnapshot(current)
         
-        // Close pending session in queue
+        // Close all unended pending sessions in queue
         var pending = loadPendingSessions()
-        if var last = pending.last(where: { $0.endedAt == nil }) {
-            last.endedAt = Date()
-            last.actualMinutes = max(1, elapsed)
-            if let idx = pending.firstIndex(where: { $0.id == last.id }) {
-                pending[idx] = last
+        var modified = false
+        for i in 0..<pending.count {
+            if pending[i].endedAt == nil {
+                pending[i].endedAt = now
+                let itemElapsed = max(1, Int(now.timeIntervalSince(pending[i].startedAt) / 60))
+                pending[i].actualMinutes = itemElapsed
+                modified = true
             }
+        }
+        if modified {
             savePendingSessions(pending)
         }
     }

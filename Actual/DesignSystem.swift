@@ -1,17 +1,19 @@
 import SwiftUI
 
 public enum Theme {
-    public static let text = Color.white
-    public static let textDim = Color.white.opacity(0.6)
+    public static let text = Color.primary
+    public static let textDim = Color.secondary
     
     public static let auraCalibrated = Color(hex: 0x2A3E59)
     public static let auraUncalibrated = Color(hex: 0x8C3A3A)
     public static let auraLearning = Color(hex: 0x4A4A4A)
     
-    // New Brand Colors
+    // Unified Apple Design Palette
+    public static let brandPrimary = Color(red: 0.05, green: 0.52, blue: 1.0)
     public static let brandCoral = Color(red: 1.0, green: 0.4, blue: 0.3)
-    public static let brandMint = Color(red: 0.3, green: 0.9, blue: 0.6)
-    public static let brandBackground = Color(red: 0.96, green: 0.95, blue: 0.93) // Very soft off-white/cream
+    public static let brandSuccess = Color(red: 0.2, green: 0.78, blue: 0.35)
+    public static let brandMint = Color(red: 0.05, green: 0.52, blue: 1.0) // Harmonized to Apple Blue
+    public static let brandBackground = Color(UIColor.systemGroupedBackground)
 }
 
 extension Color {

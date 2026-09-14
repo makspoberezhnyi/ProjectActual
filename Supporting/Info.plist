@@ -31,5 +31,19 @@
     <string>Tempo needs calendar access to suggest your upcoming events as timers.</string>
     <key>NSRemindersFullAccessUsageDescription</key>
     <string>Tempo needs reminders access to suggest your tasks as timers.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Tempo uses your location to calculate real-time driving and commute travel times for your destinations, meetings, and calendar events.</string>
+    <key>NSHealthShareUsageDescription</key>
+    <string>Tempo reads your Apple Health workouts and mindful sessions to calibrate your sports and focus routines.</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>Tempo writes your completed workouts and mindful minutes directly to Apple Health and Apple Fitness.</string>
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>fitnessapp</string>
+        <string>fitness</string>
+        <string>activity</string>
+        <string>x-apple-health</string>
+        <string>maps</string>
+    </array>
 </dict>
 </plist>
