@@ -802,12 +802,24 @@ struct LogTabView: View {
         }
     }
     
-    private func startCommuteFocus(title: String, minutes: Int) {
+    private func startCommuteFocus(title: String, minutes: Int, mode: TravelTransportMode = .driving) {
+        let responseMsg: String
+        switch mode {
+        case .driving:
+            responseMsg = "🚗 Commute timer started. Drive safely!"
+        case .transit:
+            responseMsg = "🚆 Transit commute timer started. Have a good ride!"
+        case .walking:
+            responseMsg = "🚶 Walking timer started. Enjoy your walk!"
+        case .cycling:
+            responseMsg = "🚴 Cycling timer started. Ride safely!"
+        }
+        
         let session = Session(
             rawText: title,
             estimatedMinutes: minutes,
             startedAt: Date(),
-            tempoResponse: "Commute focus timer started. Drive safely!",
+            tempoResponse: responseMsg,
             integrationSource: "maps",
             createdAt: Date()
         )
@@ -1371,7 +1383,7 @@ struct LogTabView: View {
             // Action Buttons
             HStack(spacing: 8) {
                 Button {
-                    startCommuteFocus(title: "\(result.transportMode.actionTitle): \(result.destinationTitle)", minutes: result.travelDurationMinutes)
+                    startCommuteFocus(title: "\(result.transportMode.actionTitle): \(result.destinationTitle)", minutes: result.travelDurationMinutes, mode: result.transportMode)
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "play.fill")
