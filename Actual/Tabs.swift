@@ -213,6 +213,7 @@ struct LogTabView: View {
                     handleHealthKitWorkoutFinished(workout)
                 }
             }
+            syncRecentHealthKitWorkouts()
         }
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
             syncPendingWidgetSessions()
@@ -222,6 +223,9 @@ struct LogTabView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .syncWidgetSessionsNotification)) { _ in
             syncPendingWidgetSessions()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .syncHealthKitWorkoutsNotification)) { _ in
+            syncRecentHealthKitWorkouts()
         }
         .onReceive(NotificationCenter.default.publisher(for: .finishSessionFromNotification)) { notif in
             if let targetId = notif.userInfo?["sessionId"] as? String,
@@ -563,6 +567,15 @@ struct LogTabView: View {
         if intent.isStopCommand {
             if let runningSession = sessions.last(where: { $0.isRunning }) {
                 stopSession(runningSession, endCommandText: savedText)
+            } else {
+                let session = Session(
+                    rawText: savedText,
+                    startedAt: nil,
+                    tempoResponse: "No active session is currently running.",
+                    createdAt: Date()
+                )
+                context.insert(session)
+                try? context.save()
             }
             return
         }
@@ -891,9 +904,13 @@ struct LogTabView: View {
         let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
         let match = HealthKitManager.detectActivity(from: session.rawText)
         
-        isTyping = true
+        self.isTyping = false
         
         if healthEnabled && match.isSport, let actType = match.activityType {
+            let estimatedKcal = Int(Double(actual) * (match.caloriesPerMinute > 0 ? match.caloriesPerMinute : 8.0))
+            session.tempoEndResponse = "\(baseResponse) • 🏃 \(match.name) logged to Apple Fitness (~\(estimatedKcal) kcal)"
+            try? context.save()
+            
             let start = session.startedAt ?? Date().addingTimeInterval(-Double(actual * 60))
             let end = session.endedAt ?? Date()
             Task {
@@ -905,13 +922,17 @@ struct LogTabView: View {
                     durationMinutes: actual,
                     caloriesPerMinute: match.caloriesPerMinute
                 )
-                await MainActor.run {
-                    session.tempoEndResponse = "\(baseResponse) • 🏃 \(match.name) logged to Apple Fitness (~\(Int(res.calories)) kcal)"
-                    self.isTyping = false
-                    try? context.save()
+                if res.calories > 0 && Int(res.calories) != estimatedKcal {
+                    await MainActor.run {
+                        session.tempoEndResponse = "\(baseResponse) • 🏃 \(match.name) logged to Apple Fitness (~\(Int(res.calories)) kcal)"
+                        try? context.save()
+                    }
                 }
             }
         } else if healthEnabled && match.isMindful {
+            session.tempoEndResponse = "\(baseResponse) • 🧘 \(actual)m logged to Apple Health"
+            try? context.save()
+            
             let start = session.startedAt ?? Date().addingTimeInterval(-Double(actual * 60))
             let end = session.endedAt ?? Date()
             Task {
@@ -920,17 +941,24 @@ struct LogTabView: View {
                     end: end,
                     durationMinutes: actual
                 )
-                await MainActor.run {
-                    session.tempoEndResponse = "\(baseResponse) • 🧘 \(actual)m logged to Apple Health"
-                    self.isTyping = false
-                    try? context.save()
-                }
             }
         } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                session.tempoEndResponse = baseResponse
-                self.isTyping = false
-                try? context.save()
+            session.tempoEndResponse = baseResponse
+            try? context.save()
+        }
+    }
+    
+    private func syncRecentHealthKitWorkouts() {
+        Task {
+            let recentWorkouts = await HealthKitManager.shared.fetchRecentWorkouts(since: Date().addingTimeInterval(-7200))
+            guard let latest = recentWorkouts.first else { return }
+            await MainActor.run {
+                if let runningSession = sessions.last(where: { $0.isRunning }) {
+                    let match = HealthKitManager.detectActivity(from: runningSession.rawText)
+                    if match.isSport {
+                        handleHealthKitWorkoutFinished(latest)
+                    }
+                }
             }
         }
     }
@@ -2442,6 +2470,7 @@ struct CoreTabView: View {
 extension Notification.Name {
     static let checkScheduleNotification = Notification.Name("checkScheduleNotification")
     static let syncWidgetSessionsNotification = Notification.Name("syncWidgetSessionsNotification")
+    static let syncHealthKitWorkoutsNotification = Notification.Name("syncHealthKitWorkoutsNotification")
 }
 
 // MARK: - DATE JUMP SHEET

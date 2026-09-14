@@ -445,4 +445,45 @@ final class DummyTests: XCTestCase {
         let deltaStr = delta > 0 ? "+\(delta)m" : "\(delta)m"
         XCTAssertEqual(deltaStr, "+5m")
     }
+    
+    @MainActor
+    func testFlowAStopSessionAndParsing() throws {
+        // 1. Verify Stop / Finished parsing
+        let finishIntent = ChatParser.parse("Finished")
+        XCTAssertTrue(finishIntent.isStopCommand)
+        
+        let doneIntent = ChatParser.parse("Done")
+        XCTAssertTrue(doneIntent.isStopCommand)
+        
+        let stopIntent = ChatParser.parse("stop")
+        XCTAssertTrue(stopIntent.isStopCommand)
+        
+        // 2. Create and run a workout session
+        let workoutSession = Session(
+            rawText: "Running 30m",
+            estimatedMinutes: 30,
+            startedAt: Date().addingTimeInterval(-1800),
+            tempoResponse: "🏃 Outdoor Running workout timer started (30m). Tracking with Apple Fitness."
+        )
+        XCTAssertTrue(workoutSession.isRunning)
+        
+        // 3. Emulate stopSession execution
+        workoutSession.endedAt = Date()
+        let actual = max(1, Int(Date().timeIntervalSince(workoutSession.startedAt ?? Date()) / 60))
+        workoutSession.actualMinutes = actual
+        workoutSession.endCommandText = "Finished"
+        
+        let ratioText = workoutSession.biasRatio != nil ? String(format: "%.1fx", workoutSession.biasRatio!) : "-"
+        let baseResponse = "Done. Logged \(actual)m. (Ratio: \(ratioText))"
+        let match = HealthKitManager.detectActivity(from: workoutSession.rawText)
+        let estimatedKcal = Int(Double(actual) * (match.caloriesPerMinute > 0 ? match.caloriesPerMinute : 8.0))
+        workoutSession.tempoEndResponse = "\(baseResponse) • 🏃 \(match.name) logged to Apple Fitness (~\(estimatedKcal) kcal)"
+        
+        // 4. Assertions
+        XCTAssertFalse(workoutSession.isRunning)
+        XCTAssertEqual(workoutSession.actualMinutes, 30)
+        XCTAssertNotNil(workoutSession.tempoEndResponse)
+        XCTAssertTrue(workoutSession.tempoEndResponse?.contains("Outdoor Running logged to Apple Fitness") == true)
+        XCTAssertTrue(workoutSession.tempoEndResponse?.contains("kcal") == true)
+    }
 }
