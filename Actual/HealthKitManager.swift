@@ -500,8 +500,6 @@ public final class HealthKitManager: @unchecked Sendable {
                     let cals: Double
                     if let energyType, let sum = workout.statistics(for: energyType)?.sumQuantity() {
                         cals = sum.doubleValue(for: .kilocalorie())
-                    } else if let totalEnergy = workout.totalEnergyBurned {
-                        cals = totalEnergy.doubleValue(for: .kilocalorie())
                     } else {
                         cals = Double(durationMins) * 7.5
                     }
