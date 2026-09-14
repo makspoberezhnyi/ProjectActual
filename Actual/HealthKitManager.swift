@@ -1,9 +1,6 @@
 import Foundation
 import HealthKit
 import SwiftUI
-#if canImport(WorkoutKit)
-import WorkoutKit
-#endif
 
 public struct HealthWorkoutMatch {
     public let isSport: Bool
@@ -388,23 +385,21 @@ public final class HealthKitManager: @unchecked Sendable {
         }
     }
     
-    // MARK: - WorkoutKit Scheduling (Appears at top of Fitness / Workout app)
-    public func scheduleWorkoutPlan(activityType: HKWorkoutActivityType, minutes: Int, title: String) async -> Bool {
-        #if canImport(WorkoutKit)
-        if #available(iOS 17.0, *) {
-            let auth = await WorkoutScheduler.shared.requestAuthorization()
-            guard auth == .authorized else { return false }
-            
-            let goal = WorkoutGoal.time(Double(minutes), .minutes)
-            let singleGoal = SingleGoalWorkout(activity: activityType, location: .outdoor, goal: goal)
-            let plan = WorkoutPlan(.goal(singleGoal))
-            let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: Date())
-            
-            await WorkoutScheduler.shared.schedule(plan, at: components)
-            return true
+    // MARK: - Native Pre-Made Workout Trigger
+    public func launchNativeWorkout(activityType: HKWorkoutActivityType, isOutdoor: Bool = true) {
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = activityType
+        configuration.locationType = isOutdoor ? .outdoor : .indoor
+        
+        if let store = healthStore {
+            store.startWatchApp(with: configuration) { success, error in
+                if let error {
+                    print("Watch app launch info: \(error.localizedDescription)")
+                }
+            }
         }
-        #endif
-        return false
+        
+        openFitnessApp()
     }
     
     // MARK: - Save Mindful Session
