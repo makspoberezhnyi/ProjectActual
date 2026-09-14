@@ -353,23 +353,15 @@ public final class HealthKitManager: @unchecked Sendable {
         let calculatedCalories = max(10.0, Double(durationMinutes) * caloriesPerMinute)
         let energyQuantity = HKQuantity(unit: .kilocalorie(), doubleValue: calculatedCalories)
         
-        let workout = HKWorkout(
-            activityType: activityType,
-            start: start,
-            end: end,
-            workoutEvents: nil,
-            totalEnergyBurned: energyQuantity,
-            totalDistance: nil,
-            metadata: [
-                HKMetadataKeyWorkoutBrandName: "Tempo",
-                HKMetadataKeyIndoorWorkout: NSNumber(value: false)
-            ]
-        )
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = activityType
+        configuration.locationType = .outdoor
+        
+        let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: .local())
         
         do {
-            try await store.save(workout)
+            try await builder.beginCollection(at: start)
             
-            // Also write energy burned sample linked to the same timeframe
             if let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
                 let sample = HKQuantitySample(
                     type: energyType,
@@ -378,8 +370,16 @@ public final class HealthKitManager: @unchecked Sendable {
                     end: end,
                     metadata: [HKMetadataKeyWorkoutBrandName: "Tempo"]
                 )
-                try? await store.save(sample)
+                try await builder.addSamples([sample])
             }
+            
+            try await builder.addMetadata([
+                HKMetadataKeyWorkoutBrandName: "Tempo",
+                HKMetadataKeyIndoorWorkout: NSNumber(value: false)
+            ])
+            
+            try await builder.endCollection(at: end)
+            _ = try await builder.finishWorkout()
             
             await refreshTodayStats()
             return (true, calculatedCalories, "Logged \(durationMinutes)m \(title) to Apple Fitness (~\(Int(calculatedCalories)) kcal)")
