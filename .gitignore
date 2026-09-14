@@ -27,6 +27,11 @@ venv/
 # Build artifacts
 dist/
 build/
+build-sim/
+build_device/
+*.xcodeproj/*xcuserdata*
+*.xcworkspace/*xcuserdata*
+.claude/
 *.pyc
 *.class
 *.o

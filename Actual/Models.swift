@@ -15,7 +15,14 @@ final class Session {
     var isRetroactive: Bool?
     var isScheduleQuery: Bool?
     var schedulePayload: String?
+    var travelPayload: String?
+    var isTravelQuery: Bool?
+    var isHealthQuery: Bool?
+    var healthPayload: String?
     var integrationSource: String?
+    var linkedEventIdentifier: String?
+    var isLinkedToCalendar: Bool?
+    var isLinkedToReminders: Bool?
     var createdAt: Date?
     
     init(
@@ -28,7 +35,14 @@ final class Session {
         isRetroactive: Bool? = nil,
         isScheduleQuery: Bool? = nil,
         schedulePayload: String? = nil,
+        travelPayload: String? = nil,
+        isTravelQuery: Bool? = nil,
+        isHealthQuery: Bool? = nil,
+        healthPayload: String? = nil,
         integrationSource: String? = nil,
+        linkedEventIdentifier: String? = nil,
+        isLinkedToCalendar: Bool? = nil,
+        isLinkedToReminders: Bool? = nil,
         createdAt: Date? = Date()
     ) {
         self.rawText = rawText
@@ -40,7 +54,14 @@ final class Session {
         self.isRetroactive = isRetroactive
         self.isScheduleQuery = isScheduleQuery
         self.schedulePayload = schedulePayload
+        self.travelPayload = travelPayload
+        self.isTravelQuery = isTravelQuery
+        self.isHealthQuery = isHealthQuery
+        self.healthPayload = healthPayload
         self.integrationSource = integrationSource
+        self.linkedEventIdentifier = linkedEventIdentifier
+        self.isLinkedToCalendar = isLinkedToCalendar
+        self.isLinkedToReminders = isLinkedToReminders
         self.createdAt = createdAt ?? Date()
     }
     
@@ -57,8 +78,30 @@ final class Session {
         return items
     }
     
+    var travelResult: TravelAssessmentResult? {
+        guard let payload = travelPayload,
+              let data = payload.data(using: .utf8),
+              let result = try? JSONDecoder().decode(TravelAssessmentResult.self, from: data) else {
+            return nil
+        }
+        return result
+    }
+    
+    var healthCardData: HealthCardData? {
+        guard let payload = healthPayload,
+              let data = payload.data(using: .utf8),
+              let result = try? JSONDecoder().decode(HealthCardData.self, from: data) else {
+            return nil
+        }
+        return result
+    }
+    
     var isRunning: Bool {
-        startedAt != nil && endedAt == nil && !(isScheduleQuery ?? false)
+        startedAt != nil && endedAt == nil && !(isScheduleQuery ?? false) && !(isTravelQuery ?? false) && !(isHealthQuery ?? false)
+    }
+    
+    var isActualTask: Bool {
+        startedAt != nil && !(isScheduleQuery ?? false) && !(isTravelQuery ?? false) && !(isHealthQuery ?? false)
     }
     
     var biasRatio: Double? {
@@ -130,3 +173,139 @@ final class BiasEngine {
         }
     }
 }
+
+// MARK: - Data Backup & Transfer (Import / Export)
+
+struct TempoBackup: Codable {
+    var version: Int = 1
+    var exportedAt: Date = Date()
+    var appVersion: String = "1.0"
+    var sessions: [SessionDTO]
+}
+
+struct SessionDTO: Codable {
+    var rawText: String
+    var estimatedMinutes: Int?
+    var actualMinutes: Int?
+    var startedAt: Date?
+    var endedAt: Date?
+    var tempoResponse: String?
+    var tempoEndResponse: String?
+    var endCommandText: String?
+    var isRetroactive: Bool?
+    var isScheduleQuery: Bool?
+    var schedulePayload: String?
+    var travelPayload: String?
+    var isTravelQuery: Bool?
+    var integrationSource: String?
+    var linkedEventIdentifier: String?
+    var isLinkedToCalendar: Bool?
+    var isLinkedToReminders: Bool?
+    var createdAt: Date?
+    
+    init(from session: Session) {
+        self.rawText = session.rawText
+        self.estimatedMinutes = session.estimatedMinutes
+        self.actualMinutes = session.actualMinutes
+        self.startedAt = session.startedAt
+        self.endedAt = session.endedAt
+        self.tempoResponse = session.tempoResponse
+        self.tempoEndResponse = session.tempoEndResponse
+        self.endCommandText = session.endCommandText
+        self.isRetroactive = session.isRetroactive
+        self.isScheduleQuery = session.isScheduleQuery
+        self.schedulePayload = session.schedulePayload
+        self.travelPayload = session.travelPayload
+        self.isTravelQuery = session.isTravelQuery
+        self.integrationSource = session.integrationSource
+        self.linkedEventIdentifier = session.linkedEventIdentifier
+        self.isLinkedToCalendar = session.isLinkedToCalendar
+        self.isLinkedToReminders = session.isLinkedToReminders
+        self.createdAt = session.createdAt
+    }
+    
+    func toSession() -> Session {
+        let session = Session(
+            rawText: rawText,
+            estimatedMinutes: estimatedMinutes,
+            startedAt: startedAt,
+            tempoResponse: tempoResponse,
+            tempoEndResponse: tempoEndResponse,
+            endCommandText: endCommandText,
+            isRetroactive: isRetroactive,
+            isScheduleQuery: isScheduleQuery,
+            schedulePayload: schedulePayload,
+            travelPayload: travelPayload,
+            isTravelQuery: isTravelQuery,
+            integrationSource: integrationSource,
+            linkedEventIdentifier: linkedEventIdentifier,
+            isLinkedToCalendar: isLinkedToCalendar,
+            isLinkedToReminders: isLinkedToReminders,
+            createdAt: createdAt
+        )
+        session.actualMinutes = actualMinutes
+        session.endedAt = endedAt
+        return session
+    }
+}
+
+enum TempoBackupManager {
+    static func exportBackup(sessions: [Session]) -> URL? {
+        let dtos = sessions.map { SessionDTO(from: $0) }
+        let backup = TempoBackup(sessions: dtos)
+        
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        
+        guard let data = try? encoder.encode(backup) else { return nil }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HHmm"
+        let dateStr = formatter.string(from: Date())
+        let filename = "Tempo_Backup_\(dateStr).json"
+        
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        do {
+            try data.write(to: tempURL, options: .atomic)
+            return tempURL
+        } catch {
+            return nil
+        }
+    }
+    
+    static func importBackup(data: Data, context: ModelContext) throws -> Int {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        
+        var dtos: [SessionDTO] = []
+        if let backup = try? decoder.decode(TempoBackup.self, from: data) {
+            dtos = backup.sessions
+        } else if let array = try? decoder.decode([SessionDTO].self, from: data) {
+            dtos = array
+        } else {
+            throw NSError(
+                domain: "TempoBackup",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid backup format. Expected a valid Tempo JSON file."]
+            )
+        }
+        
+        guard !dtos.isEmpty else {
+            throw NSError(
+                domain: "TempoBackup",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Backup file contains no sessions."]
+            )
+        }
+        
+        for dto in dtos {
+            let session = dto.toSession()
+            context.insert(session)
+        }
+        
+        try context.save()
+        return dtos.count
+    }
+}
+

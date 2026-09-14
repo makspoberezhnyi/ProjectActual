@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import CoreLocation
 
 // MARK: - LOG TAB
 struct LogTabView: View {
@@ -11,6 +12,11 @@ struct LogTabView: View {
     
     @State private var inputText: String = ""
     @State private var isTyping: Bool = false
+    @State private var showSettings: Bool = false
+    @State private var showDateJump: Bool = false
+    @State private var targetScrollId: String? = nil
+    
+    @State private var dismissedSuggestionIds: Set<String> = []
     
     @Bindable private var eventKit = EventKitManager.shared
     @Bindable private var routineEngine = RoutineEngine.shared
@@ -31,12 +37,46 @@ struct LogTabView: View {
         sessions.contains(where: { $0.isRunning })
     }
     
+    private var currentPopupSuggestion: (id: String, title: String, minutes: Int, prompt: String)? {
+        guard !isRunningSession && !isConfiguringTask && !isTyping else { return nil }
+        
+        let activeRoutines = routineEngine.getActiveSuggestions(sessions: sessions)
+        if let top = activeRoutines.first(where: { !dismissedSuggestionIds.contains($0.id) }) {
+            return (top.id, top.pattern.taskTitle, top.recommendedMinutes, top.promptMessage)
+        }
+        
+        let patterns = routineEngine.minePatterns(from: sessions)
+        if let topPattern = patterns.first(where: { p in
+            !dismissedSuggestionIds.contains(p.id) &&
+            !sessions.contains(where: {
+                Calendar.current.isDateInToday($0.timestamp) &&
+                $0.rawText.localizedCaseInsensitiveContains(p.taskTitle)
+            })
+        }) {
+            return (topPattern.id, topPattern.taskTitle, topPattern.typicalMinutes, "Ready to focus on \(topPattern.taskTitle)?")
+        }
+        
+        return nil
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
                 SharedBackground()
                 
                 VStack(spacing: 0) {
+                    // Floating Proactive Suggestion Popup Banner (Top Notification)
+                    if let suggestion = currentPopupSuggestion {
+                        suggestionPopupBanner(suggestion: suggestion)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 4)
+                            .padding(.bottom, 6)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .top).combined(with: .opacity),
+                                removal: .opacity.combined(with: .scale(scale: 0.95))
+                            ))
+                    }
+                    
                     ScrollViewReader { proxy in
                         ScrollView {
                             VStack(spacing: 18) {
@@ -51,28 +91,36 @@ struct LogTabView: View {
                                     }
                                 }
                                 
-                                ForEach(groupedSessions, id: \.0) { (day, dailySessions) in
+                                ForEach(Array(groupedSessions.enumerated()), id: \.element.0) { index, group in
+                                    let (day, dailySessions) = group
+                                    let dayId = "day_\(Int(day.timeIntervalSince1970))"
+                                    
                                     VStack(spacing: 12) {
+                                        // Inter-Day Glass Border Divider
+                                        if index > 0 {
+                                            HStack(spacing: 12) {
+                                                Rectangle()
+                                                    .fill(
+                                                        LinearGradient(
+                                                            colors: [.clear, Color.primary.opacity(0.18), .clear],
+                                                            startPoint: .leading,
+                                                            endPoint: .trailing
+                                                        )
+                                                    )
+                                                    .frame(height: 1)
+                                            }
+                                            .padding(.vertical, 8)
+                                        }
+                                        
                                         glassChip(text: dayString(for: day))
                                             .padding(.vertical, 6)
+                                            .id(dayId)
                                         
                                         ForEach(dailySessions) { session in
                                             sessionChatSequence(for: session)
                                                 .id(session.id)
                                         }
                                     }
-                                }
-                                
-                                // Interactive In-Chat Proactive Routine Suggestions: Only show when idle
-                                if !isRunningSession && !isConfiguringTask && !isTyping {
-                                    let activeRoutines = routineEngine.getActiveSuggestions(sessions: sessions)
-                                    ForEach(activeRoutines) { suggestion in
-                                        routinePromptCard(suggestion: suggestion)
-                                            .id("routine_\(suggestion.id)")
-                                    }
-                                    
-                                    suggestionChatBubble()
-                                        .id("suggestions")
                                 }
                                 
                                 if isTyping && !(sessions.last?.isScheduleQuery == true && sessions.last?.schedulePayload == nil) {
@@ -101,6 +149,14 @@ struct LogTabView: View {
                                 withAnimation { proxy.scrollTo("typing", anchor: .bottom) }
                             }
                         }
+                        .onChange(of: targetScrollId) { _, target in
+                            if let target {
+                                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                    proxy.scrollTo(target, anchor: .top)
+                                }
+                                targetScrollId = nil
+                            }
+                        }
                     }
                     
                     // Floating Glass Input Area with Quick Calendar Action
@@ -113,6 +169,41 @@ struct LogTabView: View {
             .navigationTitle("Tempo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showDateJump = true
+                    } label: {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary.opacity(0.8))
+                    }
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary.opacity(0.8))
+                    }
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView(sessions: sessions)
+            }
+            .sheet(isPresented: $showDateJump) {
+                DateJumpSheet(loggedDays: groupedSessions.map { $0.0 }) { selectedDate in
+                    let cal = Calendar.current
+                    let start = cal.startOfDay(for: selectedDate)
+                    if let matched = groupedSessions.first(where: { cal.isDate($0.0, inSameDayAs: start) }) {
+                        targetScrollId = "day_\(Int(matched.0.timeIntervalSince1970))"
+                    } else if let closest = groupedSessions.min(by: { abs($0.0.timeIntervalSince(start)) < abs($1.0.timeIntervalSince(start)) }) {
+                        targetScrollId = "day_\(Int(closest.0.timeIntervalSince1970))"
+                    }
+                }
+            }
         }
         .onAppear {
             eventKit.requestAccessAndFetch()
@@ -123,6 +214,9 @@ struct LogTabView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .checkScheduleNotification)) { _ in
             handleScheduleQuery(userText: "Check calendar & reminders")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .syncWidgetSessionsNotification)) { _ in
+            syncPendingWidgetSessions()
         }
     }
     
@@ -140,7 +234,24 @@ struct LogTabView: View {
                 if let ended = item.endedAt, existing.endedAt == nil {
                     existing.endedAt = ended
                     existing.actualMinutes = item.actualMinutes
-                    existing.tempoEndResponse = "Done. Logged \(item.actualMinutes ?? 0)m."
+                    var syncNote = ""
+                    if let eventId = existing.linkedEventIdentifier ?? item.linkedEventIdentifier {
+                        let actual = item.actualMinutes ?? max(1, Int(ended.timeIntervalSince(existing.startedAt ?? item.startedAt) / 60))
+                        if existing.isLinkedToCalendar == true || item.isLinkedToCalendar == true {
+                            let start = existing.startedAt ?? item.startedAt
+                            Task {
+                                _ = await eventKit.updateCalendarEvent(identifier: eventId, start: start, end: ended, actualMinutes: actual)
+                            }
+                            syncNote = " (Updated Calendar)"
+                        } else if existing.isLinkedToReminders == true || item.isLinkedToReminders == true {
+                            Task {
+                                _ = await eventKit.completeReminder(identifier: eventId)
+                            }
+                            syncNote = " (Completed in Reminders)"
+                        }
+                    }
+                    let ratioText = existing.biasRatio != nil ? String(format: "%.1fx", existing.biasRatio!) : "-"
+                    existing.tempoEndResponse = "Done. Logged \(item.actualMinutes ?? 0)m.\(syncNote) (Ratio: \(ratioText))"
                     didModify = true
                 } else if existing.isRunning && item.endedAt == nil {
                     // Still running, keep in pending so widget stop can find it
@@ -151,13 +262,33 @@ struct LogTabView: View {
                     rawText: item.rawText,
                     estimatedMinutes: item.estimatedMinutes,
                     startedAt: item.startedAt,
-                    tempoResponse: "Timer started. Focus."
+                    tempoResponse: "Timer started. Focus.",
+                    linkedEventIdentifier: item.linkedEventIdentifier,
+                    isLinkedToCalendar: item.isLinkedToCalendar,
+                    isLinkedToReminders: item.isLinkedToReminders,
+                    createdAt: item.startedAt
                 )
                 session.endedAt = item.endedAt
                 session.actualMinutes = item.actualMinutes
-                if item.endedAt != nil {
-                    session.tempoEndResponse = "Done. Logged \(item.actualMinutes ?? 0)m."
+                if let ended = item.endedAt {
+                    var syncNote = ""
+                    if let eventId = item.linkedEventIdentifier {
+                        let actual = item.actualMinutes ?? max(1, Int(ended.timeIntervalSince(item.startedAt) / 60))
+                        if item.isLinkedToCalendar == true {
+                            Task {
+                                _ = await eventKit.updateCalendarEvent(identifier: eventId, start: item.startedAt, end: ended, actualMinutes: actual)
+                            }
+                            syncNote = " (Updated Calendar)"
+                        } else if item.isLinkedToReminders == true {
+                            Task {
+                                _ = await eventKit.completeReminder(identifier: eventId)
+                            }
+                            syncNote = " (Completed in Reminders)"
+                        }
+                    }
+                    session.tempoEndResponse = "Done. Logged \(item.actualMinutes ?? 0)m.\(syncNote)"
                 } else {
+                    finalizeActiveRunningSessions(endedAt: item.startedAt)
                     remainingPending.append(item)
                 }
                 context.insert(session)
@@ -183,151 +314,81 @@ struct LogTabView: View {
         return formatter.string(from: date)
     }
     
-    // Suggestion bubble with 2-column grid for zero clipping
+    // MARK: - Proactive Suggestion Popup Banner
     @ViewBuilder
-    private func routinePromptCard(suggestion: RoutineSuggestion) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 6) {
-                    Image(systemName: "bolt.badge.clock.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.orange)
-                    Text(suggestion.headline)
-                        .font(.system(size: 10, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.55))
-                    Spacer()
-                    Button {
-                        withAnimation(.spring()) {
-                            routineEngine.dismiss(suggestionId: suggestion.id)
-                        }
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.primary.opacity(0.4))
-                            .padding(4)
-                    }
-                }
-                
-                Text(suggestion.promptMessage)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                
-                HStack(spacing: 8) {
-                    Button {
-                        startRoutineSession(taskTitle: suggestion.pattern.taskTitle, minutes: suggestion.recommendedMinutes)
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 9))
-                            Text("Start \(suggestion.recommendedMinutes)m")
-                        }
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Theme.brandMint, in: Capsule())
-                    }
-                    
-                    Button {
-                        logRoutineRetroactively(taskTitle: suggestion.pattern.taskTitle, minutes: suggestion.recommendedMinutes)
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 9, weight: .bold))
-                            Text("Log Done (\(suggestion.recommendedMinutes)m)")
-                        }
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.primary.opacity(0.08), in: Capsule())
-                    }
-                }
-                .padding(.top, 2)
-            }
-            .padding(14)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(
+    private func suggestionPopupBanner(suggestion: (id: String, title: String, minutes: Int, prompt: String)) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(
                         LinearGradient(
-                            colors: [Color.orange.opacity(0.5), Theme.brandMint.opacity(0.4)],
+                            colors: [Color.blue.opacity(0.2), Color.indigo.opacity(0.15)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.2
+                        )
                     )
-            )
-            .padding(.trailing, 16)
-            
-            Spacer(minLength: 0)
-        }
-    }
-    
-    private var combinedSuggestions: [String] {
-        var list: [String] = []
-        let patterns = routineEngine.minePatterns(from: sessions)
-        for p in patterns.prefix(2) {
-            list.append("\(p.taskTitle) (\(p.typicalMinutes)m)")
-        }
-        for s in eventKit.suggestions {
-            if !list.contains(where: { $0.lowercased().starts(with: s.lowercased().prefix(4)) }) {
-                list.append(s)
-            }
-        }
-        if list.isEmpty {
-            list = ["Deep Work (25m)", "Quick Focus (15m)", "Review (20m)", "Break (10m)"]
-        }
-        return Array(list.prefix(4))
-    }
-    
-    @ViewBuilder
-    private func suggestionChatBubble() -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Theme.brandMint)
-                    Text("SUGGESTED TASKS")
-                        .font(.system(size: 10, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.45))
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
+                    .frame(width: 36, height: 36)
+                    .overlay(Circle().strokeBorder(Color.blue.opacity(0.3), lineWidth: 0.8))
                 
-                if !combinedSuggestions.isEmpty {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                        ForEach(combinedSuggestions, id: \.self) { suggestion in
-                            Button {
-                                inputText = suggestion
-                                submit()
-                            } label: {
-                                Text(suggestion)
-                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 9)
-                                    .background(colorScheme == .dark ? Color.white : Color.black, in: Capsule())
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 14)
-                }
+                Image(systemName: "sparkles")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color.blue)
             }
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
-            )
-            .padding(.trailing, 16)
             
-            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text("SUGGESTED TASK")
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.blue)
+                        .tracking(0.5)
+                }
+                
+                Text(suggestion.prompt)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            
+            Spacer(minLength: 4)
+            
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    dismissedSuggestionIds.insert(suggestion.id)
+                    startRoutineSession(taskTitle: suggestion.title, minutes: suggestion.minutes)
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 9))
+                    Text("\(suggestion.minutes)m")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color.blue, in: Capsule())
+            }
+            
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    dismissedSuggestionIds.insert(suggestion.id)
+                    routineEngine.dismiss(suggestionId: suggestion.id)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.primary.opacity(0.45))
+                    .padding(6)
+            }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+        )
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 10, x: 0, y: 4)
     }
     
     private var inputArea: some View {
@@ -337,8 +398,8 @@ struct LogTabView: View {
                 handleScheduleQuery(userText: "Check calendar & reminders", target: .both)
             } label: {
                 Image(systemName: "calendar.badge.clock")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Theme.brandMint)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.blue)
                     .frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())
                     .overlay(Circle().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0))
@@ -357,14 +418,65 @@ struct LogTabView: View {
                 Button { submit() } label: {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(colorScheme == .dark ? .black : .white)
+                        .foregroundStyle(.white)
                         .frame(width: 44, height: 44)
-                        .background(colorScheme == .dark ? Color.white : Color.black, in: Circle())
+                        .background(Color.blue, in: Circle())
+                        .shadow(color: Color.blue.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
                 .transition(.scale.combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: inputText.isEmpty)
+    }
+    
+    private func finalizeActiveRunningSessions(endedAt: Date = Date()) {
+        let running = sessions.filter { $0.isRunning }
+        for prior in running {
+            prior.endedAt = endedAt
+            let actual = max(1, Int(endedAt.timeIntervalSince(prior.startedAt ?? endedAt) / 60))
+            prior.actualMinutes = actual
+            let ratioText = prior.biasRatio != nil ? String(format: "%.1fx", prior.biasRatio!) : "-"
+            prior.tempoEndResponse = "Done. Logged \(actual)m. (Ratio: \(ratioText))"
+            
+            if let eventId = prior.linkedEventIdentifier {
+                if prior.isLinkedToCalendar == true {
+                    let start = prior.startedAt ?? endedAt.addingTimeInterval(-Double(actual * 60))
+                    Task {
+                        _ = await eventKit.updateCalendarEvent(identifier: eventId, start: start, end: endedAt, actualMinutes: actual)
+                    }
+                } else if prior.isLinkedToReminders == true {
+                    Task {
+                        _ = await eventKit.completeReminder(identifier: eventId)
+                    }
+                }
+            }
+            
+            let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
+            if healthEnabled {
+                let match = HealthKitManager.detectActivity(from: prior.rawText)
+                let start = prior.startedAt ?? endedAt.addingTimeInterval(-Double(actual * 60))
+                if match.isSport, let actType = match.activityType {
+                    Task {
+                        _ = await HealthKitManager.shared.saveWorkout(
+                            activityType: actType,
+                            title: match.name,
+                            start: start,
+                            end: endedAt,
+                            durationMinutes: actual,
+                            caloriesPerMinute: match.caloriesPerMinute
+                        )
+                    }
+                } else if match.isMindful {
+                    Task {
+                        _ = await HealthKitManager.shared.saveMindfulSession(
+                            start: start,
+                            end: endedAt,
+                            durationMinutes: actual
+                        )
+                    }
+                }
+            }
+        }
     }
     
     private func submit() {
@@ -387,9 +499,37 @@ struct LogTabView: View {
             }
         }
         
-        let intent = ChatParser.parse(inputText)
+        let intent = ChatParser.parse(savedText, sessions: sessions)
         inputText = ""
         
+        // 1. Conversational Chat & Small Talk
+        if intent.isConversational, let reply = intent.conversationalReply {
+            let session = Session(
+                rawText: savedText,
+                startedAt: nil,
+                tempoResponse: reply,
+                createdAt: Date()
+            )
+            context.insert(session)
+            isTyping = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                self.isTyping = false
+            }
+            return
+        }
+        
+        // 2. Travel & Ride ETA Queries
+        if intent.isTravelQuery {
+            handleTravelQuery(
+                userText: savedText,
+                destination: intent.destinationQuery,
+                isNextMeeting: intent.isNextMeetingTravel,
+                transportMode: intent.travelTransportMode
+            )
+            return
+        }
+        
+        // 3. Calendar & Reminders Schedule Queries
         if intent.isScheduleCheck {
             handleScheduleQuery(userText: savedText, target: intent.integrationTarget ?? .both)
             return
@@ -400,21 +540,16 @@ struct LogTabView: View {
             return
         }
         
+        // 3b. Apple Health & Fitness Queries
+        if intent.isHealthQuery {
+            handleHealthQuery(userText: savedText)
+            return
+        }
+        
+        // 4. Stop Command
         if intent.isStopCommand {
             if let runningSession = sessions.last(where: { $0.isRunning }) {
-                runningSession.endedAt = Date()
-                let actual = Int(Date().timeIntervalSince(runningSession.startedAt ?? Date()) / 60)
-                runningSession.actualMinutes = actual
-                runningSession.endCommandText = savedText
-                
-                LiveActivityManager.shared.endLiveActivity(actualMinutes: actual)
-                
-                isTyping = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    let ratioText = runningSession.biasRatio != nil ? String(format: "%.1fx", runningSession.biasRatio!) : "-"
-                    runningSession.tempoEndResponse = "Done. Logged \(actual)m. (Ratio: \(ratioText))"
-                    isTyping = false
-                }
+                stopSession(runningSession, endCommandText: savedText)
             }
             return
         }
@@ -431,37 +566,328 @@ struct LogTabView: View {
             return
         }
         
+        let match = HealthKitManager.detectActivity(from: intent.text)
+        let mins = intent.estimatedMinutes ?? 25
+        
         let session = Session(
             rawText: intent.text,
             estimatedMinutes: intent.estimatedMinutes,
-            startedAt: intent.isRetroactive ? Date().addingTimeInterval(-Double(intent.estimatedMinutes ?? 0) * 60) : Date(),
+            startedAt: intent.isRetroactive ? Date().addingTimeInterval(-Double(mins) * 60) : Date(),
             isRetroactive: intent.isRetroactive
         )
         
         context.insert(session)
         
         if !(intent.isRetroactive) {
+            finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
             LiveActivityManager.shared.startLiveActivity(
                 taskTitle: intent.text,
-                estimatedMinutes: intent.estimatedMinutes ?? 25,
+                estimatedMinutes: mins,
                 startDate: session.startedAt ?? Date()
             )
+            
+            if match.isSport, let actType = match.activityType {
+                let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
+                if healthEnabled {
+                    Task {
+                        _ = await HealthKitManager.shared.scheduleWorkoutPlan(
+                            activityType: actType,
+                            minutes: mins,
+                            title: match.name
+                        )
+                    }
+                }
+            }
         }
         
         isTyping = true
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             if intent.isRetroactive {
                 session.endedAt = Date()
-                session.actualMinutes = intent.estimatedMinutes
-                let actual = session.actualMinutes ?? 0
+                session.actualMinutes = mins
+                let actual = mins
                 let ratioText = session.biasRatio != nil ? String(format: "%.1fx", session.biasRatio!) : "-"
+                
+                if match.isSport, let actType = match.activityType {
+                    let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
+                    if healthEnabled {
+                        Task {
+                            let res = await HealthKitManager.shared.saveWorkout(
+                                activityType: actType,
+                                title: match.name,
+                                start: session.startedAt ?? Date(),
+                                end: session.endedAt ?? Date(),
+                                durationMinutes: actual,
+                                caloriesPerMinute: match.caloriesPerMinute
+                            )
+                            await MainActor.run {
+                                session.tempoResponse = "🏃 \(match.name) logged to Apple Fitness (~\(Int(res.calories)) kcal)."
+                                session.tempoEndResponse = "Done. Logged \(actual)m. (Ratio: \(ratioText))"
+                                try? context.save()
+                            }
+                        }
+                        self.isTyping = false
+                        return
+                    }
+                } else if match.isMindful {
+                    let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
+                    if healthEnabled {
+                        Task {
+                            _ = await HealthKitManager.shared.saveMindfulSession(
+                                start: session.startedAt ?? Date(),
+                                end: session.endedAt ?? Date(),
+                                durationMinutes: actual
+                            )
+                            await MainActor.run {
+                                session.tempoResponse = "🧘 \(match.name) logged to Apple Health."
+                                session.tempoEndResponse = "Done. Logged \(actual)m. (Ratio: \(ratioText))"
+                                try? context.save()
+                            }
+                        }
+                        self.isTyping = false
+                        return
+                    }
+                }
+                
                 session.tempoResponse = "Got it."
                 session.tempoEndResponse = "Logged \(actual)m. (Ratio: \(ratioText))"
             } else {
-                session.tempoResponse = "Timer started. Focus."
+                if match.isSport {
+                    session.tempoResponse = "🏃 \(match.name) workout timer started (\(mins)m). Tracking with Apple Fitness."
+                } else if match.isMindful {
+                    session.tempoResponse = "🧘 \(match.name) started (\(mins)m). Tracking with Apple Health."
+                } else {
+                    session.tempoResponse = "Timer started. Focus."
+                }
             }
             isTyping = false
+            try? context.save()
+        }
+    }
+    
+    private func handleHealthQuery(userText: String) {
+        let querySession = Session(
+            rawText: userText,
+            isHealthQuery: true,
+            createdAt: Date()
+        )
+        context.insert(querySession)
+        isTyping = true
+        
+        Task {
+            _ = await HealthKitManager.shared.requestAuthorization()
+            let cardData = await HealthKitManager.shared.fetchTodayHealthCardData()
+            let encodedData = try? JSONEncoder().encode(cardData)
+            let jsonString = encodedData != nil ? String(data: encodedData!, encoding: .utf8) : nil
+            
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            
+            await MainActor.run {
+                querySession.healthPayload = jsonString
+                querySession.tempoResponse = "Here is your Apple Health & Fitness activity for today:"
+                self.isTyping = false
+                try? context.save()
+            }
+        }
+    }
+    
+    private func handleTravelQuery(userText: String, destination: String?, isNextMeeting: Bool, transportMode: TravelTransportMode? = nil) {
+        let chosenMode = transportMode ?? .driving
+        let session = Session(
+            rawText: userText,
+            isTravelQuery: true,
+            createdAt: Date()
+        )
+        context.insert(session)
+        isTyping = true
+        
+        Task {
+            if isNextMeeting {
+                if let (item, travel) = await eventKit.nextUpcomingItemWithLocation(mode: chosenMode) {
+                    let encoder = JSONEncoder()
+                    if let data = try? encoder.encode(travel), let jsonStr = String(data: data, encoding: .utf8) {
+                        await MainActor.run {
+                            session.travelPayload = jsonStr
+                            let iconEmoji: String
+                            switch travel.transportMode {
+                            case .driving: iconEmoji = "🚗"
+                            case .transit: iconEmoji = "🚆"
+                            case .walking: iconEmoji = "🚶"
+                            case .cycling: iconEmoji = "🚴"
+                            }
+                            session.tempoResponse = "\(iconEmoji) The \(travel.transportMode.displayName.lowercased()) to \(item.title) will take approximately \(travel.formattedDuration) (\(travel.distanceString))."
+                            self.isTyping = false
+                            try? context.save()
+                        }
+                        return
+                    }
+                }
+            }
+            
+            let dest = destination ?? "Airport"
+            if let travel = await LocationTravelManager.shared.calculateTravel(to: dest, mode: chosenMode) {
+                let encoder = JSONEncoder()
+                if let data = try? encoder.encode(travel), let jsonStr = String(data: data, encoding: .utf8) {
+                    await MainActor.run {
+                        session.travelPayload = jsonStr
+                        let iconEmoji: String
+                        switch travel.transportMode {
+                        case .driving: iconEmoji = "🚗"
+                        case .transit: iconEmoji = "🚆"
+                        case .walking: iconEmoji = "🚶"
+                        case .cycling: iconEmoji = "🚴"
+                        }
+                        session.tempoResponse = "\(iconEmoji) The \(travel.transportMode.displayName.lowercased()) to \(travel.destinationTitle) will take approximately \(travel.formattedDuration) (\(travel.distanceString))."
+                        self.isTyping = false
+                        try? context.save()
+                    }
+                    return
+                }
+            }
+            
+            await MainActor.run {
+                session.tempoResponse = "Could not calculate route to '\(dest)'. Please verify location services."
+                self.isTyping = false
+            }
+        }
+    }
+    
+    private func recalculateTravel(session: Session, newMode: TravelTransportMode) {
+        guard let currentResult = session.travelResult else { return }
+        if currentResult.transportMode == newMode { return }
+        
+        // Immediate optimistic UI update with realistic fallback
+        let estimated = LocationTravelManager.shared.estimateFallbackResult(for: currentResult.destinationTitle, mode: newMode)
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(estimated), let jsonStr = String(data: data, encoding: .utf8) {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                session.travelPayload = jsonStr
+            }
+        }
+        
+        Task {
+            let updated: TravelAssessmentResult?
+            if let lat = currentResult.latitude, let lon = currentResult.longitude {
+                let coord = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                updated = await LocationTravelManager.shared.calculateTravel(coordinate: coord, title: currentResult.destinationTitle, mode: newMode)
+            } else {
+                updated = await LocationTravelManager.shared.calculateTravel(to: currentResult.destinationTitle, mode: newMode)
+            }
+            
+            if let result = updated {
+                if let data = try? encoder.encode(result), let jsonStr = String(data: data, encoding: .utf8) {
+                    await MainActor.run {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            session.travelPayload = jsonStr
+                            let iconEmoji: String
+                            switch result.transportMode {
+                            case .driving: iconEmoji = "🚗"
+                            case .transit: iconEmoji = "🚆"
+                            case .walking: iconEmoji = "🚶"
+                            case .cycling: iconEmoji = "🚴"
+                            }
+                            session.tempoResponse = "\(iconEmoji) The \(result.transportMode.displayName.lowercased()) to \(result.destinationTitle) will take approximately \(result.formattedDuration) (\(result.distanceString))."
+                            try? context.save()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func startCommuteFocus(title: String, minutes: Int) {
+        let session = Session(
+            rawText: title,
+            estimatedMinutes: minutes,
+            startedAt: Date(),
+            tempoResponse: "Commute focus timer started. Drive safely!",
+            integrationSource: "maps",
+            createdAt: Date()
+        )
+        context.insert(session)
+        finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
+        LiveActivityManager.shared.startLiveActivity(
+            taskTitle: title,
+            estimatedMinutes: minutes,
+            startDate: session.startedAt ?? Date()
+        )
+    }
+    
+    private func stopSession(_ session: Session, endCommandText: String) {
+        session.endedAt = Date()
+        let actual = max(1, Int(Date().timeIntervalSince(session.startedAt ?? Date()) / 60))
+        session.actualMinutes = actual
+        session.endCommandText = endCommandText
+        
+        LiveActivityManager.shared.endLiveActivity(actualMinutes: actual)
+        
+        // Bidirectional sync with Apple Calendar or Reminders
+        var syncNote = ""
+        if let eventId = session.linkedEventIdentifier {
+            if session.isLinkedToCalendar == true {
+                let start = session.startedAt ?? Date().addingTimeInterval(-Double(actual * 60))
+                let end = session.endedAt ?? Date()
+                Task {
+                    _ = await eventKit.updateCalendarEvent(identifier: eventId, start: start, end: end, actualMinutes: actual)
+                }
+                syncNote = " (Updated Calendar)"
+            } else if session.isLinkedToReminders == true {
+                Task {
+                    _ = await eventKit.completeReminder(identifier: eventId)
+                }
+                syncNote = " (Completed in Reminders)"
+            }
+        }
+        
+        let ratioText = session.biasRatio != nil ? String(format: "%.1fx", session.biasRatio!) : "-"
+        let baseResponse = "Done. Logged \(actual)m.\(syncNote) (Ratio: \(ratioText))"
+        
+        // Apple Health & Fitness Workout / Mindful Sync
+        let healthEnabled = UserDefaults.standard.object(forKey: "integration_health_enabled") as? Bool ?? true
+        let match = HealthKitManager.detectActivity(from: session.rawText)
+        
+        isTyping = true
+        
+        if healthEnabled && match.isSport, let actType = match.activityType {
+            let start = session.startedAt ?? Date().addingTimeInterval(-Double(actual * 60))
+            let end = session.endedAt ?? Date()
+            Task {
+                let res = await HealthKitManager.shared.saveWorkout(
+                    activityType: actType,
+                    title: match.name,
+                    start: start,
+                    end: end,
+                    durationMinutes: actual,
+                    caloriesPerMinute: match.caloriesPerMinute
+                )
+                await MainActor.run {
+                    session.tempoEndResponse = "\(baseResponse) • 🏃 \(match.name) logged to Apple Fitness (~\(Int(res.calories)) kcal)"
+                    self.isTyping = false
+                    try? context.save()
+                }
+            }
+        } else if healthEnabled && match.isMindful {
+            let start = session.startedAt ?? Date().addingTimeInterval(-Double(actual * 60))
+            let end = session.endedAt ?? Date()
+            Task {
+                _ = await HealthKitManager.shared.saveMindfulSession(
+                    start: start,
+                    end: end,
+                    durationMinutes: actual
+                )
+                await MainActor.run {
+                    session.tempoEndResponse = "\(baseResponse) • 🧘 \(actual)m logged to Apple Health"
+                    self.isTyping = false
+                    try? context.save()
+                }
+            }
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                session.tempoEndResponse = baseResponse
+                self.isTyping = false
+                try? context.save()
+            }
         }
     }
     
@@ -524,26 +950,42 @@ struct LogTabView: View {
         }
     }
     
-    private func launchSessionFromSchedule(title: String, minutes: Int) {
+    private func launchSessionFromSchedule(item: ScheduleItem) {
         let session = Session(
-            rawText: title,
-            estimatedMinutes: minutes,
+            rawText: item.title,
+            estimatedMinutes: item.estimatedMinutes,
             startedAt: Date(),
+            linkedEventIdentifier: item.id,
+            isLinkedToCalendar: item.isCalendarEvent,
+            isLinkedToReminders: !item.isCalendarEvent,
             createdAt: Date()
         )
+        finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
         context.insert(session)
         try? context.save()
         
         LiveActivityManager.shared.startLiveActivity(
-            taskTitle: title,
-            estimatedMinutes: minutes,
-            startDate: session.startedAt ?? Date()
+            taskTitle: item.title,
+            estimatedMinutes: item.estimatedMinutes,
+            startDate: session.startedAt ?? Date(),
+            linkedEventIdentifier: item.id,
+            isLinkedToCalendar: item.isCalendarEvent,
+            isLinkedToReminders: !item.isCalendarEvent
         )
         
         isTyping = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            session.tempoResponse = "Timer started for \(title). Focus."
+            session.tempoResponse = "Timer started for \(item.title). Focus."
             isTyping = false
+            try? context.save()
+        }
+    }
+    
+    private func removeItemFromScheduleQuery(querySession: Session, itemId: String) {
+        var items = querySession.scheduleItems
+        items.removeAll(where: { $0.id == itemId })
+        if let encoded = try? JSONEncoder().encode(items) {
+            querySession.schedulePayload = String(data: encoded, encoding: .utf8)
             try? context.save()
         }
     }
@@ -555,6 +997,7 @@ struct LogTabView: View {
             startedAt: Date(),
             createdAt: Date()
         )
+        finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
         context.insert(session)
         try? context.save()
         
@@ -592,11 +1035,15 @@ struct LogTabView: View {
     private func setEstimate(_ minutes: Int, for session: Session) {
         session.estimatedMinutes = minutes
         session.startedAt = Date()
+        finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
         
         LiveActivityManager.shared.startLiveActivity(
             taskTitle: session.rawText,
             estimatedMinutes: minutes,
-            startDate: session.startedAt ?? Date()
+            startDate: session.startedAt ?? Date(),
+            linkedEventIdentifier: session.linkedEventIdentifier,
+            isLinkedToCalendar: session.isLinkedToCalendar,
+            isLinkedToReminders: session.isLinkedToReminders
         )
         
         isTyping = true
@@ -621,8 +1068,438 @@ struct LogTabView: View {
     private func sessionChatSequence(for session: Session) -> some View {
         if session.isScheduleQuery == true {
             scheduleQuerySequence(for: session)
+        } else if session.isTravelQuery == true {
+            travelQuerySequence(for: session)
+        } else if session.isHealthQuery == true {
+            healthQuerySequence(for: session)
         } else {
             standardSessionSequence(for: session)
+        }
+    }
+    
+    @ViewBuilder
+    private func healthQuerySequence(for session: Session) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            userBubble(text: session.rawText, est: nil)
+                .contextMenu { Button("Delete", role: .destructive) { context.delete(session) } }
+            
+            if session.healthPayload == nil {
+                HStack(spacing: 8) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color(red: 1.0, green: 0.18, blue: 0.33))
+                    Text("Fetching Apple Fitness & Health activity...")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.75))
+                    ProgressView()
+                        .scaleEffect(0.65)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8))
+                .padding(.leading, 2)
+            } else if let healthData = session.healthCardData {
+                healthCardView(data: healthData, session: session)
+            } else {
+                aiBubble(text: session.tempoResponse ?? "Apple Health sync active.")
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func healthCardView(data: HealthCardData, session: Session) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 1.0, green: 0.18, blue: 0.33).opacity(0.18))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color(red: 1.0, green: 0.18, blue: 0.33))
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Apple Health & Fitness")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                    Text("Today's Activity & Exercise")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.55))
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Theme.brandSuccess)
+                        .frame(width: 6, height: 6)
+                    Text("Connected")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.brandSuccess)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Theme.brandSuccess.opacity(0.12), in: Capsule())
+            }
+            
+            // Rings Metric Grid
+            HStack(spacing: 8) {
+                // Move / Calories
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color(red: 1.0, green: 0.22, blue: 0.38))
+                        Text("Move")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("\(Int(data.activeCaloriesToday))")
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.primary)
+                    + Text(" kcal")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                
+                // Exercise
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "figure.run")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color(red: 0.65, green: 0.95, blue: 0.2))
+                        Text("Exercise")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("\(data.workoutMinutesToday)")
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.primary)
+                    + Text(" min")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                
+                // Mindful
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "figure.mind.and.body")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color(red: 0.2, green: 0.75, blue: 0.95))
+                        Text("Mindful")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("\(data.mindfulMinutesToday)")
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.primary)
+                    + Text(" min")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            
+            // Open Fitness App Button
+            Button {
+                HealthKitManager.shared.openFitnessApp()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.up.forward.app.fill")
+                        .font(.system(size: 11))
+                    Text("Open Fitness App")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(Color.primary.opacity(0.08), in: Capsule())
+            }
+        }
+        .padding(14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+        )
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06), radius: 8, x: 0, y: 3)
+        .padding(.trailing, 16)
+        .contextMenu {
+            Button("Delete", role: .destructive) { context.delete(session) }
+        }
+    }
+    
+    @ViewBuilder
+    private func travelQuerySequence(for session: Session) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            userBubble(text: session.rawText, est: nil)
+                .contextMenu { Button("Delete", role: .destructive) { context.delete(session) } }
+            
+            if session.travelPayload == nil {
+                // Live ETA calculation pill
+                HStack(spacing: 8) {
+                    Image(systemName: "car.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.brandCoral)
+                    Text("Assessing traffic & ride ETA...")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.75))
+                    ProgressView()
+                        .scaleEffect(0.65)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8))
+                .padding(.leading, 2)
+            } else if let travel = session.travelResult {
+                travelAssessmentCard(result: travel, session: session)
+            } else {
+                aiBubble(text: session.tempoResponse ?? "Could not calculate route.")
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func travelAssessmentCard(result: TravelAssessmentResult, session: Session) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Destination & Duration Header
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(transportModeColor(result.transportMode).opacity(0.18))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: result.transportMode.iconName)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(transportModeColor(result.transportMode))
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(result.destinationTitle)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if let addr = result.destinationAddress {
+                        Text(addr)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.primary.opacity(0.55))
+                            .lineLimit(1)
+                    }
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(result.formattedDuration)
+                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .foregroundStyle(transportModeColor(result.transportMode))
+                    Text(result.distanceString)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.55))
+                }
+            }
+            
+            // Interactive Mode Selector Pills (Car, City Transport, By Feet, Bicycle)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(TravelTransportMode.allCases) { mode in
+                        let isSelected = result.transportMode == mode
+                        Button {
+                            recalculateTravel(session: session, newMode: mode)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: mode.iconName)
+                                    .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                                Text(mode.displayName)
+                                    .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
+                            }
+                            .foregroundStyle(isSelected ? Color.white : .primary.opacity(0.75))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                isSelected ? transportModeColor(mode) : Color.primary.opacity(0.06),
+                                in: Capsule()
+                            )
+                            .shadow(color: isSelected ? transportModeColor(mode).opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            
+            // Action Buttons
+            HStack(spacing: 8) {
+                Button {
+                    startCommuteFocus(title: "\(result.transportMode.actionTitle): \(result.destinationTitle)", minutes: result.travelDurationMinutes)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 9))
+                        Text("Start \(result.transportMode.actionTitle) (\(result.formattedDuration))")
+                    }
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 8)
+                    .background(transportModeColor(result.transportMode), in: Capsule())
+                    .shadow(color: transportModeColor(result.transportMode).opacity(0.25), radius: 4, x: 0, y: 2)
+                }
+                
+                Button {
+                    LocationTravelManager.shared.openInMaps(result: result)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "map.fill")
+                            .font(.system(size: 10))
+                        Text("Apple Maps")
+                    }
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.primary.opacity(0.08), in: Capsule())
+                }
+            }
+        }
+        .padding(14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+        )
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06), radius: 8, x: 0, y: 3)
+        .padding(.trailing, 16)
+        .contextMenu {
+            Button("Delete", role: .destructive) { context.delete(session) }
+        }
+    }
+    
+    private func transportModeColor(_ mode: TravelTransportMode) -> Color {
+        switch mode {
+        case .driving: return Color.blue
+        case .transit: return Color.teal
+        case .walking: return Color.orange
+        case .cycling: return Color.green
+        }
+    }
+    
+    @ViewBuilder
+    private func activeWorkoutCard(session: Session, match: HealthWorkoutMatch) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 1.0, green: 0.22, blue: 0.38).opacity(0.18))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: match.icon)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color(red: 1.0, green: 0.22, blue: 0.38))
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(match.name)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                    
+                    let est = session.estimatedMinutes ?? 30
+                    let estCals = Int(Double(est) * match.caloriesPerMinute)
+                    Text("\(est)m Goal • ~\(estCals) kcal est.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(Color(red: 0.65, green: 0.95, blue: 0.2))
+                        .frame(width: 7, height: 7)
+                    Text("Workout Active")
+                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color(red: 0.65, green: 0.95, blue: 0.2))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(red: 0.65, green: 0.95, blue: 0.2).opacity(0.12), in: Capsule())
+            }
+            
+            HStack(spacing: 8) {
+                // Live Workout Timer Display
+                TimelineView(.animation) { timeline in
+                    let elapsed = max(0, timeline.date.timeIntervalSince(session.startedAt ?? Date()))
+                    let minutes = Int(elapsed) / 60
+                    let seconds = Int(elapsed) % 60
+                    HStack(spacing: 6) {
+                        Circle().fill(Color.green).frame(width: 6, height: 6)
+                            .opacity(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.0) < 0.5 ? 1 : 0.3)
+                        Text(String(format: "%02d:%02d", minutes, seconds))
+                            .font(.system(size: 15, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .background(Color.primary.opacity(0.06), in: Capsule())
+                }
+                
+                Button {
+                    HealthKitManager.shared.openFitnessApp()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color(red: 1.0, green: 0.22, blue: 0.38))
+                        Text("Open Fitness")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .background(Color.primary.opacity(0.08), in: Capsule())
+                }
+                
+                Button {
+                    stopSession(session, endCommandText: "Finished")
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 11))
+                        Text("Finish")
+                    }
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Theme.brandSuccess, in: Capsule())
+                }
+            }
+        }
+        .padding(14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+        )
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06), radius: 8, x: 0, y: 3)
+        .padding(.trailing, 16)
+        .contextMenu {
+            Button("Finish & Log", systemImage: "checkmark.circle") {
+                stopSession(session, endCommandText: "Stopped")
+            }
+            Button("Cancel & Discard", systemImage: "xmark.circle", role: .destructive) {
+                cancelRunningSession(session)
+            }
         }
     }
     
@@ -633,45 +1510,45 @@ struct LogTabView: View {
         let isRemOnly = source == "reminders"
         
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Spacer()
-                userBubble(text: session.rawText, est: nil)
-                    .contextMenu { Button("Delete", role: .destructive) { context.delete(session) } }
-            }
+            userBubble(text: session.rawText, est: nil)
+                .contextMenu { Button("Delete", role: .destructive) { context.delete(session) } }
             
             if session.schedulePayload == nil {
                 // Small sleek loading state with REAL app icon
-                HStack(spacing: 8) {
-                    if isCalOnly {
-                        RealCalendarAppIcon(size: 20)
-                        Text("Checking Apple Calendar...")
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(.primary.opacity(0.75))
-                    } else if isRemOnly {
-                        RealRemindersAppIcon(size: 20)
-                        Text("Checking Apple Reminders...")
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(.primary.opacity(0.75))
-                    } else {
-                        RealUnifiedIntegrationIcon(size: 20)
-                        Text("Checking Calendar & Reminders...")
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(.primary.opacity(0.75))
+                HStack {
+                    HStack(spacing: 8) {
+                        if isCalOnly {
+                            RealCalendarAppIcon(size: 16)
+                            Text("Checking Apple Calendar...")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.75))
+                        } else if isRemOnly {
+                            RealRemindersAppIcon(size: 16)
+                            Text("Checking Apple Reminders...")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.75))
+                        } else {
+                            RealUnifiedIntegrationIcon(size: 16)
+                            Text("Checking Calendar & Reminders...")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.75))
+                        }
+                        ProgressView()
+                            .scaleEffect(0.65)
                     }
-                    ProgressView()
-                        .scaleEffect(0.65)
-                    Spacer()
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(Capsule().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8))
+                    .padding(.leading, 2)
+                    
+                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8))
-                .padding(.leading, 2)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
                 let items = session.scheduleItems
                 if items.isEmpty {
-                    // Clean single message with REAL app icon - not in bloated nested bubbles
+                    // Clean single message with REAL app icon
                     HStack(spacing: 10) {
                         if isCalOnly {
                             RealCalendarAppIcon(size: 22)
@@ -696,40 +1573,42 @@ struct LogTabView: View {
                     )
                     .padding(.trailing, 24)
                 } else {
-                    // Header label with REAL app icon
-                    HStack(spacing: 7) {
-                        if isCalOnly {
-                            RealCalendarAppIcon(size: 18)
-                            Text("Apple Calendar")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundStyle(.primary.opacity(0.85))
-                        } else if isRemOnly {
-                            RealRemindersAppIcon(size: 18)
-                            Text("Apple Reminders")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundStyle(.primary.opacity(0.85))
-                        } else {
-                            RealUnifiedIntegrationIcon(size: 18)
-                            Text("Calendar & Reminders")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundStyle(.primary.opacity(0.85))
+                    // Header label with REAL app icon (compact chip)
+                    HStack {
+                        HStack(spacing: 6) {
+                            if isCalOnly {
+                                RealCalendarAppIcon(size: 16)
+                                Text("Apple Calendar")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.primary.opacity(0.85))
+                            } else if isRemOnly {
+                                RealRemindersAppIcon(size: 16)
+                                Text("Apple Reminders")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.primary.opacity(0.85))
+                            } else {
+                                RealUnifiedIntegrationIcon(size: 16)
+                                Text("Calendar & Reminders")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.primary.opacity(0.85))
+                            }
+                            
+                            Text("•")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.primary.opacity(0.35))
+                            
+                            Text("\(items.count) item\(items.count == 1 ? "" : "s")")
+                                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Color.blue)
                         }
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 5)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay(Capsule().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8))
+                        .padding(.leading, 2)
                         
-                        Text("•")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.primary.opacity(0.3))
-                        
-                        Text("\(items.count) item\(items.count == 1 ? "" : "s")")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(Theme.brandMint)
-                        
-                        Spacer()
+                        Spacer(minLength: 0)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(Capsule().strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8))
-                    .padding(.leading, 2)
                     
                     VStack(spacing: 8) {
                         ForEach(items) { item in
@@ -759,12 +1638,30 @@ struct LogTabView: View {
                                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                                             .foregroundStyle(item.isCalendarEvent ? Color.red.opacity(0.9) : Color.blue.opacity(0.9))
                                     }
+                                    
+                                    // Location & Travel ETA Info Badge
+                                    if let loc = item.location, !loc.isEmpty {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "location.fill")
+                                                .font(.system(size: 8))
+                                                .foregroundStyle(.primary.opacity(0.5))
+                                            Text(loc)
+                                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                                .foregroundStyle(.primary.opacity(0.6))
+                                                .lineLimit(1)
+                                            if let eta = item.travelEtaMinutes {
+                                                Text("• 🚗 \(eta)m drive")
+                                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                                    .foregroundStyle(Theme.brandCoral)
+                                            }
+                                        }
+                                    }
                                 }
                                 
                                 Spacer(minLength: 8)
                                 
                                 Button {
-                                    launchSessionFromSchedule(title: item.title, minutes: item.estimatedMinutes)
+                                    launchSessionFromSchedule(item: item)
                                 } label: {
                                     HStack(spacing: 4) {
                                         Image(systemName: "play.fill")
@@ -785,6 +1682,54 @@ struct LogTabView: View {
                                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                                     .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
                             )
+                            .contextMenu {
+                                Button {
+                                    launchSessionFromSchedule(item: item)
+                                } label: {
+                                    Label("Start Focus", systemImage: "play.circle")
+                                }
+                                
+                                if let loc = item.location, !loc.isEmpty {
+                                    Button {
+                                        let res = TravelAssessmentResult(
+                                            destinationTitle: item.title,
+                                            destinationAddress: loc,
+                                            travelDurationMinutes: item.travelEtaMinutes ?? 20,
+                                            distanceMeters: 0,
+                                            distanceString: item.travelDistanceString ?? "",
+                                            latitude: item.latitude,
+                                            longitude: item.longitude
+                                        )
+                                        LocationTravelManager.shared.openInMaps(result: res)
+                                    } label: {
+                                        Label("Navigate in Apple Maps", systemImage: "map")
+                                    }
+                                }
+                                
+                                if !item.isCalendarEvent {
+                                    Button {
+                                        Task {
+                                            let ok = await eventKit.completeReminder(identifier: item.id)
+                                            if ok {
+                                                removeItemFromScheduleQuery(querySession: session, itemId: item.id)
+                                            }
+                                        }
+                                    } label: {
+                                        Label("Mark Completed", systemImage: "checkmark.circle")
+                                    }
+                                }
+                                
+                                Button(role: .destructive) {
+                                    Task {
+                                        let ok = await eventKit.deleteItem(identifier: item.id, isCalendarEvent: item.isCalendarEvent)
+                                        if ok {
+                                            removeItemFromScheduleQuery(querySession: session, itemId: item.id)
+                                        }
+                                    }
+                                } label: {
+                                    Label(item.isCalendarEvent ? "Delete Event" : "Delete Reminder", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                     .padding(.trailing, 16)
@@ -793,16 +1738,62 @@ struct LogTabView: View {
         }
     }
     
+    private func revertSession(_ session: Session) {
+        if let eventId = session.linkedEventIdentifier {
+            if session.isLinkedToReminders == true {
+                Task {
+                    _ = await eventKit.uncompleteReminder(identifier: eventId)
+                }
+            } else if session.isLinkedToCalendar == true {
+                Task {
+                    _ = await eventKit.revertCalendarEvent(identifier: eventId)
+                }
+            }
+        }
+        
+        context.delete(session)
+        try? context.save()
+        LiveActivityManager.shared.cancelAllLiveActivities()
+    }
+    
+    private func cancelRunningSession(_ session: Session) {
+        if let eventId = session.linkedEventIdentifier {
+            if session.isLinkedToReminders == true {
+                Task {
+                    _ = await eventKit.uncompleteReminder(identifier: eventId)
+                }
+            } else if session.isLinkedToCalendar == true {
+                Task {
+                    _ = await eventKit.revertCalendarEvent(identifier: eventId)
+                }
+            }
+        }
+        
+        context.delete(session)
+        try? context.save()
+        LiveActivityManager.shared.cancelAllLiveActivities()
+    }
+    
     @ViewBuilder
     private func standardSessionSequence(for session: Session) -> some View {
         VStack(spacing: 8) {
             userBubble(text: session.rawText, est: session.estimatedMinutes)
-                .contextMenu { Button("Delete", role: .destructive) { context.delete(session) } }
+                .contextMenu {
+                    Button("Delete", role: .destructive) { context.delete(session) }
+                }
             
+            // If it's a pure conversational reply (no timers, not running, no duration needed)
+            if session.startedAt == nil && session.estimatedMinutes == nil && session.tempoResponse != nil && session.tempoResponse != "How long do you expect this to take?" {
+                aiBubble(text: session.tempoResponse!)
+                    .contextMenu {
+                        Button("Delete", role: .destructive) { context.delete(session) }
+                    }
+            }
             // If waiting for duration
-            if session.startedAt == nil && session.estimatedMinutes == nil {
+            else if session.startedAt == nil && session.estimatedMinutes == nil {
                 VStack(alignment: .leading, spacing: 10) {
                     aiBubble(text: session.tempoResponse ?? "How long do you expect this to take?")
+
                     
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -823,70 +1814,150 @@ struct LogTabView: View {
                     }
                 }
             } else if let response = session.tempoResponse {
-                if !(session.isRetroactive ?? false) || session.isRunning { aiBubble(text: response) }
+                let match = HealthKitManager.detectActivity(from: session.rawText)
+                if !(session.isRunning && match.isSport) {
+                    if !(session.isRetroactive ?? false) || session.isRunning {
+                        aiBubble(text: response)
+                    }
+                }
             }
             
             if session.isRunning && session.tempoResponse != nil {
-                HStack {
-                    liveTimerBubble(startDate: session.startedAt ?? Date())
-                        .onTapGesture {
-                            session.endedAt = Date()
-                            let actual = Int(Date().timeIntervalSince(session.startedAt ?? Date()) / 60)
-                            session.actualMinutes = actual
-                            session.endCommandText = "Stopped"
-                            
-                            LiveActivityManager.shared.endLiveActivity(actualMinutes: actual)
-                            
-                            isTyping = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                let ratioText = session.biasRatio != nil ? String(format: "%.1fx", session.biasRatio!) : "-"
-                                session.tempoEndResponse = "Done. Logged \(actual)m. (Ratio: \(ratioText))"
-                                isTyping = false
+                let match = HealthKitManager.detectActivity(from: session.rawText)
+                if match.isSport {
+                    activeWorkoutCard(session: session, match: match)
+                } else {
+                    HStack(spacing: 8) {
+                        liveTimerBubble(startDate: session.startedAt ?? Date())
+                            .onTapGesture {
+                                stopSession(session, endCommandText: "Stopped")
                             }
+                            .contextMenu {
+                                Button("Finish & Log", systemImage: "checkmark.circle") {
+                                    stopSession(session, endCommandText: "Stopped")
+                                }
+                                Button("Cancel & Discard", systemImage: "xmark.circle", role: .destructive) {
+                                    cancelRunningSession(session)
+                                }
+                            }
+                        
+                        if match.isMindful {
+                            HStack(spacing: 5) {
+                                Image(systemName: "figure.mind.and.body")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(Color(red: 0.2, green: 0.75, blue: 0.95))
+                                Text("Apple Health")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.primary.opacity(0.8))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .overlay(Capsule().strokeBorder(Color.cyan.opacity(0.25), lineWidth: 0.8))
                         }
-                    Spacer()
+                        
+                        Spacer()
+                    }
                 }
             }
             
             if !session.isRunning, session.actualMinutes != nil {
                 if let endCmd = session.endCommandText { userBubble(text: endCmd, est: nil) }
-                if let endResponse = session.tempoEndResponse { aiBubble(text: endResponse) }
+                if let endResponse = session.tempoEndResponse {
+                    aiBubble(text: endResponse)
+                        .contextMenu {
+                            Button("Revert / Restore Task", systemImage: "arrow.uturn.backward") {
+                                revertSession(session)
+                            }
+                            Button("Delete", role: .destructive) {
+                                context.delete(session)
+                            }
+                        }
+                }
             }
         }
     }
     
     @ViewBuilder
     private func userBubble(text: String, est: Int?) -> some View {
-        HStack {
-            Spacer(minLength: 40)
-            VStack(alignment: .trailing, spacing: 2) {
+        HStack(alignment: .bottom, spacing: 0) {
+            Spacer(minLength: 48)
+            
+            VStack(alignment: .trailing, spacing: 3) {
                 Text(text)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary.opacity(0.95))
+                    .font(.system(size: 15, weight: .regular, design: .default))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.trailing)
+                
                 if let est = est {
                     Text("Est: \(est)m")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.4))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.8))
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0))
+            .padding(.vertical, 10)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.05, green: 0.52, blue: 1.0),
+                        Color(red: 0.0, green: 0.44, blue: 0.98)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: UnevenRoundedRectangle(
+                    topLeadingRadius: 18,
+                    bottomLeadingRadius: 18,
+                    bottomTrailingRadius: 4,
+                    topTrailingRadius: 18,
+                    style: .continuous
+                )
+            )
+            .shadow(color: Color.blue.opacity(0.22), radius: 6, x: 0, y: 2)
         }
     }
     
     @ViewBuilder
     private func aiBubble(text: String) -> some View {
-        HStack {
+        HStack(alignment: .bottom, spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.2), Color.indigo.opacity(0.15)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 24, height: 24)
+                    .overlay(Circle().strokeBorder(Color.blue.opacity(0.3), lineWidth: 0.8))
+                
+                Image(systemName: "sparkle")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color.blue)
+            }
+            .padding(.bottom, 2)
+            
             Text(text)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(.primary.opacity(0.9))
+                .font(.system(size: 15, weight: .regular, design: .default))
+                .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.95) : Color.black.opacity(0.9))
+                .lineSpacing(2)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0))
-            Spacer(minLength: 40)
+                .padding(.vertical, 10)
+                .background(
+                    colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.165) : Color(red: 0.91, green: 0.91, blue: 0.93),
+                    in: UnevenRoundedRectangle(
+                        topLeadingRadius: 18,
+                        bottomLeadingRadius: 4,
+                        bottomTrailingRadius: 18,
+                        topTrailingRadius: 18,
+                        style: .continuous
+                    )
+                )
+                .shadow(color: Color.black.opacity(0.04), radius: 3, x: 0, y: 1)
+            
+            Spacer(minLength: 36)
         }
     }
     
@@ -897,38 +1968,80 @@ struct LogTabView: View {
             let minutes = Int(elapsed) / 60
             let seconds = Int(elapsed) % 60
             
-            HStack(spacing: 8) {
-                Circle().fill(Color.green).frame(width: 6, height: 6)
-                    .opacity(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.0) < 0.5 ? 1 : 0.3)
+            HStack(alignment: .bottom, spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.18))
+                        .frame(width: 24, height: 24)
+                    Image(systemName: "timer")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.blue)
+                }
+                .padding(.bottom, 2)
                 
-                Text(String(format: "%02d:%02d", minutes, seconds))
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.primary.opacity(0.95))
+                HStack(spacing: 8) {
+                    Circle().fill(Color.green).frame(width: 7, height: 7)
+                        .opacity(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.0) < 0.5 ? 1 : 0.3)
+                    
+                    Text(String(format: "%02d:%02d", minutes, seconds))
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.95) : Color.black.opacity(0.9))
+                    
+                    Text("Running")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.165) : Color(red: 0.91, green: 0.91, blue: 0.93),
+                    in: UnevenRoundedRectangle(
+                        topLeadingRadius: 18,
+                        bottomLeadingRadius: 4,
+                        bottomTrailingRadius: 18,
+                        topTrailingRadius: 18,
+                        style: .continuous
+                    )
+                )
                 
-                Text("Running")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary.opacity(0.45))
+                Spacer(minLength: 36)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0))
         }
     }
     
     @ViewBuilder
     private func typingBubble() -> some View {
-        HStack {
-            HStack(spacing: 4) {
-                Circle().frame(width: 6, height: 6).opacity(0.3)
-                Circle().frame(width: 6, height: 6).opacity(0.5)
-                Circle().frame(width: 6, height: 6).opacity(0.7)
+        HStack(alignment: .bottom, spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(Color.blue.opacity(0.18))
+                    .frame(width: 24, height: 24)
+                Image(systemName: "sparkle")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color.blue)
             }
-            .foregroundStyle(.primary)
-            .padding(14)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0))
-            Spacer()
+            .padding(.bottom, 2)
+            
+            HStack(spacing: 5) {
+                Circle().frame(width: 6, height: 6).opacity(0.35)
+                Circle().frame(width: 6, height: 6).opacity(0.55)
+                Circle().frame(width: 6, height: 6).opacity(0.85)
+            }
+            .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.7) : Color.black.opacity(0.5))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.165) : Color(red: 0.91, green: 0.91, blue: 0.93),
+                in: UnevenRoundedRectangle(
+                    topLeadingRadius: 18,
+                    bottomLeadingRadius: 4,
+                    bottomTrailingRadius: 18,
+                    topTrailingRadius: 18,
+                    style: .continuous
+                )
+            )
+            
+            Spacer(minLength: 36)
         }
     }
 }
@@ -1175,4 +2288,113 @@ struct CoreTabView: View {
 
 extension Notification.Name {
     static let checkScheduleNotification = Notification.Name("checkScheduleNotification")
+    static let syncWidgetSessionsNotification = Notification.Name("syncWidgetSessionsNotification")
+}
+
+// MARK: - DATE JUMP SHEET
+struct DateJumpSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+    
+    let loggedDays: [Date]
+    let onSelectDate: (Date) -> Void
+    
+    @State private var pickedDate = Date()
+    
+    private func dayLabel(for date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d, yyyy"
+        return formatter.string(from: date)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                SharedBackground()
+                
+                List {
+                    Section {
+                        DatePicker(
+                            "Select Date",
+                            selection: $pickedDate,
+                            displayedComponents: [.date]
+                        )
+                        .datePickerStyle(.graphical)
+                        .tint(Theme.brandMint)
+                        .onChange(of: pickedDate) { _, newDate in
+                            onSelectDate(newDate)
+                            dismiss()
+                        }
+                    } header: {
+                        Text("Jump to Date")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary.opacity(0.6))
+                    }
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+                            )
+                    )
+                    .listRowSeparator(.hidden)
+                    
+                    if !loggedDays.isEmpty {
+                        Section {
+                            ForEach(loggedDays.sorted(by: >), id: \.self) { day in
+                                Button {
+                                    onSelectDate(day)
+                                    dismiss()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "calendar")
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundStyle(Theme.brandMint)
+                                        Text(dayLabel(for: day))
+                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(.primary)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundStyle(.primary.opacity(0.3))
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                            }
+                        } header: {
+                            Text("Logged Days")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.6))
+                        }
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(.ultraThinMaterial)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+                                )
+                        )
+                        .listRowSeparator(.hidden)
+                    }
+                }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+            }
+            .navigationTitle("Locate Day")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                }
+            }
+        }
+    }
 }
