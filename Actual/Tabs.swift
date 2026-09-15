@@ -15,6 +15,8 @@ struct LogTabView: View {
     @State private var showSettings: Bool = false
     @State private var showDateJump: Bool = false
     @State private var targetScrollId: String? = nil
+    @State private var flyingMessageText: String? = nil
+    @State private var isFlyingMessage: Bool = false
     
     @State private var dismissedSuggestionIds: Set<String> = []
     
@@ -164,6 +166,51 @@ struct LogTabView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                         .padding(.bottom, 12)
+                }
+                
+                // Direct Flight Bubble: Flies smoothly from textfield into chat
+                if let flyingText = flyingMessageText {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer(minLength: 48)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Text(flyingText)
+                                    .font(.system(size: 15, weight: .regular, design: .default))
+                                    .foregroundStyle(.white)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.05, green: 0.52, blue: 1.0),
+                                        Color(red: 0.0, green: 0.44, blue: 0.98)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                in: UnevenRoundedRectangle(
+                                    topLeadingRadius: 18,
+                                    bottomLeadingRadius: isFlyingMessage ? 18 : 22,
+                                    bottomTrailingRadius: isFlyingMessage ? 4 : 22,
+                                    topTrailingRadius: 18,
+                                    style: .continuous
+                                )
+                            )
+                            .shadow(color: Color.blue.opacity(0.35), radius: 8, x: 0, y: 3)
+                            .scaleEffect(isFlyingMessage ? 1.0 : 0.85, anchor: .bottomTrailing)
+                            .offset(
+                                x: isFlyingMessage ? 0 : -35,
+                                y: isFlyingMessage ? -75 : -14
+                            )
+                            .opacity(isFlyingMessage ? 1.0 : 0.95)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
+                    }
+                    .allowsHitTesting(false)
                 }
             }
             .navigationTitle("Tempo")
@@ -474,18 +521,28 @@ struct LogTabView: View {
         impact.prepare()
         impact.impactOccurred()
         
+        inputText = ""
+        flyingMessageText = savedText
+        isFlyingMessage = false
+        
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.68)) {
+            isFlyingMessage = true
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
+            processSubmittedText(savedText)
+            flyingMessageText = nil
+            isFlyingMessage = false
+        }
+    }
+    
+    private func processSubmittedText(_ savedText: String) {
         // If there is an active session awaiting an estimate, check if input is a duration
         if let pendingSession = sessions.last(where: { $0.startedAt == nil && $0.estimatedMinutes == nil && $0.endedAt == nil && !($0.isScheduleQuery ?? false) }) {
             if ChatParser.isDurationOnly(savedText), let mins = ChatParser.extractMinutes(from: savedText) {
-                withAnimation(AppMotion.messageFly) {
-                    inputText = ""
-                }
                 setEstimate(mins, for: pendingSession)
                 return
             } else if let mins = ChatParser.extractMinutes(from: savedText), !savedText.contains(" ") {
-                withAnimation(AppMotion.messageFly) {
-                    inputText = ""
-                }
                 setEstimate(mins, for: pendingSession)
                 return
             } else {
@@ -495,9 +552,6 @@ struct LogTabView: View {
         }
         
         let intent = ChatParser.parse(savedText, sessions: sessions)
-        withAnimation(AppMotion.messageFly) {
-            inputText = ""
-        }
         
         // 1. Conversational Chat & Small Talk
         if intent.isConversational, let reply = intent.conversationalReply {
@@ -507,9 +561,7 @@ struct LogTabView: View {
                 tempoResponse: reply,
                 createdAt: Date()
             )
-            withAnimation(AppMotion.messageFly) {
-                context.insert(session)
-            }
+            context.insert(session)
             isTyping = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 withAnimation(AppMotion.messageAIPop) {
@@ -552,9 +604,7 @@ struct LogTabView: View {
                     tempoResponse: "No active session is currently running.",
                     createdAt: Date()
                 )
-                withAnimation(AppMotion.messageFly) {
-                    context.insert(session)
-                }
+                context.insert(session)
                 try? context.save()
             }
             return
@@ -568,9 +618,7 @@ struct LogTabView: View {
                 startedAt: nil,
                 tempoResponse: "How long do you expect this to take?"
             )
-            withAnimation(AppMotion.messageFly) {
-                context.insert(session)
-            }
+            context.insert(session)
             return
         }
         
@@ -583,9 +631,7 @@ struct LogTabView: View {
             isRetroactive: intent.isRetroactive
         )
         
-        withAnimation(AppMotion.messageFly) {
-            context.insert(session)
-        }
+        context.insert(session)
         
         if !(intent.isRetroactive) {
             finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
@@ -614,7 +660,9 @@ struct LogTabView: View {
             } else {
                 session.tempoResponse = "Timer started. Focus."
             }
-            isTyping = false
+            withAnimation(AppMotion.messageAIPop) {
+                self.isTyping = false
+            }
             try? context.save()
         }
     }
