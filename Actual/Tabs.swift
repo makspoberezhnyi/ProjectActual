@@ -1763,47 +1763,69 @@ struct LogTabView: View {
                     
                     // Quick Action Chips in Chat
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 8) {
                             ForEach([5, 10, 15, 30], id: \.self) { mins in
                                 Button {
                                     extendRunningSession(session, by: mins, userCommandText: "+\(mins)m")
                                 } label: {
-                                    HStack(spacing: 3) {
+                                    HStack(spacing: 4) {
                                         Image(systemName: "plus")
-                                            .font(.system(size: 9, weight: .bold))
+                                            .font(.system(size: 9, weight: .heavy))
                                         Text("\(mins)m")
                                             .font(.system(size: 11, weight: .bold, design: .rounded))
                                     }
-                                    .foregroundStyle(Color.blue)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
+                                    .foregroundStyle(colorScheme == .dark ? Color.white : Color.blue)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
                                     .background(
-                                        Capsule()
-                                            .fill(colorScheme == .dark ? Color.blue.opacity(0.18) : Color.blue.opacity(0.10))
+                                        ZStack {
+                                            Capsule()
+                                                .fill(colorScheme == .dark ? Color(red: 0.12, green: 0.15, blue: 0.22).opacity(0.85) : Color(red: 0.94, green: 0.96, blue: 1.0))
+                                            Capsule()
+                                                .strokeBorder(
+                                                    LinearGradient(
+                                                        colors: [Color.white.opacity(colorScheme == .dark ? 0.35 : 0.8), Color.blue.opacity(0.25), Color.white.opacity(0.1)],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    ),
+                                                    lineWidth: 1.0
+                                                )
+                                        }
                                     )
-                                    .overlay(
-                                        Capsule()
-                                            .strokeBorder(Color.blue.opacity(0.3), lineWidth: 0.8)
-                                    )
+                                    .shadow(color: Color.blue.opacity(0.15), radius: 4, y: 1)
                                 }
                                 .buttonStyle(.plain)
+                                .pressable(scale: 0.92)
                             }
                             
                             Button {
                                 stopSession(session, endCommandText: "Done")
                             } label: {
-                                HStack(spacing: 3) {
+                                HStack(spacing: 4) {
                                     Image(systemName: "checkmark")
-                                        .font(.system(size: 9, weight: .bold))
+                                        .font(.system(size: 9, weight: .heavy))
                                     Text("Done")
                                         .font(.system(size: 11, weight: .bold, design: .rounded))
                                 }
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Color.blue, in: Capsule())
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.blue, Color(red: 0.05, green: 0.40, blue: 0.95)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    in: Capsule()
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(Color.white.opacity(0.4), lineWidth: 0.8)
+                                )
+                                .shadow(color: Color.blue.opacity(0.35), radius: 6, y: 2)
                             }
                             .buttonStyle(.plain)
+                            .pressable(scale: 0.92)
                         }
                         .padding(.leading, 32)
                     }
@@ -1949,16 +1971,58 @@ struct LogTabView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(
-                    colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.165) : Color(red: 0.91, green: 0.91, blue: 0.93),
-                    in: UnevenRoundedRectangle(
+                    ZStack {
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 18,
+                            bottomLeadingRadius: 4,
+                            bottomTrailingRadius: 18,
+                            topTrailingRadius: 18,
+                            style: .continuous
+                        )
+                        .fill(
+                            colorScheme == .dark
+                                ? Color(red: 0.11, green: 0.13, blue: 0.18).opacity(0.92)
+                                : Color(red: 0.96, green: 0.97, blue: 0.99).opacity(0.95)
+                        )
+                        
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 18,
+                            bottomLeadingRadius: 4,
+                            bottomTrailingRadius: 18,
+                            topTrailingRadius: 18,
+                            style: .continuous
+                        )
+                        .fill(
+                            LinearGradient(
+                                colors: colorScheme == .dark
+                                    ? [Color.white.opacity(0.08), Color.blue.opacity(0.06), Color.clear, Color.white.opacity(0.03)]
+                                    : [Color.white.opacity(0.7), Color.blue.opacity(0.04), Color.clear, Color.white.opacity(0.3)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    }
+                )
+                .overlay(
+                    UnevenRoundedRectangle(
                         topLeadingRadius: 18,
                         bottomLeadingRadius: 4,
                         bottomTrailingRadius: 18,
                         topTrailingRadius: 18,
                         style: .continuous
                     )
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: colorScheme == .dark
+                                ? [Color.white.opacity(0.38), Color.white.opacity(0.08), Color.blue.opacity(0.32), Color.white.opacity(0.16)]
+                                : [Color.white.opacity(0.9), Color.white.opacity(0.3), Color.blue.opacity(0.22), Color.white.opacity(0.65)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.0
+                    )
                 )
-                .shadow(color: Color.blue.opacity(0.12), radius: 6, x: 0, y: 2)
+                .shadow(color: Color.blue.opacity(colorScheme == .dark ? 0.25 : 0.12), radius: 8, x: 0, y: 3)
                 
                 Spacer(minLength: 36)
             }
