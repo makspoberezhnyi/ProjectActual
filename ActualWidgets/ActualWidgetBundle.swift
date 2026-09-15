@@ -149,38 +149,21 @@ struct TempoLiveActivity: Widget {
                             
                             Spacer()
                             
-                            // Interactive Action Buttons (+5m and Done)
-                            HStack(spacing: 6) {
-                                Button(intent: ExtendFocusIntent(minutesToAdd: 5)) {
-                                    HStack(spacing: 2) {
-                                        Image(systemName: "plus")
-                                            .font(.system(size: 9, weight: .heavy))
-                                        Text("5m")
-                                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    }
-                                    .foregroundStyle(.white.opacity(0.95))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color.white.opacity(0.16), in: Capsule())
-                                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.25), lineWidth: 0.8))
+                            // Interactive Done Action Button
+                            Button(intent: StopFocusIntent()) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 12, weight: .bold))
+                                    Text("Done")
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
                                 }
-                                .buttonStyle(.plain)
-                                
-                                Button(intent: StopFocusIntent()) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 11, weight: .bold))
-                                        Text("Done")
-                                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    }
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(WidgetTheme.blue, in: Capsule())
-                                    .shadow(color: WidgetTheme.blue.opacity(0.35), radius: 4, x: 0, y: 2)
-                                }
-                                .buttonStyle(.plain)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 7)
+                                .background(WidgetTheme.blue, in: Capsule())
+                                .shadow(color: WidgetTheme.blue.opacity(0.35), radius: 4, x: 0, y: 2)
                             }
+                            .buttonStyle(.plain)
                         }
                         .padding(.horizontal, 6)
                         
@@ -301,7 +284,7 @@ struct TempoLiveActivityLockScreenBanner: View {
             }
             
             // Progress Bar & Action Row
-            HStack(spacing: 8) {
+            HStack(spacing: 12) {
                 ProgressView(
                     timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.state.estimatedMinutes) * 60)),
                     countsDown: false,
@@ -310,31 +293,16 @@ struct TempoLiveActivityLockScreenBanner: View {
                 )
                 .tint(WidgetTheme.blue)
                 
-                Button(intent: ExtendFocusIntent(minutesToAdd: 5)) {
-                    HStack(spacing: 2) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 9, weight: .heavy))
-                        Text("5m")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                    }
-                    .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(buttonBackground, in: Capsule())
-                    .overlay(Capsule().strokeBorder(buttonBorder, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                
                 Button(intent: StopFocusIntent()) {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark")
                             .font(.system(size: 10, weight: .heavy))
                         Text("Done")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 7)
                     .background(WidgetTheme.blue, in: Capsule())
                     .shadow(color: WidgetTheme.blue.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
@@ -570,38 +538,21 @@ struct TempoWidgetEntryView: View {
                     )
                     .tint(WidgetTheme.blue)
                     
-                    HStack(spacing: 8) {
-                        Button(intent: ExtendFocusIntent(minutesToAdd: 5)) {
-                            HStack(spacing: 2) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 10, weight: .heavy))
-                                Text("5m")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                            }
-                            .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(WidgetTheme.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(WidgetTheme.glassStroke(for: colorScheme), lineWidth: 1))
+                    Button(intent: StopFocusIntent()) {
+                        HStack(spacing: 6) {
+                            Spacer()
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("Complete Session")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                            Spacer()
                         }
-                        .buttonStyle(.plain)
-                        
-                        Button(intent: StopFocusIntent()) {
-                            HStack(spacing: 6) {
-                                Spacer()
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 12, weight: .bold))
-                                Text("Complete Session")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                Spacer()
-                            }
-                            .foregroundStyle(.white)
-                            .padding(.vertical, 8)
-                            .background(WidgetTheme.blue, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .shadow(color: WidgetTheme.blue.opacity(0.35), radius: 4, x: 0, y: 2)
-                        }
-                        .buttonStyle(.plain)
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 8)
+                        .background(WidgetTheme.blue, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .shadow(color: WidgetTheme.blue.opacity(0.35), radius: 4, x: 0, y: 2)
                     }
+                    .buttonStyle(.plain)
                 }
             } else {
                 HStack(spacing: 8) {

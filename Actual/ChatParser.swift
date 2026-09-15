@@ -20,6 +20,10 @@ struct ParsedIntent {
     var destinationQuery: String? = nil
     var isNextMeetingTravel: Bool = false
     var travelTransportMode: TravelTransportMode? = nil
+    var extendMinutes: Int? = nil
+    var isExtendCommand: Bool {
+        extendMinutes != nil
+    }
 }
 
 final class ChatParser {
@@ -261,6 +265,50 @@ final class ChatParser {
         return (false, nil, false, nil)
     }
 
+    // MARK: - Extend Time Parsing
+    static func extractExtendMinutes(from input: String) -> Int? {
+        let text = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Pattern 1: Leading plus "+5", "+5m", "+10 min", "+15 mins", "+30 minutes", "+ 15m"
+        if text.starts(with: "+") {
+            let withoutPlus = String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
+            if let mins = extractMinutes(from: withoutPlus) {
+                return mins
+            }
+            if let plain = Int(withoutPlus), plain > 0 && plain <= 240 {
+                return plain
+            }
+        }
+        
+        // Pattern 2: "add 5m", "add 10 min", "extend 15m", "more 5 min", "extra 10m", "another 15m", "extend by 10m"
+        let extendKeywords = [
+            "extend by", "increase by", "give me", "add", "extend",
+            "more", "extra", "another", "plus"
+        ]
+        for keyword in extendKeywords {
+            if text.starts(with: keyword) {
+                let remainder = String(text.dropFirst(keyword.count)).trimmingCharacters(in: .whitespaces)
+                let cleanRemainder = remainder.hasPrefix("by ") ? String(remainder.dropFirst(3)).trimmingCharacters(in: .whitespaces) : remainder
+                if let mins = extractMinutes(from: cleanRemainder) {
+                    return mins
+                }
+                if let plain = Int(cleanRemainder), plain > 0 && plain <= 240 {
+                    return plain
+                }
+            }
+        }
+        
+        // Pattern 3: Regex matching e.g. "add 10 minutes", "extend 15 min", "need 5 more minutes"
+        let regex = try? NSRegularExpression(pattern: "(?:add|extend|more|extra|another|need)\\s+(\\d+)\\s*(?:m|min|mins|minute|minutes)?")
+        if let match = regex?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let numRange = Range(match.range(at: 1), in: text),
+           let num = Int(text[numRange]), num > 0 && num <= 240 {
+            return num
+        }
+        
+        return nil
+    }
+
     static func parseTravelQuery(_ input: String) -> (isTravel: Bool, destination: String?, isNextMeeting: Bool) {
         let res = parseTravelQueryFull(input)
         return (res.isTravel, res.destination, res.isNextMeeting)
@@ -272,6 +320,20 @@ final class ChatParser {
         // 1. Stop / Done commands
         if text == "stop" || text == "done" || text == "finish" || text == "finished" || text == "end" {
             return ParsedIntent(text: input, estimatedMinutes: nil, isRetroactive: false, isStopCommand: true, isSuggestionRequest: false, isScheduleCheck: false, integrationTarget: nil)
+        }
+        
+        // 2. Extend / Add time commands
+        if let extendMins = extractExtendMinutes(from: input) {
+            return ParsedIntent(
+                text: input,
+                estimatedMinutes: nil,
+                isRetroactive: false,
+                isStopCommand: false,
+                isSuggestionRequest: false,
+                isScheduleCheck: false,
+                integrationTarget: nil,
+                extendMinutes: extendMins
+            )
         }
         
         // 2. Travel & Ride ETA questions

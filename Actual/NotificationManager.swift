@@ -11,6 +11,8 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     
     public static let finishActionIdentifier = "TEMPO_FINISH_SESSION_ACTION"
     public static let extend5MinActionIdentifier = "TEMPO_EXTEND_5M_ACTION"
+    public static let extend15MinActionIdentifier = "TEMPO_EXTEND_15M_ACTION"
+    public static let extend30MinActionIdentifier = "TEMPO_EXTEND_30M_ACTION"
     public static let sessionCategoryIdentifier = "TEMPO_SESSION_CATEGORY"
     
     public override init() {
@@ -25,18 +27,28 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     private func setupCategories() {
         let finishAction = UNNotificationAction(
             identifier: Self.finishActionIdentifier,
-            title: "Finish & Log",
+            title: "Done & Log",
             options: [.foreground]
         )
-        let extendAction = UNNotificationAction(
+        let extend5Action = UNNotificationAction(
             identifier: Self.extend5MinActionIdentifier,
             title: "+5 min",
+            options: []
+        )
+        let extend15Action = UNNotificationAction(
+            identifier: Self.extend15MinActionIdentifier,
+            title: "+15 min",
+            options: []
+        )
+        let extend30Action = UNNotificationAction(
+            identifier: Self.extend30MinActionIdentifier,
+            title: "+30 min",
             options: []
         )
         
         let sessionCategory = UNNotificationCategory(
             identifier: Self.sessionCategoryIdentifier,
-            actions: [finishAction, extendAction],
+            actions: [finishAction, extend5Action, extend15Action, extend30Action],
             intentIdentifiers: [],
             options: [.customDismissAction]
         )
@@ -160,15 +172,40 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     ) {
         let userInfo = response.notification.request.content.userInfo
         let actionId = response.actionIdentifier
+        let sessionId = userInfo["sessionId"] as? String
         
         if actionId == Self.finishActionIdentifier {
-            if let sessionId = userInfo["sessionId"] as? String {
-                NotificationCenter.default.post(
-                    name: .finishSessionFromNotification,
-                    object: nil,
-                    userInfo: ["sessionId": sessionId]
-                )
-            }
+            var notifUserInfo: [String: Any] = [:]
+            if let sessionId { notifUserInfo["sessionId"] = sessionId }
+            NotificationCenter.default.post(
+                name: .finishSessionFromNotification,
+                object: nil,
+                userInfo: notifUserInfo.isEmpty ? nil : notifUserInfo
+            )
+        } else if actionId == Self.extend5MinActionIdentifier {
+            var notifUserInfo: [String: Any] = ["minutes": 5]
+            if let sessionId { notifUserInfo["sessionId"] = sessionId }
+            NotificationCenter.default.post(
+                name: .extendSessionFromNotification,
+                object: nil,
+                userInfo: notifUserInfo
+            )
+        } else if actionId == Self.extend15MinActionIdentifier {
+            var notifUserInfo: [String: Any] = ["minutes": 15]
+            if let sessionId { notifUserInfo["sessionId"] = sessionId }
+            NotificationCenter.default.post(
+                name: .extendSessionFromNotification,
+                object: nil,
+                userInfo: notifUserInfo
+            )
+        } else if actionId == Self.extend30MinActionIdentifier {
+            var notifUserInfo: [String: Any] = ["minutes": 30]
+            if let sessionId { notifUserInfo["sessionId"] = sessionId }
+            NotificationCenter.default.post(
+                name: .extendSessionFromNotification,
+                object: nil,
+                userInfo: notifUserInfo
+            )
         }
         
         completionHandler()
@@ -177,4 +214,5 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
 
 public extension Notification.Name {
     static let finishSessionFromNotification = Notification.Name("TEMPO_FINISH_SESSION_FROM_NOTIFICATION")
+    static let extendSessionFromNotification = Notification.Name("TEMPO_EXTEND_SESSION_FROM_NOTIFICATION")
 }

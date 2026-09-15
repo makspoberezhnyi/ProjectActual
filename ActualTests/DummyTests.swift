@@ -234,6 +234,65 @@ final class DummyTests: XCTestCase {
         XCTAssertNotNil(notifManager)
     }
     
+    func testExtendCommandParsing() {
+        // Leading plus syntax
+        let p1 = ChatParser.parse("+5m")
+        XCTAssertTrue(p1.isExtendCommand)
+        XCTAssertEqual(p1.extendMinutes, 5)
+        
+        let p2 = ChatParser.parse("+10 min")
+        XCTAssertTrue(p2.isExtendCommand)
+        XCTAssertEqual(p2.extendMinutes, 10)
+        
+        let p3 = ChatParser.parse("+15")
+        XCTAssertTrue(p3.isExtendCommand)
+        XCTAssertEqual(p3.extendMinutes, 15)
+        
+        let p4 = ChatParser.parse("+30m")
+        XCTAssertTrue(p4.isExtendCommand)
+        XCTAssertEqual(p4.extendMinutes, 30)
+        
+        // Natural language syntax
+        let p5 = ChatParser.parse("add 5 min")
+        XCTAssertTrue(p5.isExtendCommand)
+        XCTAssertEqual(p5.extendMinutes, 5)
+        
+        let p6 = ChatParser.parse("extend 15m")
+        XCTAssertTrue(p6.isExtendCommand)
+        XCTAssertEqual(p6.extendMinutes, 15)
+        
+        let p7 = ChatParser.parse("more 10 minutes")
+        XCTAssertTrue(p7.isExtendCommand)
+        XCTAssertEqual(p7.extendMinutes, 10)
+        
+        let p8 = ChatParser.parse("another 30m")
+        XCTAssertTrue(p8.isExtendCommand)
+        XCTAssertEqual(p8.extendMinutes, 30)
+        
+        let p9 = ChatParser.parse("extend by 20 min")
+        XCTAssertTrue(p9.isExtendCommand)
+        XCTAssertEqual(p9.extendMinutes, 20)
+    }
+    
+    @MainActor
+    func testExtendRunningSessionLogic() throws {
+        let session = Session(
+            rawText: "Deep Work",
+            estimatedMinutes: 25,
+            startedAt: Date().addingTimeInterval(-600),
+            tempoResponse: "Timer started. Focus."
+        )
+        XCTAssertTrue(session.isRunning)
+        XCTAssertEqual(session.estimatedMinutes, 25)
+        
+        // Emulate extending by 15m
+        let oldEst = session.estimatedMinutes ?? 25
+        session.estimatedMinutes = oldEst + 15
+        
+        XCTAssertEqual(session.estimatedMinutes, 40)
+        XCTAssertTrue(session.isRunning)
+    }
+    
     @MainActor
     func testStandardStopSessionAndParsing() throws {
         // 1. Verify Stop / Finished parsing

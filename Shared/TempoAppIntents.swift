@@ -100,14 +100,8 @@ public struct StopFocusIntent: AppIntent {
     public func perform() async throws -> some IntentResult {
         WidgetDataStore.shared.stopActiveSession()
         
-        let finalState = TempoActivityAttributes.ContentState(
-            estimatedMinutes: 0,
-            actualMinutes: 0,
-            isRunning: false
-        )
-        
         for activity in Activity<TempoActivityAttributes>.activities {
-            await activity.end(ActivityContent(state: finalState, staleDate: nil), dismissalPolicy: .immediate)
+            await activity.end(nil, dismissalPolicy: .immediate)
         }
         
         WidgetCenter.shared.reloadAllTimelines()

@@ -236,6 +236,15 @@ struct LogTabView: View {
                 stopSession(runningSession, endCommandText: "Finished via Notification")
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .extendSessionFromNotification)) { notif in
+            let minutesToAdd = notif.userInfo?["minutes"] as? Int ?? 5
+            if let targetId = notif.userInfo?["sessionId"] as? String,
+               let targetSession = sessions.first(where: { $0.sessionIdentifier == targetId && $0.isRunning }) {
+                extendRunningSession(targetSession, by: minutesToAdd, userCommandText: "+\(minutesToAdd)m (via Notification)")
+            } else if let runningSession = sessions.last(where: { $0.isRunning }) {
+                extendRunningSession(runningSession, by: minutesToAdd, userCommandText: "+\(minutesToAdd)m (via Notification)")
+            }
+        }
     }
     
     private func syncPendingWidgetSessions() {
@@ -568,7 +577,39 @@ struct LogTabView: View {
             return
         }
         
-        // 4. Stop Command
+        // 4. Extend / Add Time Command
+        if intent.isExtendCommand, let extendMins = intent.extendMinutes {
+            if let runningSession = sessions.last(where: { $0.isRunning }) {
+                extendRunningSession(runningSession, by: extendMins, userCommandText: savedText)
+            } else {
+                let session = Session(
+                    rawText: savedText,
+                    startedAt: nil,
+                    tempoResponse: nil,
+                    isConversational: true,
+                    createdAt: Date()
+                )
+                context.insert(session)
+                try? context.save()
+                
+                withAnimation(AppMotion.messageFly) {
+                    isTyping = true
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(500))
+                    let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
+                    arrivalHaptic.impactOccurred()
+                    withAnimation(AppMotion.messageAIPop) {
+                        session.tempoResponse = "No active session is currently running. You can start one with e.g. '25m Focus'."
+                        self.isTyping = false
+                    }
+                    try? context.save()
+                }
+            }
+            return
+        }
+        
+        // 5. Stop Command
         if intent.isStopCommand {
             if let runningSession = sessions.last(where: { $0.isRunning }) {
                 stopSession(runningSession, endCommandText: savedText)
@@ -830,6 +871,56 @@ struct LogTabView: View {
             durationMinutes: minutes,
             sessionId: session.sessionIdentifier
         )
+    }
+    
+    private func extendRunningSession(_ session: Session, by minutesToAdd: Int, userCommandText: String? = nil) {
+        let oldEst = session.estimatedMinutes ?? 25
+        let newEst = oldEst + minutesToAdd
+        session.estimatedMinutes = newEst
+        
+        // Update Live Activity & Widget snapshot
+        LiveActivityManager.shared.updateLiveActivity(estimatedMinutes: newEst, statusMessage: "+\(minutesToAdd)m")
+        
+        // Reschedule local notification
+        let remainingMinutes: Int
+        if let start = session.startedAt {
+            let elapsedMins = max(0, Int(Date().timeIntervalSince(start) / 60))
+            remainingMinutes = max(1, newEst - elapsedMins)
+        } else {
+            remainingMinutes = newEst
+        }
+        NotificationManager.shared.cancelTimerNotification(sessionId: session.sessionIdentifier)
+        NotificationManager.shared.scheduleTimerCompletion(
+            title: session.rawText ?? "Focus Session",
+            durationMinutes: remainingMinutes,
+            sessionId: session.sessionIdentifier
+        )
+        
+        let commandText = userCommandText ?? "+\(minutesToAdd)m"
+        let bubble = Session(
+            rawText: commandText,
+            startedAt: nil,
+            tempoResponse: nil,
+            isConversational: true,
+            createdAt: Date()
+        )
+        context.insert(bubble)
+        try? context.save()
+        
+        withAnimation(AppMotion.messageFly) {
+            isTyping = true
+        }
+        
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            let arrivalHaptic = UIImpactFeedbackGenerator(style: .medium)
+            arrivalHaptic.impactOccurred()
+            withAnimation(AppMotion.messageAIPop) {
+                bubble.tempoResponse = "Added +\(minutesToAdd)m. Focus session is now set to \(newEst)m."
+                self.isTyping = false
+            }
+            try? context.save()
+        }
     }
     
     private func stopSession(_ session: Session, endCommandText: String) {
@@ -1588,21 +1679,70 @@ struct LogTabView: View {
             }
             
             if session.isRunning && session.tempoResponse != nil {
-                HStack(spacing: 8) {
-                    liveTimerBubble(startDate: session.startedAt ?? Date())
-                        .onTapGesture {
-                            stopSession(session, endCommandText: "Stopped")
-                        }
-                        .contextMenu {
-                            Button("Finish & Log", systemImage: "checkmark.circle") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        liveTimerBubble(startDate: session.startedAt ?? Date())
+                            .onTapGesture {
                                 stopSession(session, endCommandText: "Stopped")
                             }
-                            Button("Cancel & Discard", systemImage: "xmark.circle", role: .destructive) {
-                                cancelRunningSession(session)
+                            .contextMenu {
+                                Button("Finish & Log", systemImage: "checkmark.circle") {
+                                    stopSession(session, endCommandText: "Stopped")
+                                }
+                                Button("Cancel & Discard", systemImage: "xmark.circle", role: .destructive) {
+                                    cancelRunningSession(session)
+                                }
                             }
-                        }
+                        
+                        Spacer()
+                    }
                     
-                    Spacer()
+                    // Quick Action Chips in Chat
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach([5, 10, 15, 30], id: \.self) { mins in
+                                Button {
+                                    extendRunningSession(session, by: mins, userCommandText: "+\(mins)m")
+                                } label: {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 9, weight: .bold))
+                                        Text("\(mins)m")
+                                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    }
+                                    .foregroundStyle(Color.blue)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        Capsule()
+                                            .fill(colorScheme == .dark ? Color.blue.opacity(0.18) : Color.blue.opacity(0.10))
+                                    )
+                                    .overlay(
+                                        Capsule()
+                                            .strokeBorder(Color.blue.opacity(0.3), lineWidth: 0.8)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            
+                            Button {
+                                stopSession(session, endCommandText: "Done")
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 9, weight: .bold))
+                                    Text("Done")
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.blue, in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.leading, 32)
+                    }
                 }
                 .transition(.iMessageAIPop)
             }

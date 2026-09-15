@@ -106,13 +106,7 @@ final public class LiveActivityManager: Sendable {
         WidgetDataStore.shared.stopActiveSession()
         WidgetCenter.shared.reloadAllTimelines()
         
-        let finalState = TempoActivityAttributes.ContentState(
-            estimatedMinutes: 0,
-            actualMinutes: actualMinutes,
-            isRunning: false
-        )
-        
-        terminateActivities(finalState: finalState)
+        terminateActivities()
         self.currentActivity = nil
     }
     
