@@ -527,6 +527,14 @@ struct LogTabView: View {
         
         let intent = ChatParser.parse(savedText, sessions: sessions)
         
+        // If a session is already running and user sends a pure duration (e.g. "10m", "45 min"), adjust target directly
+        if !intent.isExtendCommand && !intent.isStopCommand && !intent.isScheduleCheck && !intent.isTravelQuery && !intent.isConversational {
+            if let runningSession = sessions.last(where: { $0.isRunning }), ChatParser.isDurationOnly(savedText), let newMins = ChatParser.extractMinutes(from: savedText) {
+                adjustRunningSessionTarget(runningSession, to: newMins, userCommandText: savedText)
+                return
+            }
+        }
+        
         // 1. Conversational Chat & Small Talk
         if intent.isConversational, let reply = intent.conversationalReply {
             let session = Session(
@@ -871,6 +879,55 @@ struct LogTabView: View {
             durationMinutes: minutes,
             sessionId: session.sessionIdentifier
         )
+    }
+    
+    private func adjustRunningSessionTarget(_ session: Session, to newMinutes: Int, userCommandText: String) {
+        let oldEst = session.estimatedMinutes ?? 25
+        session.estimatedMinutes = newMinutes
+        
+        // Update Live Activity & Widget Store
+        LiveActivityManager.shared.updateLiveActivity(estimatedMinutes: newMinutes, statusMessage: "\(newMinutes)m")
+        WidgetDataStore.shared.extendActiveSession(by: newMinutes - oldEst)
+        
+        // Reschedule local notification
+        let remainingMinutes: Int
+        if let start = session.startedAt {
+            let elapsedMins = max(0, Int(Date().timeIntervalSince(start) / 60))
+            remainingMinutes = max(1, newMinutes - elapsedMins)
+        } else {
+            remainingMinutes = newMinutes
+        }
+        NotificationManager.shared.cancelTimerNotification(sessionId: session.sessionIdentifier)
+        NotificationManager.shared.scheduleTimerCompletion(
+            title: session.rawText,
+            durationMinutes: remainingMinutes,
+            sessionId: session.sessionIdentifier
+        )
+        
+        let bubble = Session(
+            rawText: userCommandText,
+            startedAt: nil,
+            tempoResponse: nil,
+            isConversational: true,
+            createdAt: Date()
+        )
+        context.insert(bubble)
+        try? context.save()
+        
+        withAnimation(AppMotion.messageFly) {
+            isTyping = true
+        }
+        
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            let arrivalHaptic = UIImpactFeedbackGenerator(style: .medium)
+            arrivalHaptic.impactOccurred()
+            withAnimation(AppMotion.messageAIPop) {
+                bubble.tempoResponse = "Target updated to \(newMinutes)m (was \(oldEst)m)."
+                self.isTyping = false
+            }
+            try? context.save()
+        }
     }
     
     private func extendRunningSession(_ session: Session, by minutesToAdd: Int, userCommandText: String? = nil) {
