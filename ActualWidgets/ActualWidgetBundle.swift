@@ -100,13 +100,16 @@ struct TempoLiveActivity: Widget {
             // Lock Screen Banner
             TempoLiveActivityLockScreenBanner(context: context)
         } dynamicIsland: { context in
-            DynamicIsland {
+            let isComplete = !context.state.isRunning || context.state.statusMessage?.contains("Complete") == true || context.state.statusMessage?.contains("Done") == true
+            
+            return DynamicIsland {
                 // Expanded Island Leading
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
-                        Image(systemName: "timer")
+                        Image(systemName: isComplete ? "checkmark.circle.fill" : "timer")
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(WidgetTheme.blue)
+                            .foregroundStyle(isComplete ? WidgetTheme.success : WidgetTheme.blue)
+                            .symbolEffect(.bounce, value: isComplete)
                         
                         Text(context.attributes.taskTitle)
                             .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -120,85 +123,125 @@ struct TempoLiveActivity: Widget {
                 // Expanded Island Trailing
                 DynamicIslandExpandedRegion(.trailing) {
                     HStack(spacing: 4) {
-                        Text("\(context.state.estimatedMinutes)m")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(WidgetTheme.blue)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(WidgetTheme.blue.opacity(0.18), in: Capsule())
-                            .overlay(Capsule().strokeBorder(WidgetTheme.blue.opacity(0.35), lineWidth: 0.8))
+                        if isComplete {
+                            Text("Done ✓")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(WidgetTheme.success)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(WidgetTheme.success.opacity(0.18), in: Capsule())
+                                .overlay(Capsule().strokeBorder(WidgetTheme.success.opacity(0.35), lineWidth: 0.8))
+                        } else {
+                            Text("\(context.state.estimatedMinutes)m")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(WidgetTheme.blue)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(WidgetTheme.blue.opacity(0.18), in: Capsule())
+                                .overlay(Capsule().strokeBorder(WidgetTheme.blue.opacity(0.35), lineWidth: 0.8))
+                        }
                     }
                     .padding(.trailing, 6)
                 }
                 
                 // Expanded Island Center / Bottom
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 8) {
-                        HStack(alignment: .center) {
-                            // Live Elapsed Timer
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(WidgetTheme.blue)
-                                    .frame(width: 6, height: 6)
-                                
-                                Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                                    .font(.system(size: 24, weight: .heavy, design: .rounded))
-                                    .monospacedDigit()
-                                    .foregroundStyle(.white)
-                            }
-                            
-                            Spacer()
-                            
-                            // Interactive Done Action Button
-                            Button(intent: StopFocusIntent(activityId: context.activityID)) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 12, weight: .bold))
-                                    Text("Done")
-                                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                                }
+                    if isComplete {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(WidgetTheme.success)
+                            Text("Session Completed & Logged")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 7)
-                                .background(WidgetTheme.blue, in: Capsule())
-                                .shadow(color: WidgetTheme.blue.opacity(0.35), radius: 4, x: 0, y: 2)
-                            }
-                            .buttonStyle(.plain)
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(WidgetTheme.success)
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(WidgetTheme.success.opacity(0.22), in: Capsule())
+                        .overlay(Capsule().strokeBorder(WidgetTheme.success.opacity(0.4), lineWidth: 1))
                         .padding(.horizontal, 6)
-                        
-                        // Live Progress Bar towards Target Duration
-                        ProgressView(
-                            timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.state.estimatedMinutes) * 60)),
-                            countsDown: false,
-                            label: { EmptyView() },
-                            currentValueLabel: { EmptyView() }
-                        )
-                        .tint(WidgetTheme.blue)
-                        .padding(.horizontal, 6)
-                        .padding(.bottom, 2)
+                        .padding(.top, 4)
+                        .transition(.scale.combined(with: .opacity))
+                    } else {
+                        VStack(spacing: 8) {
+                            HStack(alignment: .center) {
+                                // Live Elapsed Timer
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(WidgetTheme.blue)
+                                        .frame(width: 6, height: 6)
+                                    
+                                    Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
+                                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                                        .monospacedDigit()
+                                        .foregroundStyle(.white)
+                                }
+                                
+                                Spacer()
+                                
+                                // Interactive Done Action Button
+                                Button(intent: StopFocusIntent(activityId: context.activityID)) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 12, weight: .bold))
+                                        Text("Done")
+                                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 7)
+                                    .background(WidgetTheme.blue, in: Capsule())
+                                    .shadow(color: WidgetTheme.blue.opacity(0.35), radius: 4, x: 0, y: 2)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 6)
+                            
+                            // Live Progress Bar towards Target Duration
+                            ProgressView(
+                                timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.state.estimatedMinutes) * 60)),
+                                countsDown: false,
+                                label: { EmptyView() },
+                                currentValueLabel: { EmptyView() }
+                            )
+                            .tint(WidgetTheme.blue)
+                            .padding(.horizontal, 6)
+                            .padding(.bottom, 2)
+                        }
+                        .padding(.top, 4)
                     }
-                    .padding(.top, 4)
                 }
             } compactLeading: {
                 HStack(spacing: 3) {
-                    Image(systemName: "timer")
+                    Image(systemName: isComplete ? "checkmark.circle.fill" : "timer")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(WidgetTheme.blue)
+                        .foregroundStyle(isComplete ? WidgetTheme.success : WidgetTheme.blue)
+                        .symbolEffect(.bounce, value: isComplete)
                 }
                 .padding(.leading, 3)
             } compactTrailing: {
-                Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(WidgetTheme.blue)
-                    .multilineTextAlignment(.trailing)
-                    .lineLimit(1)
-                    .frame(width: 34, alignment: .trailing)
+                if isComplete {
+                    Text("Done")
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundStyle(WidgetTheme.success)
+                        .frame(width: 34, alignment: .trailing)
+                } else {
+                    Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(WidgetTheme.blue)
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(1)
+                        .frame(width: 34, alignment: .trailing)
+                }
             } minimal: {
-                Image(systemName: "timer")
+                Image(systemName: isComplete ? "checkmark.circle.fill" : "timer")
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(WidgetTheme.blue)
+                    .foregroundStyle(isComplete ? WidgetTheme.success : WidgetTheme.blue)
+                    .symbolEffect(.bounce, value: isComplete)
             }
         }
     }
@@ -209,22 +252,14 @@ struct TempoLiveActivityLockScreenBanner: View {
     @Environment(\.colorScheme) var colorScheme
     var context: ActivityViewContext<TempoActivityAttributes>
     
+    private var isComplete: Bool {
+        !context.state.isRunning || context.state.statusMessage?.contains("Complete") == true || context.state.statusMessage?.contains("Done") == true
+    }
+    
     private var bannerBackground: Color {
         colorScheme == .light
             ? Color(red: 0.96, green: 0.97, blue: 0.99).opacity(0.96)
             : Color(red: 0.08, green: 0.10, blue: 0.14).opacity(0.96)
-    }
-    
-    private var buttonBorder: Color {
-        colorScheme == .light
-            ? Color.black.opacity(0.12)
-            : Color.white.opacity(0.25)
-    }
-    
-    private var buttonBackground: Color {
-        colorScheme == .light
-            ? Color.black.opacity(0.06)
-            : Color.white.opacity(0.14)
     }
     
     var body: some View {
@@ -233,12 +268,13 @@ struct TempoLiveActivityLockScreenBanner: View {
                 // Glass Icon Orb
                 ZStack {
                     Circle()
-                        .fill(WidgetTheme.blue.opacity(colorScheme == .light ? 0.14 : 0.28))
+                        .fill(isComplete ? WidgetTheme.success.opacity(colorScheme == .light ? 0.18 : 0.32) : WidgetTheme.blue.opacity(colorScheme == .light ? 0.14 : 0.28))
                         .frame(width: 38, height: 38)
                     
-                    Image(systemName: "timer")
+                    Image(systemName: isComplete ? "checkmark.circle.fill" : "timer")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(WidgetTheme.blue)
+                        .foregroundStyle(isComplete ? WidgetTheme.success : WidgetTheme.blue)
+                        .symbolEffect(.bounce, value: isComplete)
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
@@ -248,65 +284,87 @@ struct TempoLiveActivityLockScreenBanner: View {
                         .lineLimit(1)
                     
                     HStack(spacing: 6) {
-                        Text("Target: \(context.state.estimatedMinutes)m Focus")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
-                        
-                        if let status = context.state.statusMessage {
-                            Text("• \(status)")
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                .foregroundStyle(WidgetTheme.blue)
-                        } else if context.attributes.isLinkedToCalendar == true {
-                            Text("• Calendar")
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                .foregroundStyle(WidgetTheme.blue)
-                        } else if context.attributes.isLinkedToReminders == true {
-                            Text("• Reminders")
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                .foregroundStyle(WidgetTheme.blue)
+                        if isComplete {
+                            Text("✓ Session Completed & Logged")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(WidgetTheme.success)
+                        } else {
+                            Text("Target: \(context.state.estimatedMinutes)m Focus")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
+                            
+                            if let status = context.state.statusMessage {
+                                Text("• \(status)")
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundStyle(WidgetTheme.blue)
+                            } else if context.attributes.isLinkedToCalendar == true {
+                                Text("• Calendar")
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundStyle(WidgetTheme.blue)
+                            } else if context.attributes.isLinkedToReminders == true {
+                                Text("• Reminders")
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundStyle(WidgetTheme.blue)
+                            }
                         }
                     }
                 }
                 
                 Spacer()
                 
-                // Live Timer Display
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 21, weight: .heavy, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                    
-                    Text("ELAPSED")
-                        .font(.system(size: 8, weight: .heavy, design: .rounded))
-                        .foregroundStyle(WidgetTheme.blue)
+                // Live Timer or Completed Badge Display
+                if isComplete {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 11))
+                        Text("DONE")
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    }
+                    .foregroundStyle(WidgetTheme.success)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(WidgetTheme.success.opacity(0.18), in: Capsule())
+                    .overlay(Capsule().strokeBorder(WidgetTheme.success.opacity(0.35), lineWidth: 0.8))
+                } else {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
+                            .font(.system(size: 21, weight: .heavy, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
+                        
+                        Text("ELAPSED")
+                            .font(.system(size: 8, weight: .heavy, design: .rounded))
+                            .foregroundStyle(WidgetTheme.blue)
+                    }
                 }
             }
             
-            // Progress Bar & Action Row
-            HStack(spacing: 12) {
-                ProgressView(
-                    timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.state.estimatedMinutes) * 60)),
-                    countsDown: false,
-                    label: { EmptyView() },
-                    currentValueLabel: { EmptyView() }
-                )
-                .tint(WidgetTheme.blue)
-                
-                Button(intent: StopFocusIntent(activityId: context.activityID)) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .heavy))
-                        Text("Done")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+            if !isComplete {
+                // Progress Bar & Action Row
+                HStack(spacing: 12) {
+                    ProgressView(
+                        timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.state.estimatedMinutes) * 60)),
+                        countsDown: false,
+                        label: { EmptyView() },
+                        currentValueLabel: { EmptyView() }
+                    )
+                    .tint(WidgetTheme.blue)
+                    
+                    Button(intent: StopFocusIntent(activityId: context.activityID)) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .heavy))
+                            Text("Done")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
+                        .background(WidgetTheme.blue, in: Capsule())
+                        .shadow(color: WidgetTheme.blue.opacity(0.3), radius: 4, x: 0, y: 2)
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 7)
-                    .background(WidgetTheme.blue, in: Capsule())
-                    .shadow(color: WidgetTheme.blue.opacity(0.3), radius: 4, x: 0, y: 2)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(14)
@@ -425,9 +483,21 @@ struct TempoWidgetEntryView: View {
                         .font(.system(size: 26, weight: .heavy, design: .rounded))
                         .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                     
-                    Text("Focused Today")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
+                    if entry.snapshot.todayCompletedCount > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(WidgetTheme.success)
+                                .symbolEffect(.bounce, value: entry.snapshot.todayCompletedCount)
+                            Text("\(entry.snapshot.todayCompletedCount) completed")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(WidgetTheme.success)
+                        }
+                    } else {
+                        Text("Focused Today")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
+                    }
                 }
             }
             
@@ -499,9 +569,25 @@ struct TempoWidgetEntryView: View {
                             .font(.system(size: 9, weight: .heavy, design: .rounded))
                             .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
                         
-                        Text("\(entry.snapshot.todayMinutes)m Total Today")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
+                        HStack(spacing: 6) {
+                            Text("\(entry.snapshot.todayMinutes)m Total Today")
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
+                            
+                            if entry.snapshot.todayCompletedCount > 0 {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .symbolEffect(.bounce, value: entry.snapshot.todayCompletedCount)
+                                    Text("\(entry.snapshot.todayCompletedCount) done")
+                                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                                }
+                                .foregroundStyle(WidgetTheme.success)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(WidgetTheme.success.opacity(0.16), in: Capsule())
+                            }
+                        }
                     }
                 }
                 
@@ -616,9 +702,9 @@ struct AccessoryView: View {
             ZStack {
                 AccessoryWidgetBackground()
                 VStack(spacing: 1) {
-                    Image(systemName: "timer")
+                    Image(systemName: entry.snapshot.isRunning ? "timer" : (entry.snapshot.todayCompletedCount > 0 ? "checkmark.circle.fill" : "timer"))
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(WidgetTheme.blue)
+                        .foregroundStyle(entry.snapshot.isRunning ? WidgetTheme.blue : (entry.snapshot.todayCompletedCount > 0 ? WidgetTheme.success : WidgetTheme.blue))
                     Text("\(entry.snapshot.todayMinutes)m")
                         .font(.system(size: 11, weight: .heavy, design: .rounded))
                         .foregroundStyle(.primary)
@@ -627,9 +713,9 @@ struct AccessoryView: View {
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Image(systemName: "timer")
+                    Image(systemName: entry.snapshot.isRunning ? "timer" : "checkmark.circle.fill")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(WidgetTheme.blue)
+                        .foregroundStyle(entry.snapshot.isRunning ? WidgetTheme.blue : WidgetTheme.success)
                     Text("TEMPO FOCUS")
                         .font(.system(size: 10, weight: .heavy, design: .rounded))
                         .foregroundStyle(.primary)
@@ -650,7 +736,7 @@ struct AccessoryView: View {
             if entry.snapshot.isRunning, let title = entry.snapshot.activeTaskTitle {
                 Text("Tempo: \(title)")
             } else {
-                Text("Tempo: \(entry.snapshot.todayMinutes)m focused today")
+                Text("Tempo: \(entry.snapshot.todayCompletedCount) done (\(entry.snapshot.todayMinutes)m)")
             }
         default:
             EmptyView()

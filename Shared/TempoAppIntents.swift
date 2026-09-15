@@ -123,15 +123,30 @@ public struct StopFocusIntent: LiveActivityIntent, AppIntent {
     public func perform() async throws -> some IntentResult {
         WidgetDataStore.shared.stopActiveSession()
         
-        let finalState = TempoActivityAttributes.ContentState(
+        let completionState = TempoActivityAttributes.ContentState(
             estimatedMinutes: 0,
             actualMinutes: 0,
             isRunning: false,
-            statusMessage: "Done"
+            statusMessage: "Completed ✓"
         )
-        let finalContent = ActivityContent(state: finalState, staleDate: nil)
+        let finalContent = ActivityContent(state: completionState, staleDate: nil)
         
         let targetId = activityId
+        // 1. First broadcast the completion state to show the bouncy checkmark & confirmation UI
+        for activity in Activity<TempoActivityAttributes>.activities {
+            if targetId == nil || activity.id == targetId {
+                await activity.update(finalContent)
+            }
+        }
+        
+        WidgetCenter.shared.reloadAllTimelines()
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")
+        
+        // 2. Allow 550ms for the visual confirmation animation to celebrate the finished session
+        try? await Task.sleep(nanoseconds: 550_000_000)
+        
+        // 3. Immediately dismiss the Live Activity
         for activity in Activity<TempoActivityAttributes>.activities {
             if targetId == nil || activity.id == targetId {
                 await activity.end(finalContent, dismissalPolicy: .immediate)
