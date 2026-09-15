@@ -103,38 +103,16 @@ struct TempoLiveActivity: Widget {
             DynamicIsland {
                 // Expanded Island Leading
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 8) {
-                        ZStack {
-                            Circle()
-                                .fill(WidgetTheme.blue.opacity(0.22))
-                                .frame(width: 28, height: 28)
-                            Image(systemName: "timer")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(WidgetTheme.blue)
-                        }
+                    HStack(spacing: 6) {
+                        Image(systemName: "timer")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(WidgetTheme.blue)
                         
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(context.attributes.taskTitle)
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .lineLimit(1)
-                            
-                            HStack(spacing: 4) {
-                                if context.attributes.isLinkedToCalendar == true {
-                                    Image(systemName: "calendar")
-                                        .font(.system(size: 9, weight: .semibold))
-                                        .foregroundStyle(WidgetTheme.blue)
-                                } else if context.attributes.isLinkedToReminders == true {
-                                    Image(systemName: "checklist")
-                                        .font(.system(size: 9, weight: .semibold))
-                                        .foregroundStyle(WidgetTheme.blue)
-                                }
-                                
-                                Text(context.state.statusMessage ?? "Focus Session")
-                                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.6))
-                            }
-                        }
+                        Text(context.attributes.taskTitle)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                     .padding(.leading, 6)
                 }
@@ -180,11 +158,11 @@ struct TempoLiveActivity: Widget {
                                         Text("5m")
                                             .font(.system(size: 11, weight: .bold, design: .rounded))
                                     }
-                                    .foregroundStyle(.white.opacity(0.9))
-                                    .padding(.horizontal, 9)
+                                    .foregroundStyle(.white.opacity(0.95))
+                                    .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
-                                    .background(Color.white.opacity(0.12), in: Capsule())
-                                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.20), lineWidth: 0.8))
+                                    .background(Color.white.opacity(0.16), in: Capsule())
+                                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.25), lineWidth: 0.8))
                                 }
                                 .buttonStyle(.plain)
                                 
@@ -227,13 +205,13 @@ struct TempoLiveActivity: Widget {
                 }
                 .padding(.leading, 3)
             } compactTrailing: {
-                Text(context.attributes.startDate, style: .timer)
+                Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.blue)
                     .multilineTextAlignment(.trailing)
-                    .frame(width: 38, alignment: .trailing)
-                    .padding(.trailing, 3)
+                    .lineLimit(1)
+                    .padding(.trailing, 2)
             } minimal: {
                 Image(systemName: "timer")
                     .font(.system(size: 11, weight: .bold))
@@ -527,18 +505,32 @@ struct TempoWidgetEntryView: View {
     // Medium Widget with Interactive Shortcut Buttons
     private var mediumWidgetView: some View {
         VStack(spacing: 9) {
-            HStack {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("TEMPO FOCUS")
-                        .font(.system(size: 9, weight: .heavy, design: .rounded))
-                        .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
-                    
+            HStack(alignment: .center, spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(WidgetTheme.blue.opacity(colorScheme == .light ? 0.14 : 0.28))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "timer")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(WidgetTheme.blue)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
                     if entry.snapshot.isRunning, let title = entry.snapshot.activeTaskTitle {
-                        Text("Active: \(title)")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                        Text(title)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                             .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                        
+                        Text("Focus Session • \(entry.snapshot.activeTaskEstimatedMinutes ?? 25)m")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
                     } else {
+                        Text("TEMPO FOCUS")
+                            .font(.system(size: 9, weight: .heavy, design: .rounded))
+                            .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
+                        
                         Text("\(entry.snapshot.todayMinutes)m Total Today")
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
@@ -549,7 +541,7 @@ struct TempoWidgetEntryView: View {
                 
                 if entry.snapshot.isRunning, let start = entry.snapshot.activeTaskStartedAt {
                     Text(timerInterval: start...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.blue)
                 } else {
@@ -567,8 +559,6 @@ struct TempoWidgetEntryView: View {
                 }
             }
             
-            Divider().opacity(colorScheme == .light ? 0.35 : 0.15)
-            
             // Interactive Shortcut Buttons or Active View
             if entry.snapshot.isRunning, let start = entry.snapshot.activeTaskStartedAt, let est = entry.snapshot.activeTaskEstimatedMinutes {
                 VStack(spacing: 8) {
@@ -580,21 +570,38 @@ struct TempoWidgetEntryView: View {
                     )
                     .tint(WidgetTheme.blue)
                     
-                    Button(intent: StopFocusIntent()) {
-                        HStack(spacing: 6) {
-                            Spacer()
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 12))
-                            Text("Complete Session")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                            Spacer()
+                    HStack(spacing: 8) {
+                        Button(intent: ExtendFocusIntent(minutesToAdd: 5)) {
+                            HStack(spacing: 2) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 10, weight: .heavy))
+                                Text("5m")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                            }
+                            .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(WidgetTheme.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(WidgetTheme.glassStroke(for: colorScheme), lineWidth: 1))
                         }
-                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                        .padding(.vertical, 8)
-                        .background(WidgetTheme.actionButtonBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(WidgetTheme.glassStroke(for: colorScheme), lineWidth: 1))
+                        .buttonStyle(.plain)
+                        
+                        Button(intent: StopFocusIntent()) {
+                            HStack(spacing: 6) {
+                                Spacer()
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 12, weight: .bold))
+                                Text("Complete Session")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                Spacer()
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.vertical, 8)
+                            .background(WidgetTheme.blue, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .shadow(color: WidgetTheme.blue.opacity(0.35), radius: 4, x: 0, y: 2)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             } else {
                 HStack(spacing: 8) {

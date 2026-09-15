@@ -78,12 +78,14 @@ public struct ExtendFocusIntent: AppIntent {
                 estimatedMinutes: newEstimate,
                 actualMinutes: 0,
                 isRunning: true,
-                statusMessage: "Extended +\(minutesToAdd)m"
+                statusMessage: "+\(minutesToAdd)m"
             )
             await activity.update(ActivityContent(state: updatedState, staleDate: nil))
         }
         
         WidgetCenter.shared.reloadAllTimelines()
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")
         return .result()
     }
 }
@@ -96,29 +98,16 @@ public struct StopFocusIntent: AppIntent {
     public init() {}
     
     public func perform() async throws -> some IntentResult {
-        let currentSnapshot = WidgetDataStore.shared.loadSnapshot()
-        var elapsed = 0
-        if let start = currentSnapshot.activeTaskStartedAt {
-            elapsed = max(1, Int(Date().timeIntervalSince(start) / 60))
-        }
-        
         WidgetDataStore.shared.stopActiveSession()
         
-        let finalState = TempoActivityAttributes.ContentState(
-            estimatedMinutes: 0,
-            actualMinutes: elapsed,
-            isRunning: false
-        )
-        
-        // End all active Live Activities immediately
+        // End all active Live Activities immediately with nil so they dismiss from screen instantly
         for activity in Activity<TempoActivityAttributes>.activities {
-            await activity.end(
-                ActivityContent(state: finalState, staleDate: nil),
-                dismissalPolicy: .immediate
-            )
+            await activity.end(nil, dismissalPolicy: .immediate)
         }
         
         WidgetCenter.shared.reloadAllTimelines()
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")
         return .result()
     }
 }
