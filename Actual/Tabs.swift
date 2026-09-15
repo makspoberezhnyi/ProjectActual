@@ -372,9 +372,7 @@ struct LogTabView: View {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return "Today" }
         if calendar.isDateInYesterday(date) { return "Yesterday" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: date)
+        return TempoFormatters.dayHeaderFormatter.string(from: date)
     }
     
     // MARK: - Proactive Suggestion Popup Banner
@@ -1870,15 +1868,11 @@ struct RealCalendarAppIcon: View {
     var size: CGFloat = 24
     
     private var weekdayString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
-        return formatter.string(from: Date()).uppercased()
+        TempoFormatters.calendarMonthFormatter.string(from: Date()).uppercased()
     }
     
     private var dayString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d"
-        return formatter.string(from: Date())
+        TempoFormatters.calendarDayNumberFormatter.string(from: Date())
     }
     
     var body: some View {
@@ -1900,23 +1894,19 @@ struct RealCalendarAppIcon: View {
                     .fill(Color(red: 0.95, green: 0.23, blue: 0.23))
                     
                     Text(weekdayString)
-                        .font(.system(size: size * 0.22, weight: .heavy, design: .rounded))
+                        .font(.system(size: max(6, size * 0.28), weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
                 }
-                .frame(height: size * 0.32)
+                .frame(height: size * 0.38)
                 
-                // Day number in center
+                // White bottom with day number
                 Text(dayString)
-                    .font(.system(size: size * 0.44, weight: .semibold, design: .rounded))
+                    .font(.system(size: max(8, size * 0.44), weight: .bold, design: .rounded))
                     .foregroundStyle(Color.black.opacity(0.85))
                     .frame(maxHeight: .infinity)
             }
         }
         .frame(width: size, height: size)
-        .overlay(
-            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
-        )
     }
 }
 
@@ -1964,8 +1954,6 @@ struct RealUnifiedIntegrationIcon: View {
     }
 }
 
-
-
 extension Notification.Name {
     static let checkScheduleNotification = Notification.Name("checkScheduleNotification")
     static let syncWidgetSessionsNotification = Notification.Name("syncWidgetSessionsNotification")
@@ -1985,9 +1973,7 @@ struct DateJumpSheet: View {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return "Today" }
         if calendar.isDateInYesterday(date) { return "Yesterday" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d, yyyy"
-        return formatter.string(from: date)
+        return TempoFormatters.dayJumpFormatter.string(from: date)
     }
     
     var body: some View {

@@ -323,4 +323,38 @@ public struct TypingDotsView: View {
     }
 }
 
+// MARK: - Performance Formatters (swiftui-performance)
+public enum TempoFormatters {
+    public static let dayHeaderFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d"
+        return formatter
+    }()
+    
+    public static let dayJumpFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d, yyyy"
+        return formatter
+    }()
+    
+    public static let calendarDayNumberFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter
+    }()
+    
+    public static let calendarMonthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM"
+        return formatter
+    }()
+    
+    public static let backupFilenameFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HHmm"
+        return formatter
+    }()
+}
+
+
 

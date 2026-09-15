@@ -59,7 +59,7 @@ final class TempoConvoEngine {
             ⏱ **Focus Timers**: Type any task with an estimate (e.g. *"Design mockups for 30m"*) to start a calibrated session.
             📅 **Apple Calendar & Reminders**: Type *"Check my schedule"* to see your upcoming events and to-dos.
             🚗 **Travel & Ride Time**: Ask *"How long is the ride to the airport?"* or *"Time to my next meeting"* for real-time traffic ETAs.
-            📊 **Bias Calibration**: I adapt to your actual focus velocity and keep your mascot healthy!
+            📊 **Bias Calibration**: I learn your actual focus velocity and help eliminate planning bias.
             """
             return ConversationalResponse(
                 replyText: helpText,
@@ -88,11 +88,12 @@ final class TempoConvoEngine {
             }
             let completed = todaySessions.filter { $0.endedAt != nil }
             let totalMins = completed.compactMap { $0.actualMinutes ?? $0.estimatedMinutes }.reduce(0, +)
-            let petTier = BiasEngine.currentPetTier(sessions: sessions)
+            let score = BiasEngine.calculateOverallCalibration(sessions: sessions)
+            let scorePercent = Int(score * 100)
             
             let statusText: String
             if totalMins > 0 {
-                statusText = "📊 **Today's Status**: You've logged **\(totalMins) mins** across **\(completed.count) tasks**. Mascot condition: **\(petTier.rawValue)**. Keep up the great pace!"
+                statusText = "📊 **Today's Status**: You've logged **\(totalMins) mins** across **\(completed.count) tasks**. Calibration accuracy: **\(scorePercent)%**. Keep up the great pace!"
             } else {
                 statusText = "📊 You haven't logged any completed focus tasks today yet. Ready to kick off your first session?"
             }

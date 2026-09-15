@@ -102,31 +102,7 @@ final class Session {
     }
 }
 
-enum PetTier: String {
-    case starving = "Starving"
-    case dizzy = "Dizzy"
-    case healthy = "Healthy"
-    case thriving = "Thriving"
-    case eating = "Eating"
-    
-    var color: Color {
-        switch self {
-        case .starving: return Color.gray
-        case .dizzy: return Color.orange
-        case .healthy: return Theme.brandMint
-        case .thriving: return Theme.brandCoral
-        case .eating: return Theme.brandCoral.opacity(0.8)
-        }
-    }
-}
-
-struct ActionCard: Identifiable, Equatable {
-    let id = UUID()
-    let title: String
-    let minutes: Int
-    let icon: String
-}
-
+// MARK: - Bias Engine
 final class BiasEngine {
     static func calculateOverallCalibration(sessions: [Session]) -> Double {
         let closed = sessions.filter { $0.biasRatio != nil }
@@ -140,29 +116,6 @@ final class BiasEngine {
         let avgDeviation = totalDeviation / Double(closed.count)
         let score = max(0.0, 1.0 - avgDeviation)
         return score
-    }
-    
-    static func currentPetTier(sessions: [Session]) -> PetTier {
-        if sessions.contains(where: { $0.isRunning }) {
-            return .eating
-        }
-        
-        let todaySessions = sessions.filter { Calendar.current.isDateInToday($0.startedAt ?? Date()) }
-        let totalMinutes = todaySessions.compactMap { $0.actualMinutes }.reduce(0, +)
-        
-        if totalMinutes == 0 {
-            return .starving
-        }
-        
-        let calibration = calculateOverallCalibration(sessions: sessions)
-        
-        if calibration < 0.6 {
-            return .dizzy
-        } else if calibration > 0.85 && totalMinutes > 60 {
-            return .thriving
-        } else {
-            return .healthy
-        }
     }
 }
 
@@ -189,6 +142,7 @@ struct SessionDTO: Codable {
     var schedulePayload: String?
     var travelPayload: String?
     var isTravelQuery: Bool?
+    var isConversational: Bool?
     var integrationSource: String?
     var linkedEventIdentifier: String?
     var isLinkedToCalendar: Bool?
@@ -209,6 +163,7 @@ struct SessionDTO: Codable {
         self.schedulePayload = session.schedulePayload
         self.travelPayload = session.travelPayload
         self.isTravelQuery = session.isTravelQuery
+        self.isConversational = session.isConversational
         self.integrationSource = session.integrationSource
         self.linkedEventIdentifier = session.linkedEventIdentifier
         self.isLinkedToCalendar = session.isLinkedToCalendar
@@ -229,6 +184,7 @@ struct SessionDTO: Codable {
             schedulePayload: schedulePayload,
             travelPayload: travelPayload,
             isTravelQuery: isTravelQuery,
+            isConversational: isConversational,
             integrationSource: integrationSource,
             linkedEventIdentifier: linkedEventIdentifier,
             isLinkedToCalendar: isLinkedToCalendar,
@@ -252,9 +208,7 @@ enum TempoBackupManager {
         
         guard let data = try? encoder.encode(backup) else { return nil }
         
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HHmm"
-        let dateStr = formatter.string(from: Date())
+        let dateStr = TempoFormatters.backupFilenameFormatter.string(from: Date())
         let filename = "Tempo_Backup_\(dateStr).json"
         
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)

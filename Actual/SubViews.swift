@@ -40,9 +40,7 @@ struct HistoryTabView: View {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return "Today" }
         if calendar.isDateInYesterday(date) { return "Yesterday" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: date)
+        return TempoFormatters.dayHeaderFormatter.string(from: date)
     }
     
     var body: some View {
