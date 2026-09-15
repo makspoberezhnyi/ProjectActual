@@ -261,6 +261,8 @@ struct LogTabView: View {
                 if let ended = item.endedAt, existing.endedAt == nil {
                     existing.endedAt = ended
                     existing.actualMinutes = item.actualMinutes
+                    LiveActivityManager.shared.endLiveActivity(actualMinutes: item.actualMinutes ?? 0)
+                    NotificationManager.shared.cancelTimerNotification(sessionId: existing.sessionIdentifier)
                     var syncNote = ""
                     if let eventId = existing.linkedEventIdentifier ?? item.linkedEventIdentifier {
                         let actual = item.actualMinutes ?? max(1, Int(ended.timeIntervalSince(existing.startedAt ?? item.startedAt) / 60))
@@ -302,6 +304,8 @@ struct LogTabView: View {
                 session.endedAt = item.endedAt
                 session.actualMinutes = item.actualMinutes
                 if let ended = item.endedAt {
+                    LiveActivityManager.shared.endLiveActivity(actualMinutes: item.actualMinutes ?? 0)
+                    NotificationManager.shared.cancelTimerNotification(sessionId: session.sessionIdentifier)
                     var syncNote = ""
                     if let eventId = item.linkedEventIdentifier {
                         let actual = item.actualMinutes ?? max(1, Int(ended.timeIntervalSince(item.startedAt) / 60))
@@ -325,6 +329,10 @@ struct LogTabView: View {
                 context.insert(session)
                 didModify = true
             }
+        }
+        
+        if !WidgetDataStore.shared.loadSnapshot().isRunning && sessions.allSatisfy({ !$0.isRunning }) {
+            LiveActivityManager.shared.cancelAllLiveActivities()
         }
         
         if didModify {

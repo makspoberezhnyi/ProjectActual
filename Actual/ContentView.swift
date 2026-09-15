@@ -88,10 +88,7 @@ struct ContentView: View {
         WidgetCenter.shared.reloadAllTimelines()
         
         if runningSession == nil {
-            let storeSnapshot = WidgetDataStore.shared.loadSnapshot()
-            if !storeSnapshot.isRunning {
-                LiveActivityManager.shared.cancelAllLiveActivities()
-            }
+            LiveActivityManager.shared.cancelAllLiveActivities()
         }
         
         RoutineEngine.shared.scheduleRoutineNotifications(sessions: sessions)

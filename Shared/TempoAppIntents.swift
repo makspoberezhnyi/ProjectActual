@@ -54,7 +54,7 @@ public struct StartFocusIntent: AppIntent {
     }
 }
 
-public struct ExtendFocusIntent: AppIntent {
+public struct ExtendFocusIntent: LiveActivityIntent, AppIntent {
     public static let title: LocalizedStringResource = "Extend Focus Session"
     public static let description = IntentDescription("Extends the active focus session by a number of minutes.")
     public static let openAppWhenRun: Bool = false
@@ -90,7 +90,7 @@ public struct ExtendFocusIntent: AppIntent {
     }
 }
 
-public struct StopFocusIntent: AppIntent {
+public struct StopFocusIntent: LiveActivityIntent, AppIntent {
     public static let title: LocalizedStringResource = "Stop Focus Session"
     public static let description = IntentDescription("Stops the active focus timer.")
     public static let openAppWhenRun: Bool = false
@@ -109,14 +109,24 @@ public struct StopFocusIntent: AppIntent {
     public func perform() async throws -> some IntentResult {
         WidgetDataStore.shared.stopActiveSession()
         
+        let finalState = TempoActivityAttributes.ContentState(
+            estimatedMinutes: 0,
+            actualMinutes: 0,
+            isRunning: false,
+            statusMessage: "Done"
+        )
+        let finalContent = ActivityContent(state: finalState, staleDate: nil)
+        
         let targetId = activityId
         for activity in Activity<TempoActivityAttributes>.activities {
             if targetId == nil || activity.id == targetId {
+                await activity.end(finalContent, dismissalPolicy: .immediate)
                 await activity.end(nil, dismissalPolicy: .immediate)
             }
         }
         
         for activity in Activity<TempoActivityAttributes>.activities {
+            await activity.end(finalContent, dismissalPolicy: .immediate)
             await activity.end(nil, dismissalPolicy: .immediate)
         }
         

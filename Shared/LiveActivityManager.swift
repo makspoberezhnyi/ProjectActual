@@ -9,20 +9,20 @@ final public class LiveActivityManager: Sendable {
     private var currentActivity: Activity<TempoActivityAttributes>?
     
     private func terminateActivities(ids: Set<String>? = nil, finalState: TempoActivityAttributes.ContentState? = nil) {
-        let state = finalState
+        let state = finalState ?? TempoActivityAttributes.ContentState(
+            estimatedMinutes: 0,
+            actualMinutes: 0,
+            isRunning: false,
+            statusMessage: "Done"
+        )
+        let finalContent = ActivityContent(state: state, staleDate: nil)
         Task {
             for activity in Activity<TempoActivityAttributes>.activities {
                 if let ids, !ids.contains(activity.id) {
                     continue
                 }
-                if let state {
-                    await activity.end(
-                        ActivityContent(state: state, staleDate: nil),
-                        dismissalPolicy: .immediate
-                    )
-                } else {
-                    await activity.end(nil, dismissalPolicy: .immediate)
-                }
+                await activity.end(finalContent, dismissalPolicy: .immediate)
+                await activity.end(nil, dismissalPolicy: .immediate)
             }
         }
     }
