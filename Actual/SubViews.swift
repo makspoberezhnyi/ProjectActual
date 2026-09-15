@@ -3,6 +3,7 @@ import SwiftData
 import EventKit
 import WidgetKit
 import UniformTypeIdentifiers
+import Charts
 
 // MARK: - HISTORY TAB
 struct HistoryTabView: View {
@@ -298,15 +299,194 @@ struct HistoryTabView: View {
     }
 }
 
-// MARK: - INSIGHTS TAB
+// MARK: - INSIGHTS & ANALYTICS TAB (Swift Charts)
+
+enum AnalyticsTimeframe: String, CaseIterable, Identifiable, Sendable {
+    case week = "7D"
+    case month = "30D"
+    case all = "All"
+    
+    var id: String { rawValue }
+}
+
+struct DailyFocusTrendData: Identifiable, Sendable {
+    let id: Date
+    let date: Date
+    let dayShortLabel: String
+    let minutes: Int
+    let completedCount: Int
+    let avgRatio: Double?
+}
+
+struct BiasDistributionSlice: Identifiable, Sendable {
+    let id: String
+    let category: String
+    let count: Int
+    let percentage: Double
+    let color: Color
+    let icon: String
+}
+
+struct HourlyFocusDistribution: Identifiable, Sendable {
+    let id: Int
+    let hour: Int
+    let hourLabel: String
+    let minutes: Int
+}
+
 struct InsightsTabView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     
     var sessions: [Session]
     var calibrationScore: Double
     
+    @State private var selectedTimeframe: AnalyticsTimeframe = .week
+    @State private var selectedDate: Date? = nil
+    @State private var selectedHour: Int? = nil
+    
     var completedSessions: [Session] {
         sessions.filter { $0.biasRatio != nil }
+    }
+    
+    var taskSessions: [Session] {
+        sessions.filter { $0.isActualTask && $0.actualMinutes != nil }
+    }
+    
+    // MARK: - Filtered Timeframe Sessions
+    var timeframeFilteredSessions: [Session] {
+        let cal = Calendar.current
+        let now = Date()
+        switch selectedTimeframe {
+        case .week:
+            let weekAgo = cal.date(byAdding: .day, value: -6, to: cal.startOfDay(for: now)) ?? now
+            return taskSessions.filter { ($0.startedAt ?? $0.timestamp) >= weekAgo }
+        case .month:
+            let monthAgo = cal.date(byAdding: .day, value: -29, to: cal.startOfDay(for: now)) ?? now
+            return taskSessions.filter { ($0.startedAt ?? $0.timestamp) >= monthAgo }
+        case .all:
+            return taskSessions
+        }
+    }
+    
+    // MARK: - Daily Trend Data
+    var dailyTrendData: [DailyFocusTrendData] {
+        let cal = Calendar.current
+        let now = Date()
+        let daysCount = (selectedTimeframe == .week ? 7 : (selectedTimeframe == .month ? 30 : 14))
+        var list: [DailyFocusTrendData] = []
+        
+        for offset in (0..<daysCount).reversed() {
+            guard let dayDate = cal.date(byAdding: .day, value: -offset, to: cal.startOfDay(for: now)) else { continue }
+            let matching = taskSessions.filter { cal.isDate($0.startedAt ?? $0.timestamp, inSameDayAs: dayDate) }
+            let totalMins = matching.reduce(0) { $0 + ($1.actualMinutes ?? 0) }
+            let ratios = matching.compactMap { $0.biasRatio }
+            let avgRatio = ratios.isEmpty ? nil : (ratios.reduce(0.0, +) / Double(ratios.count))
+            
+            list.append(
+                DailyFocusTrendData(
+                    id: dayDate,
+                    date: dayDate,
+                    dayShortLabel: TempoFormatters.chartShortDayFormatter.string(from: dayDate),
+                    minutes: totalMins,
+                    completedCount: matching.count,
+                    avgRatio: avgRatio
+                )
+            )
+        }
+        return list
+    }
+    
+    var selectedDayData: DailyFocusTrendData? {
+        guard let selectedDate else { return nil }
+        let cal = Calendar.current
+        return dailyTrendData.first { cal.isDate($0.date, inSameDayAs: selectedDate) }
+    }
+    
+    var dailyAverageMinutes: Int {
+        let total = dailyTrendData.reduce(0) { $0 + $1.minutes }
+        guard !dailyTrendData.isEmpty else { return 0 }
+        return total / dailyTrendData.count
+    }
+    
+    // MARK: - Bias Distribution
+    var biasDistribution: [BiasDistributionSlice] {
+        let total = max(1, completedSessions.count)
+        var accurateCount = 0
+        var underCount = 0
+        var overCount = 0
+        
+        for s in completedSessions {
+            guard let r = s.biasRatio else { continue }
+            if r >= 0.8 && r <= 1.2 {
+                accurateCount += 1
+            } else if r < 0.8 {
+                underCount += 1
+            } else {
+                overCount += 1
+            }
+        }
+        
+        return [
+            BiasDistributionSlice(
+                id: "accurate",
+                category: "Calibrated",
+                count: accurateCount,
+                percentage: Double(accurateCount) / Double(total) * 100.0,
+                color: Theme.brandMint,
+                icon: "checkmark.circle.fill"
+            ),
+            BiasDistributionSlice(
+                id: "under",
+                category: "Underestimated",
+                count: underCount,
+                percentage: Double(underCount) / Double(total) * 100.0,
+                color: Theme.brandCoral,
+                icon: "arrow.up.right.circle.fill"
+            ),
+            BiasDistributionSlice(
+                id: "over",
+                category: "Overestimated",
+                count: overCount,
+                percentage: Double(overCount) / Double(total) * 100.0,
+                color: Color.blue,
+                icon: "arrow.down.right.circle.fill"
+            )
+        ].filter { $0.count > 0 || completedSessions.isEmpty }
+    }
+    
+    // MARK: - Hourly Productivity Distribution
+    var hourlyDistribution: [HourlyFocusDistribution] {
+        let cal = Calendar.current
+        var hourBuckets: [Int: Int] = [:]
+        for h in 6...23 { hourBuckets[h] = 0 }
+        
+        for s in timeframeFilteredSessions {
+            guard let start = s.startedAt ?? s.endedAt else { continue }
+            let hour = cal.component(.hour, from: start)
+            let mins = s.actualMinutes ?? 0
+            if hour >= 6 && hour <= 23 {
+                hourBuckets[hour, default: 0] += mins
+            }
+        }
+        
+        return (6...23).map { hour in
+            let label = hour == 12 ? "12PM" : (hour > 12 ? "\(hour - 12)PM" : "\(hour)AM")
+            return HourlyFocusDistribution(
+                id: hour,
+                hour: hour,
+                hourLabel: label,
+                minutes: hourBuckets[hour] ?? 0
+            )
+        }
+    }
+    
+    var peakHourString: String {
+        let sorted = hourlyDistribution.sorted { $0.minutes > $1.minutes }
+        guard let top = sorted.first, top.minutes > 0 else { return "9 AM – 11 AM" }
+        let nextHour = (top.hour + 1) % 24
+        let nextLabel = nextHour == 12 ? "12PM" : (nextHour > 12 ? "\(nextHour - 12)PM" : "\(nextHour)AM")
+        return "\(top.hourLabel) – \(nextLabel)"
     }
     
     var body: some View {
@@ -315,13 +495,22 @@ struct InsightsTabView: View {
                 SharedBackground()
                 
                 ScrollView {
-                    VStack(spacing: 28) {
-                        // Glowing Circular Gauge Card
+                    VStack(spacing: 24) {
+                        // Glowing Hero Calibration Score
                         calibrationGaugeCard
-                            .padding(.top, 16)
+                            .padding(.top, 12)
                         
-                        // 3-Metric Glass Grid
+                        // 3-Metric Summary Tiles
                         metricsGrid
+                        
+                        // Interactive Focus Trends Swift Chart
+                        focusTrendChartCard
+                        
+                        // Time Distortion / Bias Distribution Donut Chart
+                        biasDistributionChartCard
+                        
+                        // Peak Productivity Hours Bar Chart
+                        peakHoursChartCard
                         
                         // Discovered Routines & Habits Section
                         habitsSection
@@ -340,16 +529,14 @@ struct InsightsTabView: View {
         }
     }
     
-    // Circular Glowing Calibration Gauge
+    // MARK: - 1. Hero Calibration Gauge Card
     private var calibrationGaugeCard: some View {
         VStack(spacing: 16) {
             ZStack {
-                // Background Track Ring
                 Circle()
                     .stroke(Color.primary.opacity(0.08), lineWidth: 14)
                     .frame(width: 170, height: 170)
                 
-                // Active Score Ring
                 Circle()
                     .trim(from: 0.0, to: CGFloat(min(1.0, max(0.02, calibrationScore))))
                     .stroke(
@@ -365,7 +552,6 @@ struct InsightsTabView: View {
                     .rotationEffect(.degrees(-90))
                     .animation(AppMotion.smoothOut, value: calibrationScore)
                 
-                // Center Score Display
                 VStack(spacing: 2) {
                     Text("\(Int(calibrationScore * 100))%")
                         .font(.system(size: 48, weight: .heavy, design: .rounded))
@@ -386,17 +572,17 @@ struct InsightsTabView: View {
                 .padding(.horizontal, 16)
         }
         .frame(maxWidth: .infinity)
-        .padding(24)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .padding(22)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
         )
     }
     
-    // 3-Metric Glass Grid
+    // MARK: - 2. Metrics Grid
     private var metricsGrid: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             metricTile(
                 title: "BIAS PATTERN",
                 value: biasSummaryText,
@@ -424,9 +610,9 @@ struct InsightsTabView: View {
     
     @ViewBuilder
     private func metricTile(title: String, value: String, icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(color)
             
             Text(title)
@@ -434,15 +620,277 @@ struct InsightsTabView: View {
                 .foregroundStyle(.primary.opacity(0.4))
             
             Text(value)
-                .font(.system(size: 16, weight: .heavy, design: .rounded))
+                .font(.system(size: 15, weight: .heavy, design: .rounded))
                 .foregroundStyle(.primary.opacity(0.9))
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+        )
+    }
+    
+    // MARK: - 3. Interactive Focus & Calibration Trend Chart (Swift Charts)
+    private var focusTrendChartCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header & Timeframe Picker
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Focus Activity")
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.95))
+                    
+                    if let sel = selectedDayData {
+                        HStack(spacing: 6) {
+                            Text(TempoFormatters.chartDayFormatter.string(from: sel.date))
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(Theme.brandMint)
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            Text("\(sel.minutes)m (\(sel.completedCount) tasks)")
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.7))
+                        }
+                    } else {
+                        Text("Daily average: \(dailyAverageMinutes)m")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(.primary.opacity(0.5))
+                    }
+                }
+                
+                Spacer()
+                
+                Picker("Timeframe", selection: $selectedTimeframe) {
+                    ForEach(AnalyticsTimeframe.allCases) { tf in
+                        Text(tf.rawValue).tag(tf)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 140)
+            }
+            
+            // Swift Chart Container
+            Chart {
+                // Goal reference baseline
+                if dailyAverageMinutes > 0 {
+                    RuleMark(y: .value("Average", dailyAverageMinutes))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        .foregroundStyle(Color.primary.opacity(0.25))
+                        .annotation(position: .top, alignment: .trailing) {
+                            Text("Avg \(dailyAverageMinutes)m")
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.4))
+                        }
+                }
+                
+                ForEach(dailyTrendData) { item in
+                    BarMark(
+                        x: .value("Date", item.date, unit: .day),
+                        y: .value("Minutes", item.minutes)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: selectedDate == nil || Calendar.current.isDate(item.date, inSameDayAs: selectedDate!)
+                                ? [Theme.brandMint, Color(red: 0.1, green: 0.7, blue: 0.85)]
+                                : [Theme.brandMint.opacity(0.35), Color.blue.opacity(0.25)],
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
+                    )
+                    .cornerRadius(5)
+                    .accessibilityLabel(TempoFormatters.chartDayFormatter.string(from: item.date))
+                    .accessibilityValue("\(item.minutes) minutes focused across \(item.completedCount) tasks")
+                }
+                
+                // Interactive Selection Indicator
+                if let selectedDate {
+                    RuleMark(x: .value("Selected", selectedDate, unit: .day))
+                        .foregroundStyle(Theme.brandMint.opacity(0.6))
+                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [2, 2]))
+                        .offset(yStart: -6)
+                }
+            }
+            .chartXSelection(value: $selectedDate)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day, count: selectedTimeframe == .week ? 1 : 5)) { value in
+                    if let date = value.as(Date.self) {
+                        AxisValueLabel {
+                            Text(TempoFormatters.chartShortDayFormatter.string(from: date))
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.5))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
+                        .foregroundStyle(Color.primary.opacity(0.08))
+                    if let mins = value.as(Int.self) {
+                        AxisValueLabel {
+                            Text("\(mins)m")
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.4))
+                        }
+                    }
+                }
+            }
+            .frame(height: 180)
+            
+            // Interaction Hint
+            HStack {
+                Image(systemName: "hand.tap")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.primary.opacity(0.35))
+                Text("Touch and drag on the chart to inspect daily focus details.")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.primary.opacity(0.4))
+            }
+        }
+        .padding(18)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+        )
+    }
+    
+    // MARK: - 4. Time Distortion & Bias Distribution (Swift Charts Donut)
+    private var biasDistributionChartCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Estimation Accuracy Breakdown")
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.primary.opacity(0.95))
+                Text("How your planned estimates compare against elapsed reality.")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.primary.opacity(0.5))
+            }
+            
+            HStack(spacing: 20) {
+                // Donut Chart
+                ZStack {
+                    Chart(biasDistribution) { slice in
+                        SectorMark(
+                            angle: .value("Count", slice.count),
+                            innerRadius: .ratio(0.64),
+                            outerRadius: .inset(4),
+                            angularInset: 2.0
+                        )
+                        .cornerRadius(5)
+                        .foregroundStyle(slice.color)
+                        .accessibilityLabel(slice.category)
+                        .accessibilityValue("\(slice.count) sessions, \(Int(slice.percentage)) percent")
+                    }
+                    .frame(width: 130, height: 130)
+                    
+                    VStack(spacing: 1) {
+                        let accurate = biasDistribution.first(where: { $0.id == "accurate" })?.percentage ?? 0
+                        Text("\(Int(accurate))%")
+                            .font(.system(size: 22, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.primary)
+                        Text("Accurate")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .foregroundStyle(Theme.brandMint)
+                    }
+                }
+                
+                // Legend Details
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(biasDistribution) { slice in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(slice.color)
+                                .frame(width: 9, height: 9)
+                            
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(slice.category)
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.primary.opacity(0.9))
+                                Text("\(slice.count) tasks (\(Int(slice.percentage))%)")
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.primary.opacity(0.5))
+                            }
+                        }
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(.top, 4)
+        }
+        .padding(18)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+        )
+    }
+    
+    // MARK: - 5. Peak Productivity Hours (Swift Charts)
+    private var peakHoursChartCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Productivity Peak Hours")
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.95))
+                    Text("Focus distribution across hours of the day.")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.5))
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.orange)
+                    Text(peakHourString)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.orange)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.orange.opacity(0.12), in: Capsule())
+            }
+            
+            Chart(hourlyDistribution) { item in
+                BarMark(
+                    x: .value("Hour", item.hour),
+                    y: .value("Minutes", item.minutes)
+                )
+                .foregroundStyle(
+                    item.minutes > 0
+                        ? LinearGradient(colors: [Color.orange.opacity(0.7), Color.orange], startPoint: .bottom, endPoint: .top)
+                        : LinearGradient(colors: [Color.primary.opacity(0.06), Color.primary.opacity(0.06)], startPoint: .bottom, endPoint: .top)
+                )
+                .cornerRadius(3)
+                .accessibilityLabel("\(item.hourLabel)")
+                .accessibilityValue("\(item.minutes) minutes focused")
+            }
+            .chartXAxis {
+                AxisMarks(values: [6, 9, 12, 15, 18, 21]) { value in
+                    if let hour = value.as(Int.self) {
+                        let label = hour == 12 ? "12P" : (hour > 12 ? "\(hour-12)P" : "\(hour)A")
+                        AxisValueLabel {
+                            Text(label)
+                                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.45))
+                        }
+                    }
+                }
+            }
+            .chartYAxis(.hidden)
+            .frame(height: 100)
+        }
+        .padding(18)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
         )
     }
@@ -466,7 +914,7 @@ struct InsightsTabView: View {
         return "±\(avg)m"
     }
     
-    // Discovered Habits & Recurring Patterns
+    // MARK: - 6. Discovered Habits Section
     private var habitsSection: some View {
         let patterns = RoutineEngine.shared.minePatterns(from: sessions)
         
@@ -552,7 +1000,7 @@ struct InsightsTabView: View {
         }
     }
     
-    // Recent Logs Breakdown
+    // MARK: - 7. Recent Logs Section
     private var recentLogsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Recent Calibration Logs")

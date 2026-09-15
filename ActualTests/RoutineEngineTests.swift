@@ -143,7 +143,7 @@ final class RoutineEngineTests: XCTestCase {
         }
         
         // Add a session already logged on Sept 4
-        var sept4Components = DateComponents(year: 2026, month: 9, day: 4, hour: 8, minute: 10)
+        let sept4Components = DateComponents(year: 2026, month: 9, day: 4, hour: 8, minute: 10)
         let sept4Date = calendar.date(from: sept4Components)!
         let completedToday = Session(rawText: "Breakfast (20m)", estimatedMinutes: 20, startedAt: sept4Date, createdAt: sept4Date)
         completedToday.endedAt = sept4Date.addingTimeInterval(20 * 60)

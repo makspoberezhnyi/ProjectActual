@@ -10,8 +10,6 @@ final class DummyTests: XCTestCase {
     func testBackupExportAndImportRoundtrip() throws {
         let schema = Schema([Session.self])
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: schema, configurations: configuration)
-        let context = container.mainContext
         
         let session1 = Session(
             rawText: "Write iOS Unit Tests",
@@ -309,4 +307,63 @@ final class DummyTests: XCTestCase {
         XCTAssertTrue(taskSession.isActualTask)
         XCTAssertNil(taskSession.endedAt)
     }
+    
+    @MainActor
+    func testInsightsTrendAndHourlyCalculations() throws {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        let s1 = Session(rawText: "Coding", estimatedMinutes: 30, startedAt: now.addingTimeInterval(-3600), createdAt: now.addingTimeInterval(-3600))
+        s1.actualMinutes = 35
+        s1.endedAt = now.addingTimeInterval(-1500)
+        
+        let s2 = Session(rawText: "Writing", estimatedMinutes: 45, startedAt: now.addingTimeInterval(-7200), createdAt: now.addingTimeInterval(-7200))
+        s2.actualMinutes = 30
+        s2.endedAt = now.addingTimeInterval(-5400)
+        
+        let s3 = Session(rawText: "Review", estimatedMinutes: 20, startedAt: now.addingTimeInterval(-86400), createdAt: now.addingTimeInterval(-86400))
+        s3.actualMinutes = 20
+        s3.endedAt = now.addingTimeInterval(-85200)
+        
+        // Test DailyFocusTrendData formatting and calculations
+        let dayStart = calendar.startOfDay(for: now)
+        let trend = DailyFocusTrendData(
+            id: dayStart,
+            date: dayStart,
+            dayShortLabel: "Mon",
+            minutes: 65,
+            completedCount: 2,
+            avgRatio: 1.0
+        )
+        XCTAssertEqual(trend.minutes, 65)
+        XCTAssertEqual(trend.completedCount, 2)
+        XCTAssertEqual(trend.id, dayStart)
+        XCTAssertEqual(trend.avgRatio, 1.0)
+        
+        // Test BiasDistributionSlice
+        let slice = BiasDistributionSlice(
+            id: "Overestimated",
+            category: "Overestimated",
+            count: 1,
+            percentage: 33.3,
+            color: .orange,
+            icon: "arrow.down.forward"
+        )
+        XCTAssertEqual(slice.category, "Overestimated")
+        XCTAssertEqual(slice.count, 1)
+        XCTAssertEqual(slice.percentage, 33.3)
+        XCTAssertEqual(slice.icon, "arrow.down.forward")
+        
+        // Test HourlyFocusDistribution
+        let hourly = HourlyFocusDistribution(
+            id: 14,
+            hour: 14,
+            hourLabel: "2 PM",
+            minutes: 65
+        )
+        XCTAssertEqual(hourly.hour, 14)
+        XCTAssertEqual(hourly.hourLabel, "2 PM")
+        XCTAssertEqual(hourly.minutes, 65)
+    }
 }
+

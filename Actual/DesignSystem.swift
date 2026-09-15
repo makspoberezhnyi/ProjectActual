@@ -298,6 +298,18 @@ public enum TempoFormatters {
         formatter.dateFormat = "yyyy-MM-dd_HHmm"
         return formatter
     }()
+    
+    public static let chartDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, MMM d"
+        return formatter
+    }()
+    
+    public static let chartShortDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E"
+        return formatter
+    }()
 }
 
 
