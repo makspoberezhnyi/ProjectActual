@@ -558,15 +558,21 @@ struct LogTabView: View {
             let session = Session(
                 rawText: savedText,
                 startedAt: nil,
-                tempoResponse: reply,
+                tempoResponse: nil,
                 createdAt: Date()
             )
             context.insert(session)
+            try? context.save()
+            
             isTyping = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+                let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
+                arrivalHaptic.impactOccurred()
                 withAnimation(AppMotion.messageAIPop) {
+                    session.tempoResponse = reply
                     self.isTyping = false
                 }
+                try? context.save()
             }
             return
         }
@@ -601,11 +607,22 @@ struct LogTabView: View {
                 let session = Session(
                     rawText: savedText,
                     startedAt: nil,
-                    tempoResponse: "No active session is currently running.",
+                    tempoResponse: nil,
                     createdAt: Date()
                 )
                 context.insert(session)
                 try? context.save()
+                
+                isTyping = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                    let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
+                    arrivalHaptic.impactOccurred()
+                    withAnimation(AppMotion.messageAIPop) {
+                        session.tempoResponse = "No active session is currently running."
+                        self.isTyping = false
+                    }
+                    try? context.save()
+                }
             }
             return
         }
@@ -616,9 +633,22 @@ struct LogTabView: View {
                 rawText: intent.text,
                 estimatedMinutes: nil,
                 startedAt: nil,
-                tempoResponse: "How long do you expect this to take?"
+                tempoResponse: nil,
+                createdAt: Date()
             )
             context.insert(session)
+            try? context.save()
+            
+            isTyping = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+                let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
+                arrivalHaptic.impactOccurred()
+                withAnimation(AppMotion.messageAIPop) {
+                    session.tempoResponse = "How long do you expect this to take?"
+                    self.isTyping = false
+                }
+                try? context.save()
+            }
             return
         }
         
@@ -628,10 +658,13 @@ struct LogTabView: View {
             rawText: intent.text,
             estimatedMinutes: intent.estimatedMinutes,
             startedAt: intent.isRetroactive ? Date().addingTimeInterval(-Double(mins) * 60) : Date(),
-            isRetroactive: intent.isRetroactive
+            tempoResponse: nil,
+            isRetroactive: intent.isRetroactive,
+            createdAt: Date()
         )
         
         context.insert(session)
+        try? context.save()
         
         if !(intent.isRetroactive) {
             finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
@@ -649,18 +682,20 @@ struct LogTabView: View {
         
         isTyping = true
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            if intent.isRetroactive {
-                session.endedAt = Date()
-                session.actualMinutes = mins
-                let actual = mins
-                let ratioText = session.biasRatio != nil ? String(format: "%.1fx", session.biasRatio!) : "-"
-                session.tempoResponse = "Got it."
-                session.tempoEndResponse = "Logged \(actual)m. (Ratio: \(ratioText))"
-            } else {
-                session.tempoResponse = "Timer started. Focus."
-            }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.90) {
+            let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
+            arrivalHaptic.impactOccurred()
             withAnimation(AppMotion.messageAIPop) {
+                if intent.isRetroactive {
+                    session.endedAt = Date()
+                    session.actualMinutes = mins
+                    let actual = mins
+                    let ratioText = session.biasRatio != nil ? String(format: "%.1fx", session.biasRatio!) : "-"
+                    session.tempoResponse = "Got it."
+                    session.tempoEndResponse = "Logged \(actual)m. (Ratio: \(ratioText))"
+                } else {
+                    session.tempoResponse = "Timer started. Focus."
+                }
                 self.isTyping = false
             }
             try? context.save()
@@ -960,9 +995,13 @@ struct LogTabView: View {
         )
         
         isTyping = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            session.tempoResponse = "Timer started for \(item.title). Focus."
-            isTyping = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+            let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
+            arrivalHaptic.impactOccurred()
+            withAnimation(AppMotion.messageAIPop) {
+                session.tempoResponse = "Timer started for \(item.title). Focus."
+                self.isTyping = false
+            }
             try? context.save()
         }
     }
@@ -981,6 +1020,7 @@ struct LogTabView: View {
             rawText: "\(taskTitle) (\(minutes)m)",
             estimatedMinutes: minutes,
             startedAt: Date(),
+            tempoResponse: nil,
             createdAt: Date()
         )
         finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
@@ -999,9 +1039,13 @@ struct LogTabView: View {
         )
         
         isTyping = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            session.tempoResponse = "Timer started for \(taskTitle). Focus."
-            isTyping = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+            let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
+            arrivalHaptic.impactOccurred()
+            withAnimation(AppMotion.messageAIPop) {
+                session.tempoResponse = "Timer started for \(taskTitle). Focus."
+                self.isTyping = false
+            }
             try? context.save()
         }
     }
@@ -1043,9 +1087,14 @@ struct LogTabView: View {
         )
         
         isTyping = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            session.tempoResponse = "Estimate set to \(minutes)m. Timer started. Focus."
-            isTyping = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+            let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
+            arrivalHaptic.impactOccurred()
+            withAnimation(AppMotion.messageAIPop) {
+                session.tempoResponse = "Estimate set to \(minutes)m. Timer started. Focus."
+                self.isTyping = false
+            }
+            try? context.save()
         }
     }
     
@@ -1729,11 +1778,20 @@ struct LogTabView: View {
         HStack(alignment: .bottom, spacing: 8) {
             ZStack {
                 Circle()
-                    .fill(Color.blue.opacity(0.18))
-                    .frame(width: 24, height: 24)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.25), Color.indigo.opacity(0.18)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 26, height: 26)
+                    .overlay(Circle().strokeBorder(Color.blue.opacity(0.35), lineWidth: 0.8))
+                
                 Image(systemName: "sparkle")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(Color.blue)
+                    .symbolEffect(.pulse.byLayer, options: .repeating)
             }
             .padding(.bottom, 2)
             
@@ -1750,10 +1808,21 @@ struct LogTabView: View {
                         style: .continuous
                     )
                 )
-                .shimmer()
+                .overlay(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 18,
+                        bottomLeadingRadius: 4,
+                        bottomTrailingRadius: 18,
+                        topTrailingRadius: 18,
+                        style: .continuous
+                    )
+                    .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8)
+                )
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.2 : 0.04), radius: 6, x: 0, y: 2)
             
             Spacer(minLength: 36)
         }
+        .transition(.iMessageAIPop)
     }
 }
 
