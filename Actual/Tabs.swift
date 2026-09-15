@@ -887,7 +887,6 @@ struct LogTabView: View {
         
         // Update Live Activity & Widget Store
         LiveActivityManager.shared.updateLiveActivity(estimatedMinutes: newMinutes, statusMessage: "\(newMinutes)m")
-        WidgetDataStore.shared.extendActiveSession(by: newMinutes - oldEst)
         
         // Reschedule local notification
         let remainingMinutes: Int

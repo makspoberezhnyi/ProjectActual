@@ -462,13 +462,18 @@ final class DummyTests: XCTestCase {
         XCTAssertFalse(snapshot.isRunning)
         XCTAssertNil(snapshot.activeTaskTitle)
         
-        // 4. LiveActivityManager API Safety
+        // 4. LiveActivityManager API Safety & Direct Estimate Update
         LiveActivityManager.shared.startLiveActivity(
             taskTitle: "Design Specs",
             estimatedMinutes: 25,
             startDate: Date()
         )
         LiveActivityManager.shared.updateLiveActivity(estimatedMinutes: 30, statusMessage: "+5m Added")
+        let updatedSnapshot = store.loadSnapshot()
+        XCTAssertEqual(updatedSnapshot.activeTaskEstimatedMinutes, 30)
+        let updatedPending = store.loadPendingSessions()
+        XCTAssertEqual(updatedPending.last?.estimatedMinutes, 30)
+        
         LiveActivityManager.shared.endLiveActivity(actualMinutes: 28)
     }
 }

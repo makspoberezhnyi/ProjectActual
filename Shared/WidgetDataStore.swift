@@ -127,6 +127,22 @@ final public class WidgetDataStore: @unchecked Sendable {
         savePendingSessions(pending)
     }
     
+    public func updateActiveSessionEstimate(to newEstimatedMinutes: Int) {
+        var current = loadSnapshot()
+        current.activeTaskEstimatedMinutes = newEstimatedMinutes
+        saveSnapshot(current)
+        
+        var pending = loadPendingSessions()
+        var didModify = false
+        if let lastIndex = pending.indices.last(where: { pending[$0].endedAt == nil }) {
+            pending[lastIndex].estimatedMinutes = newEstimatedMinutes
+            didModify = true
+        }
+        if didModify {
+            savePendingSessions(pending)
+        }
+    }
+    
     public func extendActiveSession(by minutesToAdd: Int) {
         var current = loadSnapshot()
         let updatedEst = (current.activeTaskEstimatedMinutes ?? 25) + minutesToAdd

@@ -85,7 +85,7 @@ final public class LiveActivityManager: Sendable {
     }
     
     public func updateLiveActivity(estimatedMinutes: Int, statusMessage: String? = nil) {
-        WidgetDataStore.shared.extendActiveSession(by: estimatedMinutes)
+        WidgetDataStore.shared.updateActiveSessionEstimate(to: estimatedMinutes)
         WidgetCenter.shared.reloadAllTimelines()
         
         Task {
