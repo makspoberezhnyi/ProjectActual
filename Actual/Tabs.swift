@@ -272,6 +272,10 @@ struct LogTabView: View {
                     existing.tempoEndResponse = "Done. Logged \(item.actualMinutes ?? 0)m.\(syncNote) (Ratio: \(ratioText))"
                     didModify = true
                 } else if existing.isRunning && item.endedAt == nil {
+                    if existing.estimatedMinutes != item.estimatedMinutes {
+                        existing.estimatedMinutes = item.estimatedMinutes
+                        didModify = true
+                    }
                     // Still running, keep in pending so widget stop can find it
                     remainingPending.append(item)
                 }

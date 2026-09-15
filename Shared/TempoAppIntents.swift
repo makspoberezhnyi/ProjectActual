@@ -35,10 +35,10 @@ public struct StartFocusIntent: AppIntent {
         if ActivityAuthorizationInfo().areActivitiesEnabled {
             let attributes = TempoActivityAttributes(
                 taskTitle: taskTitle,
-                estimatedMinutes: minutes,
                 startDate: now
             )
             let initialContent = TempoActivityAttributes.ContentState(
+                estimatedMinutes: minutes,
                 actualMinutes: 0,
                 isRunning: true
             )
@@ -47,6 +47,40 @@ public struct StartFocusIntent: AppIntent {
                 content: .init(state: initialContent, staleDate: nil),
                 pushType: nil
             )
+        }
+        
+        WidgetCenter.shared.reloadAllTimelines()
+        return .result()
+    }
+}
+
+public struct ExtendFocusIntent: AppIntent {
+    public static let title: LocalizedStringResource = "Extend Focus Session"
+    public static let description = IntentDescription("Extends the active focus session by a number of minutes.")
+    public static let openAppWhenRun: Bool = false
+    
+    @Parameter(title: "Minutes to Add", default: 5)
+    public var minutesToAdd: Int
+    
+    public init() {}
+    
+    public init(minutesToAdd: Int) {
+        self.minutesToAdd = minutesToAdd
+    }
+    
+    public func perform() async throws -> some IntentResult {
+        WidgetDataStore.shared.extendActiveSession(by: minutesToAdd)
+        let updatedSnapshot = WidgetDataStore.shared.loadSnapshot()
+        let newEstimate = updatedSnapshot.activeTaskEstimatedMinutes ?? 30
+        
+        for activity in Activity<TempoActivityAttributes>.activities {
+            let updatedState = TempoActivityAttributes.ContentState(
+                estimatedMinutes: newEstimate,
+                actualMinutes: 0,
+                isRunning: true,
+                statusMessage: "Extended +\(minutesToAdd)m"
+            )
+            await activity.update(ActivityContent(state: updatedState, staleDate: nil))
         }
         
         WidgetCenter.shared.reloadAllTimelines()
@@ -71,6 +105,7 @@ public struct StopFocusIntent: AppIntent {
         WidgetDataStore.shared.stopActiveSession()
         
         let finalState = TempoActivityAttributes.ContentState(
+            estimatedMinutes: 0,
             actualMinutes: elapsed,
             isRunning: false
         )

@@ -103,25 +103,37 @@ struct TempoLiveActivity: Widget {
             DynamicIsland {
                 // Expanded Island Leading
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 7) {
+                    HStack(spacing: 8) {
                         ZStack {
                             Circle()
-                                .fill(WidgetTheme.blue.opacity(0.2))
-                                .frame(width: 26, height: 26)
+                                .fill(WidgetTheme.blue.opacity(0.22))
+                                .frame(width: 28, height: 28)
                             Image(systemName: "timer")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(.system(size: 13, weight: .bold))
                                 .foregroundStyle(WidgetTheme.blue)
                         }
                         
                         VStack(alignment: .leading, spacing: 1) {
                             Text(context.attributes.taskTitle)
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
                             
-                            Text("Focus Session")
-                                .font(.system(size: 10, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.5))
+                            HStack(spacing: 4) {
+                                if context.attributes.isLinkedToCalendar == true {
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundStyle(WidgetTheme.blue)
+                                } else if context.attributes.isLinkedToReminders == true {
+                                    Image(systemName: "checklist")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundStyle(WidgetTheme.blue)
+                                }
+                                
+                                Text(context.state.statusMessage ?? "Focus Session")
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.6))
+                            }
                         }
                     }
                     .padding(.leading, 6)
@@ -129,47 +141,74 @@ struct TempoLiveActivity: Widget {
                 
                 // Expanded Island Trailing
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("\(context.attributes.estimatedMinutes)m")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(WidgetTheme.blue)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(WidgetTheme.blue.opacity(0.18), in: Capsule())
-                        .overlay(Capsule().strokeBorder(WidgetTheme.blue.opacity(0.35), lineWidth: 0.8))
-                        .padding(.trailing, 6)
+                    HStack(spacing: 4) {
+                        Text("\(context.state.estimatedMinutes)m")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(WidgetTheme.blue)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(WidgetTheme.blue.opacity(0.18), in: Capsule())
+                            .overlay(Capsule().strokeBorder(WidgetTheme.blue.opacity(0.35), lineWidth: 0.8))
+                    }
+                    .padding(.trailing, 6)
                 }
                 
                 // Expanded Island Center / Bottom
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 8) {
                         HStack(alignment: .center) {
-                            Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                                .font(.system(size: 24, weight: .heavy, design: .rounded))
-                                .monospacedDigit()
-                                .foregroundStyle(.white)
+                            // Live Elapsed Timer
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(WidgetTheme.blue)
+                                    .frame(width: 6, height: 6)
+                                
+                                Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
+                                    .font(.system(size: 24, weight: .heavy, design: .rounded))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.white)
+                            }
                             
                             Spacer()
                             
-                            Button(intent: StopFocusIntent()) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 11, weight: .bold))
-                                    Text("Done")
-                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                            // Interactive Action Buttons (+5m and Done)
+                            HStack(spacing: 6) {
+                                Button(intent: ExtendFocusIntent(minutesToAdd: 5)) {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 9, weight: .heavy))
+                                        Text("5m")
+                                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    }
+                                    .foregroundStyle(.white.opacity(0.9))
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 6)
+                                    .background(Color.white.opacity(0.12), in: Capsule())
+                                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.20), lineWidth: 0.8))
                                 }
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color.white.opacity(0.18), in: Capsule())
-                                .overlay(Capsule().strokeBorder(WidgetTheme.glassStroke(for: .dark), lineWidth: 1))
+                                .buttonStyle(.plain)
+                                
+                                Button(intent: StopFocusIntent()) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 11, weight: .bold))
+                                        Text("Done")
+                                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(WidgetTheme.blue, in: Capsule())
+                                    .shadow(color: WidgetTheme.blue.opacity(0.35), radius: 4, x: 0, y: 2)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                         .padding(.horizontal, 6)
                         
-                        // Live Progress Bar
+                        // Live Progress Bar towards Target Duration
                         ProgressView(
-                            timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.attributes.estimatedMinutes) * 60)),
+                            timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.state.estimatedMinutes) * 60)),
                             countsDown: false,
                             label: { EmptyView() },
                             currentValueLabel: { EmptyView() }
@@ -178,21 +217,23 @@ struct TempoLiveActivity: Widget {
                         .padding(.horizontal, 6)
                         .padding(.bottom, 2)
                     }
-                    .padding(.top, 2)
+                    .padding(.top, 4)
                 }
             } compactLeading: {
-                Image(systemName: "timer")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(WidgetTheme.blue)
-                    .padding(.leading, 2)
+                HStack(spacing: 3) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(WidgetTheme.blue)
+                }
+                .padding(.leading, 3)
             } compactTrailing: {
                 Text(context.attributes.startDate, style: .timer)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.blue)
                     .multilineTextAlignment(.trailing)
-                    .frame(width: 36, alignment: .trailing)
-                    .padding(.trailing, 2)
+                    .frame(width: 38, alignment: .trailing)
+                    .padding(.trailing, 3)
             } minimal: {
                 Image(systemName: "timer")
                     .font(.system(size: 11, weight: .bold))
@@ -216,23 +257,23 @@ struct TempoLiveActivityLockScreenBanner: View {
     private var buttonBorder: Color {
         colorScheme == .light
             ? Color.black.opacity(0.12)
-            : Color.white.opacity(0.30)
+            : Color.white.opacity(0.25)
     }
     
     private var buttonBackground: Color {
         colorScheme == .light
             ? Color.black.opacity(0.06)
-            : Color.white.opacity(0.18)
+            : Color.white.opacity(0.14)
     }
     
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             HStack(spacing: 12) {
                 // Glass Icon Orb
                 ZStack {
                     Circle()
                         .fill(WidgetTheme.blue.opacity(colorScheme == .light ? 0.14 : 0.28))
-                        .frame(width: 36, height: 36)
+                        .frame(width: 38, height: 38)
                     
                     Image(systemName: "timer")
                         .font(.system(size: 16, weight: .bold))
@@ -245,9 +286,25 @@ struct TempoLiveActivityLockScreenBanner: View {
                         .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                         .lineLimit(1)
                     
-                    Text("Target: \(context.attributes.estimatedMinutes)m Focus")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
+                    HStack(spacing: 6) {
+                        Text("Target: \(context.state.estimatedMinutes)m Focus")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
+                        
+                        if let status = context.state.statusMessage {
+                            Text("• \(status)")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(WidgetTheme.blue)
+                        } else if context.attributes.isLinkedToCalendar == true {
+                            Text("• Calendar")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(WidgetTheme.blue)
+                        } else if context.attributes.isLinkedToReminders == true {
+                            Text("• Reminders")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(WidgetTheme.blue)
+                        }
+                    }
                 }
                 
                 Spacer()
@@ -255,7 +312,7 @@ struct TempoLiveActivityLockScreenBanner: View {
                 // Live Timer Display
                 VStack(alignment: .trailing, spacing: 1) {
                     Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
+                        .font(.system(size: 21, weight: .heavy, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                     
@@ -266,14 +323,29 @@ struct TempoLiveActivityLockScreenBanner: View {
             }
             
             // Progress Bar & Action Row
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 ProgressView(
-                    timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.attributes.estimatedMinutes) * 60)),
+                    timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.state.estimatedMinutes) * 60)),
                     countsDown: false,
                     label: { EmptyView() },
                     currentValueLabel: { EmptyView() }
                 )
                 .tint(WidgetTheme.blue)
+                
+                Button(intent: ExtendFocusIntent(minutesToAdd: 5)) {
+                    HStack(spacing: 2) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .heavy))
+                        Text("5m")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(buttonBackground, in: Capsule())
+                    .overlay(Capsule().strokeBorder(buttonBorder, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
                 
                 Button(intent: StopFocusIntent()) {
                     HStack(spacing: 4) {
@@ -282,11 +354,11 @@ struct TempoLiveActivityLockScreenBanner: View {
                         Text("Done")
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                     }
-                    .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(buttonBackground, in: Capsule())
-                    .overlay(Capsule().strokeBorder(buttonBorder, lineWidth: 1))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(WidgetTheme.blue, in: Capsule())
+                    .shadow(color: WidgetTheme.blue.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
                 .buttonStyle(.plain)
             }

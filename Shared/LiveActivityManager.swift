@@ -50,10 +50,12 @@ final public class LiveActivityManager: Sendable {
         
         let attributes = TempoActivityAttributes(
             taskTitle: taskTitle,
-            estimatedMinutes: estimatedMinutes,
-            startDate: startDate
+            startDate: startDate,
+            isLinkedToCalendar: isLinkedToCalendar,
+            isLinkedToReminders: isLinkedToReminders
         )
         let initialContentState = TempoActivityAttributes.ContentState(
+            estimatedMinutes: estimatedMinutes,
             actualMinutes: 0,
             isRunning: true
         )
@@ -70,12 +72,30 @@ final public class LiveActivityManager: Sendable {
         }
     }
     
+    public func updateLiveActivity(estimatedMinutes: Int, statusMessage: String? = nil) {
+        WidgetDataStore.shared.extendActiveSession(by: estimatedMinutes)
+        WidgetCenter.shared.reloadAllTimelines()
+        
+        Task {
+            for activity in Activity<TempoActivityAttributes>.activities {
+                let updatedState = TempoActivityAttributes.ContentState(
+                    estimatedMinutes: estimatedMinutes,
+                    actualMinutes: 0,
+                    isRunning: true,
+                    statusMessage: statusMessage
+                )
+                await activity.update(ActivityContent(state: updatedState, staleDate: nil))
+            }
+        }
+    }
+    
     public func endLiveActivity(actualMinutes: Int) {
         // Sync widget snapshot
         WidgetDataStore.shared.stopActiveSession()
         WidgetCenter.shared.reloadAllTimelines()
         
         let finalState = TempoActivityAttributes.ContentState(
+            estimatedMinutes: 0,
             actualMinutes: actualMinutes,
             isRunning: false
         )
