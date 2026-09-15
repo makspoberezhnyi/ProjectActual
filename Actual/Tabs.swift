@@ -916,7 +916,7 @@ struct LogTabView: View {
             let arrivalHaptic = UIImpactFeedbackGenerator(style: .medium)
             arrivalHaptic.impactOccurred()
             withAnimation(AppMotion.messageAIPop) {
-                bubble.tempoResponse = "Added +\(minutesToAdd)m. Focus session is now set to \(newEst)m."
+                bubble.tempoResponse = "Added +\(minutesToAdd)m to your timer (\(oldEst)m → \(newEst)m total)."
                 self.isTyping = false
             }
             try? context.save()
