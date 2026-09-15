@@ -211,7 +211,7 @@ struct TempoLiveActivity: Widget {
                     .foregroundStyle(WidgetTheme.blue)
                     .multilineTextAlignment(.trailing)
                     .lineLimit(1)
-                    .padding(.trailing, 2)
+                    .frame(width: 34, alignment: .trailing)
             } minimal: {
                 Image(systemName: "timer")
                     .font(.system(size: 11, weight: .bold))
