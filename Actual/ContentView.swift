@@ -67,6 +67,8 @@ struct ContentView: View {
         let score = BiasEngine.calculateOverallCalibration(sessions: sessions)
         calibrationScore = score
         
+        let storeSnapshot = WidgetDataStore.shared.loadSnapshot()
+        
         let todaySessions = sessions.filter {
             guard let start = $0.startedAt else { return false }
             return Calendar.current.isDateInToday(start)
@@ -75,19 +77,32 @@ struct ContentView: View {
         let doneCount = todaySessions.filter { $0.endedAt != nil }.count
         let runningSession = sessions.last(where: { $0.isRunning })
         
+        // If WidgetDataStore explicitly marked the session as stopped, don't resurrect it
+        let isActuallyRunning: Bool
+        if let running = runningSession {
+            let pending = WidgetDataStore.shared.loadPendingSessions()
+            if let pendingItem = pending.first(where: { abs($0.startedAt.timeIntervalSince(running.startedAt ?? Date.distantPast)) < 2.0 }) {
+                isActuallyRunning = pendingItem.endedAt == nil && storeSnapshot.isRunning
+            } else {
+                isActuallyRunning = storeSnapshot.isRunning
+            }
+        } else {
+            isActuallyRunning = storeSnapshot.isRunning
+        }
+        
         let snapshot = WidgetSnapshotData(
-            isRunning: runningSession != nil,
-            activeTaskTitle: runningSession?.rawText,
-            activeTaskEstimatedMinutes: runningSession?.estimatedMinutes,
-            activeTaskStartedAt: runningSession?.startedAt,
-            todayMinutes: todayMins,
-            todayCompletedCount: doneCount,
+            isRunning: isActuallyRunning,
+            activeTaskTitle: isActuallyRunning ? (runningSession?.rawText ?? storeSnapshot.activeTaskTitle) : nil,
+            activeTaskEstimatedMinutes: isActuallyRunning ? (runningSession?.estimatedMinutes ?? storeSnapshot.activeTaskEstimatedMinutes) : nil,
+            activeTaskStartedAt: isActuallyRunning ? (runningSession?.startedAt ?? storeSnapshot.activeTaskStartedAt) : nil,
+            todayMinutes: max(todayMins, storeSnapshot.todayMinutes),
+            todayCompletedCount: max(doneCount, storeSnapshot.todayCompletedCount),
             calibrationScore: score
         )
         WidgetDataStore.shared.saveSnapshot(snapshot)
         WidgetCenter.shared.reloadAllTimelines()
         
-        if runningSession == nil {
+        if !isActuallyRunning {
             LiveActivityManager.shared.cancelAllLiveActivities()
         }
         

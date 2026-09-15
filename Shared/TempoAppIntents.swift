@@ -3,7 +3,7 @@ import Foundation
 import WidgetKit
 import ActivityKit
 
-public struct StartFocusIntent: AppIntent {
+public struct StartFocusIntent: LiveActivityIntent, AppIntent {
     public static let title: LocalizedStringResource = "Start Focus Session"
     public static let description = IntentDescription("Starts a focus session with a specified task and duration.")
     public static let openAppWhenRun: Bool = false
@@ -24,32 +24,46 @@ public struct StartFocusIntent: AppIntent {
     public func perform() async throws -> some IntentResult {
         let now = Date()
         
-        // End any existing activities first
+        // 1. End any existing activities first with terminal state and immediate dismissal
+        let finalState = TempoActivityAttributes.ContentState(
+            estimatedMinutes: 0,
+            actualMinutes: 0,
+            isRunning: false,
+            statusMessage: "Done"
+        )
+        let finalContent = ActivityContent(state: finalState, staleDate: nil)
         for activity in Activity<TempoActivityAttributes>.activities {
+            await activity.end(finalContent, dismissalPolicy: .immediate)
             await activity.end(nil, dismissalPolicy: .immediate)
         }
         
+        // 2. Persist to AppGroup WidgetDataStore
         WidgetDataStore.shared.startSession(title: taskTitle, minutes: minutes, startDate: now)
         
-        // Start Live Activity
-        if ActivityAuthorizationInfo().areActivitiesEnabled {
-            let attributes = TempoActivityAttributes(
-                taskTitle: taskTitle,
-                startDate: now
-            )
-            let initialContent = TempoActivityAttributes.ContentState(
-                estimatedMinutes: minutes,
-                actualMinutes: 0,
-                isRunning: true
-            )
-            _ = try? Activity<TempoActivityAttributes>.request(
+        // 3. Start Live Activity on Dynamic Island & Lock Screen
+        let attributes = TempoActivityAttributes(
+            taskTitle: taskTitle,
+            startDate: now
+        )
+        let initialContent = TempoActivityAttributes.ContentState(
+            estimatedMinutes: minutes,
+            actualMinutes: 0,
+            isRunning: true
+        )
+        do {
+            let activity = try Activity<TempoActivityAttributes>.request(
                 attributes: attributes,
                 content: .init(state: initialContent, staleDate: nil),
                 pushType: nil
             )
+            print("[StartFocusIntent] Started Live Activity: \(activity.id)")
+        } catch {
+            print("[StartFocusIntent] Failed to start Live Activity: \(error)")
         }
         
         WidgetCenter.shared.reloadAllTimelines()
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")
         return .result()
     }
 }
