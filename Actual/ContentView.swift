@@ -97,7 +97,10 @@ struct ContentView: View {
             activeTaskStartedAt: isActuallyRunning ? (runningSession?.startedAt ?? storeSnapshot.activeTaskStartedAt) : nil,
             todayMinutes: max(todayMins, storeSnapshot.todayMinutes),
             todayCompletedCount: max(doneCount, storeSnapshot.todayCompletedCount),
-            calibrationScore: score
+            calibrationScore: score,
+            lastCompletedAt: storeSnapshot.lastCompletedAt,
+            lastCompletedMinutes: storeSnapshot.lastCompletedMinutes,
+            lastCompletedTitle: storeSnapshot.lastCompletedTitle
         )
         WidgetDataStore.shared.saveSnapshot(snapshot)
         WidgetCenter.shared.reloadAllTimelines()

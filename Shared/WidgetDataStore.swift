@@ -44,6 +44,10 @@ public struct WidgetSnapshotData: Codable {
     public var todayCompletedCount: Int
     public var calibrationScore: Double
     
+    public var lastCompletedAt: Date?
+    public var lastCompletedMinutes: Int?
+    public var lastCompletedTitle: String?
+    
     public init(
         isRunning: Bool = false,
         activeTaskTitle: String? = nil,
@@ -51,7 +55,10 @@ public struct WidgetSnapshotData: Codable {
         activeTaskStartedAt: Date? = nil,
         todayMinutes: Int = 0,
         todayCompletedCount: Int = 0,
-        calibrationScore: Double = 0.5
+        calibrationScore: Double = 0.5,
+        lastCompletedAt: Date? = nil,
+        lastCompletedMinutes: Int? = nil,
+        lastCompletedTitle: String? = nil
     ) {
         self.isRunning = isRunning
         self.activeTaskTitle = activeTaskTitle
@@ -60,6 +67,9 @@ public struct WidgetSnapshotData: Codable {
         self.todayMinutes = todayMinutes
         self.todayCompletedCount = todayCompletedCount
         self.calibrationScore = calibrationScore
+        self.lastCompletedAt = lastCompletedAt
+        self.lastCompletedMinutes = lastCompletedMinutes
+        self.lastCompletedTitle = lastCompletedTitle
     }
 }
 
@@ -113,6 +123,9 @@ final public class WidgetDataStore: @unchecked Sendable {
         current.activeTaskTitle = title
         current.activeTaskEstimatedMinutes = minutes
         current.activeTaskStartedAt = startDate
+        current.lastCompletedAt = nil
+        current.lastCompletedMinutes = nil
+        current.lastCompletedTitle = nil
         saveSnapshot(current)
         
         let newSession = PendingSessionData(
@@ -169,6 +182,9 @@ final public class WidgetDataStore: @unchecked Sendable {
             elapsed = max(1, Int(now.timeIntervalSince(start) / 60))
             current.todayMinutes += elapsed
             current.todayCompletedCount += 1
+            current.lastCompletedAt = now
+            current.lastCompletedMinutes = elapsed
+            current.lastCompletedTitle = current.activeTaskTitle
         }
         
         current.isRunning = false

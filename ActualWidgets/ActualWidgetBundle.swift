@@ -405,22 +405,38 @@ struct TempoWidgetBackground: View {
 struct TempoWidgetEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshotData
+    var isCelebration: Bool = false
 }
 
 struct TempoWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> TempoWidgetEntry {
-        TempoWidgetEntry(date: Date(), snapshot: WidgetSnapshotData(todayMinutes: 45, todayCompletedCount: 2, calibrationScore: 0.85))
+        TempoWidgetEntry(date: Date(), snapshot: WidgetSnapshotData(todayMinutes: 45, todayCompletedCount: 2, calibrationScore: 0.85), isCelebration: false)
     }
     
     func getSnapshot(in context: Context, completion: @escaping (TempoWidgetEntry) -> Void) {
         let snapshot = WidgetDataStore.shared.loadSnapshot()
-        completion(TempoWidgetEntry(date: Date(), snapshot: snapshot))
+        completion(TempoWidgetEntry(date: Date(), snapshot: snapshot, isCelebration: false))
     }
     
     func getTimeline(in context: Context, completion: @escaping (Timeline<TempoWidgetEntry>) -> Void) {
         let snapshot = WidgetDataStore.shared.loadSnapshot()
-        let entry = TempoWidgetEntry(date: Date(), snapshot: snapshot)
-        let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(30)))
+        let now = Date()
+        
+        var entries: [TempoWidgetEntry] = []
+        if let completedAt = snapshot.lastCompletedAt, now.timeIntervalSince(completedAt) < 7 {
+            // 1. Immediately show full-size completed celebration screen
+            let celebrationEntry = TempoWidgetEntry(date: now, snapshot: snapshot, isCelebration: true)
+            // 2. Schedule automatic transition back to functional widget view after 3.5 seconds
+            let revertDate = completedAt.addingTimeInterval(3.5)
+            let returnDate = revertDate > now ? revertDate : now.addingTimeInterval(3.5)
+            let functionalEntry = TempoWidgetEntry(date: returnDate, snapshot: snapshot, isCelebration: false)
+            entries = [celebrationEntry, functionalEntry]
+        } else {
+            let entry = TempoWidgetEntry(date: now, snapshot: snapshot, isCelebration: false)
+            entries = [entry]
+        }
+        
+        let timeline = Timeline(entries: entries, policy: .after(now.addingTimeInterval(30)))
         completion(timeline)
     }
 }
@@ -431,14 +447,121 @@ struct TempoWidgetEntryView: View {
     var entry: TempoWidgetEntry
     
     var body: some View {
-        switch family {
-        case .systemSmall:
-            smallWidgetView
-        case .systemMedium:
-            mediumWidgetView
-        default:
-            smallWidgetView
+        if entry.isCelebration {
+            switch family {
+            case .systemSmall:
+                smallCelebrationView
+            case .systemMedium:
+                mediumCelebrationView
+            default:
+                smallCelebrationView
+            }
+        } else {
+            switch family {
+            case .systemSmall:
+                smallWidgetView
+            case .systemMedium:
+                mediumWidgetView
+            default:
+                smallWidgetView
+            }
         }
+    }
+    
+    // Full-Size Completed Screen for Small Widget
+    private var smallCelebrationView: some View {
+        VStack(spacing: 8) {
+            Spacer(minLength: 0)
+            
+            ZStack {
+                Circle()
+                    .fill(WidgetTheme.success.opacity(colorScheme == .light ? 0.16 : 0.28))
+                    .frame(width: 48, height: 48)
+                
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(WidgetTheme.success)
+                    .symbolEffect(.bounce, value: true)
+            }
+            
+            VStack(spacing: 3) {
+                Text("Completed!")
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
+                
+                if let mins = entry.snapshot.lastCompletedMinutes {
+                    Text("+\(mins)m Focused")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(WidgetTheme.success)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 3)
+                        .background(WidgetTheme.success.opacity(0.16), in: Capsule())
+                } else {
+                    Text("\(entry.snapshot.todayCompletedCount) Done Today")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
+                }
+            }
+            
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(6)
+    }
+    
+    // Full-Size Completed Screen for Medium Widget
+    private var mediumCelebrationView: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(WidgetTheme.success.opacity(colorScheme == .light ? 0.16 : 0.28))
+                    .frame(width: 56, height: 56)
+                
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 36, weight: .bold))
+                    .foregroundStyle(WidgetTheme.success)
+                    .symbolEffect(.bounce, value: true)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text("Session Completed!")
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
+                    
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(WidgetTheme.success)
+                }
+                
+                if let title = entry.snapshot.lastCompletedTitle {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
+                        .lineLimit(1)
+                }
+                
+                HStack(spacing: 6) {
+                    if let mins = entry.snapshot.lastCompletedMinutes {
+                        Text("+\(mins)m Logged")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(WidgetTheme.success)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(WidgetTheme.success.opacity(0.16), in: Capsule())
+                    }
+                    
+                    Text("• \(entry.snapshot.todayCompletedCount) done today (\(entry.snapshot.todayMinutes)m total)")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
+                }
+                .padding(.top, 2)
+            }
+            
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(12)
     }
     
     // Small Widget
@@ -702,26 +825,39 @@ struct AccessoryView: View {
             ZStack {
                 AccessoryWidgetBackground()
                 VStack(spacing: 1) {
-                    Image(systemName: entry.snapshot.isRunning ? "timer" : (entry.snapshot.todayCompletedCount > 0 ? "checkmark.circle.fill" : "timer"))
+                    Image(systemName: entry.isCelebration || (entry.snapshot.todayCompletedCount > 0 && !entry.snapshot.isRunning) ? "checkmark.circle.fill" : (entry.snapshot.isRunning ? "timer" : "timer"))
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(entry.snapshot.isRunning ? WidgetTheme.blue : (entry.snapshot.todayCompletedCount > 0 ? WidgetTheme.success : WidgetTheme.blue))
-                    Text("\(entry.snapshot.todayMinutes)m")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(entry.isCelebration ? WidgetTheme.success : (entry.snapshot.isRunning ? WidgetTheme.blue : (entry.snapshot.todayCompletedCount > 0 ? WidgetTheme.success : WidgetTheme.blue)))
+                        .symbolEffect(.bounce, value: entry.isCelebration)
+                    
+                    if entry.isCelebration {
+                        Text("DONE")
+                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.primary)
+                    } else {
+                        Text("\(entry.snapshot.todayMinutes)m")
+                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.primary)
+                    }
                 }
             }
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Image(systemName: entry.snapshot.isRunning ? "timer" : "checkmark.circle.fill")
+                    Image(systemName: entry.isCelebration ? "checkmark.circle.fill" : (entry.snapshot.isRunning ? "timer" : "checkmark.circle.fill"))
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(entry.snapshot.isRunning ? WidgetTheme.blue : WidgetTheme.success)
-                    Text("TEMPO FOCUS")
+                        .foregroundStyle(entry.isCelebration ? WidgetTheme.success : (entry.snapshot.isRunning ? WidgetTheme.blue : WidgetTheme.success))
+                        .symbolEffect(.bounce, value: entry.isCelebration)
+                    Text(entry.isCelebration ? "COMPLETED ✓" : "TEMPO FOCUS")
                         .font(.system(size: 10, weight: .heavy, design: .rounded))
                         .foregroundStyle(.primary)
                 }
                 
-                if entry.snapshot.isRunning, let start = entry.snapshot.activeTaskStartedAt {
+                if entry.isCelebration {
+                    Text("+\(entry.snapshot.lastCompletedMinutes ?? 0)m logged • \(entry.snapshot.todayCompletedCount) done")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                } else if entry.snapshot.isRunning, let start = entry.snapshot.activeTaskStartedAt {
                     Text(timerInterval: start...Date.distantFuture, countsDown: false)
                         .font(.system(size: 16, weight: .heavy, design: .rounded))
                         .monospacedDigit()
@@ -733,7 +869,9 @@ struct AccessoryView: View {
                 }
             }
         case .accessoryInline:
-            if entry.snapshot.isRunning, let title = entry.snapshot.activeTaskTitle {
+            if entry.isCelebration {
+                Text("Tempo: Session Completed ✓")
+            } else if entry.snapshot.isRunning, let title = entry.snapshot.activeTaskTitle {
                 Text("Tempo: \(title)")
             } else {
                 Text("Tempo: \(entry.snapshot.todayCompletedCount) done (\(entry.snapshot.todayMinutes)m)")
