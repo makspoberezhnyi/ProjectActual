@@ -272,4 +272,41 @@ final class DummyTests: XCTestCase {
         XCTAssertNotNil(session.tempoEndResponse)
         XCTAssertTrue(session.tempoEndResponse?.contains("Done. Logged 30m.") == true)
     }
+    
+    func testConversationalSessionNotTreatedAsTaskOrConfiguring() throws {
+        let chatIntent = ChatParser.parse("hey")
+        XCTAssertTrue(chatIntent.isConversational)
+        
+        let session = Session(
+            rawText: "hey",
+            startedAt: nil,
+            tempoResponse: chatIntent.conversationalReply,
+            isConversational: true,
+            createdAt: Date()
+        )
+        
+        // Conversational chat session should never be marked as actual task or running
+        XCTAssertFalse(session.isActualTask)
+        XCTAssertFalse(session.isRunning)
+        XCTAssertEqual(session.isConversational, true)
+        
+        // When setting estimate on a real task session, it should become running
+        let taskSession = Session(
+            rawText: "Design icon",
+            estimatedMinutes: nil,
+            startedAt: nil,
+            tempoResponse: "How long do you expect this to take?",
+            isConversational: false,
+            createdAt: Date()
+        )
+        XCTAssertFalse(taskSession.isActualTask)
+        XCTAssertFalse(taskSession.isRunning)
+        
+        // Emulate setEstimate
+        taskSession.estimatedMinutes = 25
+        taskSession.startedAt = Date()
+        XCTAssertTrue(taskSession.isRunning)
+        XCTAssertTrue(taskSession.isActualTask)
+        XCTAssertNil(taskSession.endedAt)
+    }
 }

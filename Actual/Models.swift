@@ -17,6 +17,7 @@ final class Session {
     var schedulePayload: String?
     var travelPayload: String?
     var isTravelQuery: Bool?
+    var isConversational: Bool?
     var integrationSource: String?
     var linkedEventIdentifier: String?
     var isLinkedToCalendar: Bool?
@@ -35,6 +36,7 @@ final class Session {
         schedulePayload: String? = nil,
         travelPayload: String? = nil,
         isTravelQuery: Bool? = nil,
+        isConversational: Bool? = nil,
         integrationSource: String? = nil,
         linkedEventIdentifier: String? = nil,
         isLinkedToCalendar: Bool? = nil,
@@ -52,6 +54,7 @@ final class Session {
         self.schedulePayload = schedulePayload
         self.travelPayload = travelPayload
         self.isTravelQuery = isTravelQuery
+        self.isConversational = isConversational
         self.integrationSource = integrationSource
         self.linkedEventIdentifier = linkedEventIdentifier
         self.isLinkedToCalendar = isLinkedToCalendar
@@ -86,11 +89,11 @@ final class Session {
     }
     
     var isRunning: Bool {
-        startedAt != nil && endedAt == nil && !(isScheduleQuery ?? false) && !(isTravelQuery ?? false)
+        startedAt != nil && endedAt == nil && !(isScheduleQuery ?? false) && !(isTravelQuery ?? false) && !(isConversational ?? false)
     }
     
     var isActualTask: Bool {
-        startedAt != nil && !(isScheduleQuery ?? false) && !(isTravelQuery ?? false)
+        startedAt != nil && !(isScheduleQuery ?? false) && !(isTravelQuery ?? false) && !(isConversational ?? false)
     }
     
     var biasRatio: Double? {

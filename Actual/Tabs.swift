@@ -33,7 +33,14 @@ struct LogTabView: View {
     }
     
     var isConfiguringTask: Bool {
-        sessions.contains(where: { $0.startedAt == nil && $0.estimatedMinutes == nil && $0.endedAt == nil && !($0.isScheduleQuery ?? false) })
+        sessions.contains(where: {
+            $0.startedAt == nil &&
+            $0.estimatedMinutes == nil &&
+            $0.endedAt == nil &&
+            !($0.isScheduleQuery ?? false) &&
+            !($0.isTravelQuery ?? false) &&
+            !($0.isConversational ?? false)
+        })
     }
     
     var isRunningSession: Bool {
@@ -490,8 +497,8 @@ struct LogTabView: View {
         .animation(AppMotion.snappy, value: inputText.isEmpty)
     }
     
-    private func finalizeActiveRunningSessions(endedAt: Date = Date()) {
-        let running = sessions.filter { $0.isRunning }
+    private func finalizeActiveRunningSessions(except currentSession: Session? = nil, endedAt: Date = Date()) {
+        let running = sessions.filter { $0.isRunning && $0.persistentModelID != currentSession?.persistentModelID }
         for prior in running {
             prior.endedAt = endedAt
             let actual = max(1, Int(endedAt.timeIntervalSince(prior.startedAt ?? endedAt) / 60))
@@ -546,7 +553,14 @@ struct LogTabView: View {
     
     private func processSubmittedText(_ savedText: String) {
         // If there is an active session awaiting an estimate, check if input is a duration
-        if let pendingSession = sessions.last(where: { $0.startedAt == nil && $0.estimatedMinutes == nil && $0.endedAt == nil && !($0.isScheduleQuery ?? false) }) {
+        if let pendingSession = sessions.last(where: {
+            $0.startedAt == nil &&
+            $0.estimatedMinutes == nil &&
+            $0.endedAt == nil &&
+            !($0.isScheduleQuery ?? false) &&
+            !($0.isTravelQuery ?? false) &&
+            !($0.isConversational ?? false)
+        }) {
             if ChatParser.isDurationOnly(savedText), let mins = ChatParser.extractMinutes(from: savedText) {
                 setEstimate(mins, for: pendingSession)
                 return
@@ -567,6 +581,7 @@ struct LogTabView: View {
                 rawText: savedText,
                 startedAt: nil,
                 tempoResponse: nil,
+                isConversational: true,
                 createdAt: Date()
             )
             context.insert(session)
@@ -617,6 +632,7 @@ struct LogTabView: View {
                     rawText: savedText,
                     startedAt: nil,
                     tempoResponse: nil,
+                    isConversational: true,
                     createdAt: Date()
                 )
                 context.insert(session)
@@ -644,6 +660,7 @@ struct LogTabView: View {
                 estimatedMinutes: nil,
                 startedAt: nil,
                 tempoResponse: nil,
+                isConversational: false,
                 createdAt: Date()
             )
             context.insert(session)
@@ -671,6 +688,7 @@ struct LogTabView: View {
             startedAt: intent.isRetroactive ? Date().addingTimeInterval(-Double(mins) * 60) : Date(),
             tempoResponse: nil,
             isRetroactive: intent.isRetroactive,
+            isConversational: false,
             createdAt: Date()
         )
         
@@ -678,7 +696,7 @@ struct LogTabView: View {
         try? context.save()
         
         if !(intent.isRetroactive) {
-            finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
+            finalizeActiveRunningSessions(except: session, endedAt: session.startedAt ?? Date())
             LiveActivityManager.shared.startLiveActivity(
                 taskTitle: intent.text,
                 estimatedMinutes: mins,
@@ -850,7 +868,7 @@ struct LogTabView: View {
             createdAt: Date()
         )
         context.insert(session)
-        finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
+        finalizeActiveRunningSessions(except: session, endedAt: session.startedAt ?? Date())
         LiveActivityManager.shared.startLiveActivity(
             taskTitle: title,
             estimatedMinutes: minutes,
@@ -988,7 +1006,7 @@ struct LogTabView: View {
             isLinkedToReminders: !item.isCalendarEvent,
             createdAt: Date()
         )
-        finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
+        finalizeActiveRunningSessions(except: session, endedAt: session.startedAt ?? Date())
         context.insert(session)
         try? context.save()
         
@@ -1036,7 +1054,7 @@ struct LogTabView: View {
             tempoResponse: nil,
             createdAt: Date()
         )
-        finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
+        finalizeActiveRunningSessions(except: session, endedAt: session.startedAt ?? Date())
         context.insert(session)
         try? context.save()
         
@@ -1082,10 +1100,11 @@ struct LogTabView: View {
     }
     
     private func setEstimate(_ minutes: Int, for session: Session) {
+        finalizeActiveRunningSessions(except: session, endedAt: Date())
         session.estimatedMinutes = minutes
         session.startedAt = Date()
         session.tempoResponse = nil
-        finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
+        try? context.save()
         
         LiveActivityManager.shared.startLiveActivity(
             taskTitle: session.rawText,
@@ -1577,8 +1596,13 @@ struct LogTabView: View {
                     Button("Delete", role: .destructive) { context.delete(session) }
                 }
             
-            // If waiting for duration and Tempo has delivered the prompt:
-            if session.startedAt == nil && session.estimatedMinutes == nil {
+            if session.isConversational == true {
+                // Conversational chat: only render Tempo's response bubble, never duration pills
+                if let response = session.tempoResponse {
+                    aiBubble(text: response)
+                }
+            } else if session.startedAt == nil && session.estimatedMinutes == nil {
+                // If waiting for duration and Tempo has delivered the prompt:
                 if let response = session.tempoResponse {
                     VStack(alignment: .leading, spacing: 10) {
                         aiBubble(text: response)
