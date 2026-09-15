@@ -1,6 +1,7 @@
 import XCTest
 @testable import Actual
 
+@MainActor
 final class RoutineEngineTests: XCTestCase {
     
     func testDailyHabitMining() {

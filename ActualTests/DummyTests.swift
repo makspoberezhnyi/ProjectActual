@@ -3,6 +3,7 @@ import SwiftData
 import SwiftUI
 @testable import Actual
 
+@MainActor
 final class DummyTests: XCTestCase {
     
     @MainActor

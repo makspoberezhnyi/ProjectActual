@@ -38,6 +38,7 @@ public struct ScheduleItem: Identifiable, Hashable, Codable {
     }
 }
 
+@MainActor
 @Observable
 class EventKitManager {
     static let shared = EventKitManager()
@@ -123,7 +124,7 @@ class EventKitManager {
                 let reminders = await fetchIncompleteReminderObjects()
                 for reminder in reminders {
                     var timeStr = "Reminder"
-                    if let due = reminder.dueDateComponents?.date {
+                    if let due = reminder.dueDate {
                         timeStr = timeFormatter.string(from: due)
                     }
                     
@@ -144,8 +145,8 @@ class EventKitManager {
                     }
                     
                     let item = ScheduleItem(
-                        id: reminder.calendarItemIdentifier,
-                        title: reminder.title ?? "Task",
+                        id: reminder.identifier,
+                        title: reminder.title,
                         timeString: timeStr,
                         estimatedMinutes: 25,
                         isCalendarEvent: false,
@@ -336,13 +337,28 @@ class EventKitManager {
             .sorted { $0.startDate < $1.startDate }
     }
     
-    private func fetchIncompleteReminderObjects() async -> [EKReminder] {
-        return await withCheckedContinuation { continuation in
+    private struct ReminderItemData: Sendable {
+        let identifier: String
+        let title: String
+        let dueDate: Date?
+        let location: String?
+    }
+    
+    private func fetchIncompleteReminderObjects() async -> [ReminderItemData] {
+        await withCheckedContinuation { continuation in
             let calendars = store.calendars(for: .reminder)
             let predicate = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: calendars)
             
             store.fetchReminders(matching: predicate) { reminders in
-                continuation.resume(returning: reminders ?? [])
+                let items = (reminders ?? []).map {
+                    ReminderItemData(
+                        identifier: $0.calendarItemIdentifier,
+                        title: $0.title ?? "Untitled Reminder",
+                        dueDate: $0.dueDateComponents?.date,
+                        location: $0.location
+                    )
+                }
+                continuation.resume(returning: items)
             }
         }
     }

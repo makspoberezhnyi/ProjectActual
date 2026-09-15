@@ -63,6 +63,7 @@ struct RoutineSuggestion: Identifiable, Hashable {
     var timeDescription: String
 }
 
+@MainActor
 @Observable
 final class RoutineEngine {
     static let shared = RoutineEngine()
@@ -254,7 +255,8 @@ final class RoutineEngine {
     
     // MARK: - Notifications
     func requestNotificationAccessAndSync(sessions: [Session]) {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+        Task {
+            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
             guard granted else { return }
             self.scheduleRoutineNotifications(sessions: sessions)
         }

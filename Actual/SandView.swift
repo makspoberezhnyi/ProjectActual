@@ -184,7 +184,9 @@ class SandScene: SKScene {
     func startPouring() {
         emitTimer?.invalidate()
         emitTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            self?.spawnSand()
+            Task { @MainActor [weak self] in
+                self?.spawnSand()
+            }
         }
     }
     

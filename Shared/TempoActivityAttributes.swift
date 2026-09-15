@@ -1,8 +1,8 @@
 import ActivityKit
 import Foundation
 
-public struct TempoActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+public struct TempoActivityAttributes: ActivityAttributes, Sendable {
+    public struct ContentState: Codable, Hashable, Sendable {
         public var actualMinutes: Int
         public var isRunning: Bool
         

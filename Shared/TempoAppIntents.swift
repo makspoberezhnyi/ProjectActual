@@ -4,9 +4,9 @@ import WidgetKit
 import ActivityKit
 
 public struct StartFocusIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Start Focus Session"
-    public static var description = IntentDescription("Starts a focus session with a specified task and duration.")
-    public static var openAppWhenRun: Bool = false
+    public static let title: LocalizedStringResource = "Start Focus Session"
+    public static let description = IntentDescription("Starts a focus session with a specified task and duration.")
+    public static let openAppWhenRun: Bool = false
     
     @Parameter(title: "Task Title", default: "Deep Work")
     public var taskTitle: String
@@ -55,9 +55,9 @@ public struct StartFocusIntent: AppIntent {
 }
 
 public struct StopFocusIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Stop Focus Session"
-    public static var description = IntentDescription("Stops the active focus timer.")
-    public static var openAppWhenRun: Bool = false
+    public static let title: LocalizedStringResource = "Stop Focus Session"
+    public static let description = IntentDescription("Stops the active focus timer.")
+    public static let openAppWhenRun: Bool = false
     
     public init() {}
     
@@ -115,5 +115,5 @@ public struct TempoShortcuts: AppShortcutsProvider {
         )
     }
     
-    public static var shortcutTileColor: ShortcutTileColor = .teal
+    public static let shortcutTileColor: ShortcutTileColor = .teal
 }

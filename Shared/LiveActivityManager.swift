@@ -8,6 +8,22 @@ final public class LiveActivityManager: Sendable {
     
     private var currentActivity: Activity<TempoActivityAttributes>?
     
+    private func terminateActivities(finalState: TempoActivityAttributes.ContentState? = nil) {
+        let state = finalState
+        Task {
+            for activity in Activity<TempoActivityAttributes>.activities {
+                if let state {
+                    await activity.end(
+                        ActivityContent(state: state, staleDate: nil),
+                        dismissalPolicy: .immediate
+                    )
+                } else {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
+        }
+    }
+    
     public func startLiveActivity(
         taskTitle: String,
         estimatedMinutes: Int,
@@ -30,12 +46,7 @@ final public class LiveActivityManager: Sendable {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         
         // 2. End any existing activities first to prevent duplicates or ghost states
-        let existingActivities = Activity<TempoActivityAttributes>.activities
-        Task { @MainActor in
-            for act in existingActivities {
-                await act.end(nil, dismissalPolicy: .immediate)
-            }
-        }
+        terminateActivities()
         
         let attributes = TempoActivityAttributes(
             taskTitle: taskTitle,
@@ -69,15 +80,7 @@ final public class LiveActivityManager: Sendable {
             isRunning: false
         )
         
-        let activitiesToEnd = Activity<TempoActivityAttributes>.activities
-        Task { @MainActor in
-            for activity in activitiesToEnd {
-                await activity.end(
-                    ActivityContent(state: finalState, staleDate: nil),
-                    dismissalPolicy: .immediate
-                )
-            }
-        }
+        terminateActivities(finalState: finalState)
         self.currentActivity = nil
     }
     
@@ -85,12 +88,7 @@ final public class LiveActivityManager: Sendable {
         WidgetDataStore.shared.stopActiveSession()
         WidgetCenter.shared.reloadAllTimelines()
         
-        let activitiesToEnd = Activity<TempoActivityAttributes>.activities
-        Task { @MainActor in
-            for activity in activitiesToEnd {
-                await activity.end(nil, dismissalPolicy: .immediate)
-            }
-        }
+        terminateActivities()
         self.currentActivity = nil
     }
 }

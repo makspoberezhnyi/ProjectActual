@@ -142,8 +142,9 @@ public struct TravelAssessmentResult: Identifiable, Codable, Hashable {
     }
 }
 
+@MainActor
 @Observable
-public final class LocationTravelManager: NSObject, CLLocationManagerDelegate {
+public final class LocationTravelManager: NSObject, @preconcurrency CLLocationManagerDelegate {
     public static let shared = LocationTravelManager()
     
     private let locationManager = CLLocationManager()
