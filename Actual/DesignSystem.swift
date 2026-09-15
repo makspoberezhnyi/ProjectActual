@@ -169,6 +169,7 @@ public extension AnyTransition {
 }
 
 public struct MessageEntranceModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var isUser: Bool
     var isRecent: Bool
     @State private var hasAppeared: Bool = false
@@ -179,7 +180,7 @@ public struct MessageEntranceModifier: ViewModifier {
     }
     
     public func body(content: Content) -> some View {
-        if isRecent {
+        if isRecent && !reduceMotion {
             content
                 .scaleEffect(hasAppeared ? 1.0 : (isUser ? 0.35 : 0.70), anchor: isUser ? .bottomTrailing : .bottomLeading)
                 .offset(
@@ -231,11 +232,12 @@ public extension ButtonStyle where Self == PressableScaleButtonStyle {
 
 // MARK: - Shimmer Text & Thinking States (15-shimmer-text & 28-thinking-states)
 public struct ShimmerModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: CGFloat = -1.0
     var isActive: Bool = true
     
     public func body(content: Content) -> some View {
-        if isActive {
+        if isActive && !reduceMotion {
             content
                 .overlay {
                     GeometryReader { geo in
@@ -297,34 +299,27 @@ public extension View {
     }
 }
 
-// MARK: - Staggered Typing Dots (transitions.dev 28-thinking-states)
+// MARK: - Staggered Typing Dots using PhaseAnimator (iOS 17+ swiftui-animation)
 public struct TypingDotsView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @State private var dotScales: [CGFloat] = [1.0, 1.0, 1.0]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     
     public init() {}
     
     public var body: some View {
         HStack(spacing: 5) {
             ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .frame(width: 6, height: 6)
-                    .scaleEffect(dotScales[index])
-                    .opacity(0.35 + Double(index) * 0.25)
-            }
-        }
-        .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.7) : Color.black.opacity(0.5))
-        .onAppear {
-            for i in 0..<3 {
-                withAnimation(
-                    Animation.easeInOut(duration: 0.6)
-                        .repeatForever(autoreverses: true)
-                        .delay(Double(i) * 0.15)
-                ) {
-                    dotScales[i] = 1.35
+                PhaseAnimator([0.0, 1.0, 0.0]) { phase in
+                    Circle()
+                        .frame(width: 6, height: 6)
+                        .scaleEffect(reduceMotion ? 1.0 : (1.0 + phase * 0.35))
+                        .opacity(reduceMotion ? 0.8 : (0.4 + phase * 0.5))
+                } animation: { _ in
+                    .easeInOut(duration: 0.5).delay(Double(index) * 0.16)
                 }
             }
         }
+        .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.7) : Color.black.opacity(0.5))
     }
 }
 

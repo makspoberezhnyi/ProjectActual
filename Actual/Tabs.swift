@@ -6,6 +6,7 @@ import CoreLocation
 struct LogTabView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     
     var sessions: [Session]
     @Binding var calibrationScore: Double
@@ -200,12 +201,12 @@ struct LogTabView: View {
                                 )
                             )
                             .shadow(color: Color.blue.opacity(0.35), radius: 8, x: 0, y: 3)
-                            .scaleEffect(isFlyingMessage ? 1.0 : 0.85, anchor: .bottomTrailing)
+                            .scaleEffect(reduceMotion ? 1.0 : (isFlyingMessage ? 1.0 : 0.85), anchor: .bottomTrailing)
                             .offset(
-                                x: isFlyingMessage ? 0 : -35,
-                                y: isFlyingMessage ? -75 : -14
+                                x: reduceMotion ? 0 : (isFlyingMessage ? 0 : -35),
+                                y: reduceMotion ? 0 : (isFlyingMessage ? -75 : -14)
                             )
-                            .opacity(isFlyingMessage ? 1.0 : 0.95)
+                            .opacity(reduceMotion ? 1.0 : (isFlyingMessage ? 1.0 : 0.95))
                         }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 12)
@@ -525,14 +526,21 @@ struct LogTabView: View {
         flyingMessageText = savedText
         isFlyingMessage = false
         
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.68)) {
-            isFlyingMessage = true
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
+        if reduceMotion {
             processSubmittedText(savedText)
             flyingMessageText = nil
             isFlyingMessage = false
+        } else {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.68)) {
+                isFlyingMessage = true
+            }
+            
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                processSubmittedText(savedText)
+                flyingMessageText = nil
+                isFlyingMessage = false
+            }
         }
     }
     
@@ -565,7 +573,8 @@ struct LogTabView: View {
             try? context.save()
             
             isTyping = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(850))
                 let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
                 arrivalHaptic.impactOccurred()
                 withAnimation(AppMotion.messageAIPop) {
@@ -614,7 +623,8 @@ struct LogTabView: View {
                 try? context.save()
                 
                 isTyping = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(750))
                     let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
                     arrivalHaptic.impactOccurred()
                     withAnimation(AppMotion.messageAIPop) {
@@ -640,7 +650,8 @@ struct LogTabView: View {
             try? context.save()
             
             isTyping = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(850))
                 let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
                 arrivalHaptic.impactOccurred()
                 withAnimation(AppMotion.messageAIPop) {
@@ -682,7 +693,8 @@ struct LogTabView: View {
         
         isTyping = true
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.90) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(900))
             let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
             arrivalHaptic.impactOccurred()
             withAnimation(AppMotion.messageAIPop) {
@@ -995,7 +1007,8 @@ struct LogTabView: View {
         )
         
         isTyping = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(850))
             let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
             arrivalHaptic.impactOccurred()
             withAnimation(AppMotion.messageAIPop) {
@@ -1039,7 +1052,8 @@ struct LogTabView: View {
         )
         
         isTyping = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(850))
             let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
             arrivalHaptic.impactOccurred()
             withAnimation(AppMotion.messageAIPop) {
@@ -1070,6 +1084,7 @@ struct LogTabView: View {
     private func setEstimate(_ minutes: Int, for session: Session) {
         session.estimatedMinutes = minutes
         session.startedAt = Date()
+        session.tempoResponse = nil
         finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
         
         LiveActivityManager.shared.startLiveActivity(
@@ -1087,7 +1102,8 @@ struct LogTabView: View {
         )
         
         isTyping = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(850))
             let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
             arrivalHaptic.impactOccurred()
             withAnimation(AppMotion.messageAIPop) {
@@ -1561,36 +1577,33 @@ struct LogTabView: View {
                     Button("Delete", role: .destructive) { context.delete(session) }
                 }
             
-            // If it's a pure conversational reply (no timers, not running, no duration needed)
-            if session.startedAt == nil && session.estimatedMinutes == nil && session.tempoResponse != nil && session.tempoResponse != "How long do you expect this to take?" {
-                aiBubble(text: session.tempoResponse!)
-                    .contextMenu {
-                        Button("Delete", role: .destructive) { context.delete(session) }
-                    }
-            }
-            // If waiting for duration
-            else if session.startedAt == nil && session.estimatedMinutes == nil {
-                VStack(alignment: .leading, spacing: 10) {
-                    aiBubble(text: session.tempoResponse ?? "How long do you expect this to take?")
-
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
-                                Button {
-                                    setEstimate(mins, for: session)
-                                } label: {
-                                    Text("\(mins)m")
-                                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                                        .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 8)
-                                        .background(colorScheme == .dark ? Color.white : Color.black, in: Capsule())
+            // If waiting for duration and Tempo has delivered the prompt:
+            if session.startedAt == nil && session.estimatedMinutes == nil {
+                if let response = session.tempoResponse {
+                    VStack(alignment: .leading, spacing: 10) {
+                        aiBubble(text: response)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
+                                    Button {
+                                        setEstimate(mins, for: session)
+                                    } label: {
+                                        Text("\(mins)m")
+                                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                                            .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 8)
+                                            .background(colorScheme == .dark ? Color.white : Color.black, in: Capsule())
+                                    }
+                                    .pressable(scale: 0.95)
                                 }
                             }
+                            .padding(.horizontal, 4)
                         }
-                        .padding(.horizontal, 4)
+                        .transition(.iMessageAIPop)
                     }
+                    .transition(.iMessageAIPop)
                 }
             } else if let response = session.tempoResponse {
                 if !(session.isRetroactive ?? false) || session.isRunning {
@@ -1615,6 +1628,7 @@ struct LogTabView: View {
                     
                     Spacer()
                 }
+                .transition(.iMessageAIPop)
             }
             
             if !session.isRunning, session.actualMinutes != nil {
@@ -1792,6 +1806,7 @@ struct LogTabView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(Color.blue)
                     .symbolEffect(.pulse.byLayer, options: .repeating)
+                    .symbolEffectsRemoved(reduceMotion)
             }
             .padding(.bottom, 2)
             

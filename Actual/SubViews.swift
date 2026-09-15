@@ -157,12 +157,16 @@ struct HistoryTabView: View {
                     if hours > 0 {
                         Text("\(hours)")
                             .font(.system(size: 26, weight: .heavy, design: .rounded))
+                            .contentTransition(.numericText(countsDown: false))
+                            .animation(.snappy, value: hours)
                         Text("h")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(.primary.opacity(0.5))
                     }
                     Text("\(mins)")
                         .font(.system(size: 26, weight: .heavy, design: .rounded))
+                        .contentTransition(.numericText(countsDown: false))
+                        .animation(.snappy, value: mins)
                     Text("m")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary.opacity(0.5))
@@ -182,6 +186,8 @@ struct HistoryTabView: View {
                 
                 Text("\(completedCount)")
                     .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .contentTransition(.numericText(countsDown: false))
+                    .animation(.snappy, value: completedCount)
                     .foregroundStyle(.primary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
