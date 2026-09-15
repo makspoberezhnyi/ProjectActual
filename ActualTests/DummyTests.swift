@@ -365,5 +365,53 @@ final class DummyTests: XCTestCase {
         XCTAssertEqual(hourly.hourLabel, "2 PM")
         XCTAssertEqual(hourly.minutes, 65)
     }
+    
+    @MainActor
+    func testLiveActivityAndWidgetDataStoreLifecycle() throws {
+        let store = WidgetDataStore.shared
+        store.clearPendingSessions()
+        
+        // 1. Start Session
+        let startDate = Date()
+        store.startSession(
+            title: "Code Review",
+            minutes: 30,
+            startDate: startDate,
+            linkedEventIdentifier: "cal_123",
+            isLinkedToCalendar: true,
+            isLinkedToReminders: false
+        )
+        
+        var snapshot = store.loadSnapshot()
+        XCTAssertTrue(snapshot.isRunning)
+        XCTAssertEqual(snapshot.activeTaskTitle, "Code Review")
+        XCTAssertEqual(snapshot.activeTaskEstimatedMinutes, 30)
+        
+        let pending = store.loadPendingSessions()
+        XCTAssertEqual(pending.last?.isLinkedToCalendar, true)
+        XCTAssertEqual(pending.last?.rawText, "Code Review")
+        
+        // 2. Extend Session
+        store.extendActiveSession(by: 10)
+        snapshot = store.loadSnapshot()
+        XCTAssertTrue(snapshot.isRunning)
+        XCTAssertEqual(snapshot.activeTaskEstimatedMinutes, 40)
+        
+        // 3. Stop Session
+        store.stopActiveSession()
+        snapshot = store.loadSnapshot()
+        XCTAssertFalse(snapshot.isRunning)
+        XCTAssertNil(snapshot.activeTaskTitle)
+        
+        // 4. LiveActivityManager API Safety
+        LiveActivityManager.shared.startLiveActivity(
+            taskTitle: "Design Specs",
+            estimatedMinutes: 25,
+            startDate: Date()
+        )
+        LiveActivityManager.shared.updateLiveActivity(estimatedMinutes: 30, statusMessage: "+5m Added")
+        LiveActivityManager.shared.endLiveActivity(actualMinutes: 28)
+    }
 }
+
 

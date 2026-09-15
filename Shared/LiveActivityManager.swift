@@ -8,10 +8,13 @@ final public class LiveActivityManager: Sendable {
     
     private var currentActivity: Activity<TempoActivityAttributes>?
     
-    private func terminateActivities(finalState: TempoActivityAttributes.ContentState? = nil) {
+    private func terminateActivities(ids: Set<String>? = nil, finalState: TempoActivityAttributes.ContentState? = nil) {
         let state = finalState
         Task {
             for activity in Activity<TempoActivityAttributes>.activities {
+                if let ids, !ids.contains(activity.id) {
+                    continue
+                }
                 if let state {
                     await activity.end(
                         ActivityContent(state: state, staleDate: nil),
@@ -43,10 +46,18 @@ final public class LiveActivityManager: Sendable {
         )
         WidgetCenter.shared.reloadAllTimelines()
         
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let areEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
+        print("[LiveActivityManager] areActivitiesEnabled: \(areEnabled)")
+        guard areEnabled else {
+            print("[LiveActivityManager] Live Activities are currently disabled in system settings.")
+            return
+        }
         
-        // 2. End any existing activities first to prevent duplicates or ghost states
-        terminateActivities()
+        // 2. End any existing activities first by capturing existing IDs
+        let existingIds = Set(Activity<TempoActivityAttributes>.activities.map(\.id))
+        if !existingIds.isEmpty {
+            terminateActivities(ids: existingIds)
+        }
         
         let attributes = TempoActivityAttributes(
             taskTitle: taskTitle,
@@ -67,8 +78,9 @@ final public class LiveActivityManager: Sendable {
                 pushType: nil
             )
             self.currentActivity = activity
+            print("[LiveActivityManager] Successfully started Live Activity: \(activity.id)")
         } catch {
-            print("Failed to start Live Activity: \(error)")
+            print("[LiveActivityManager] Failed to start Live Activity: \(error)")
         }
     }
     
