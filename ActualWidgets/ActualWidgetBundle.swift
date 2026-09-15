@@ -150,7 +150,7 @@ struct TempoLiveActivity: Widget {
                             Spacer()
                             
                             // Interactive Done Action Button
-                            Button(intent: StopFocusIntent()) {
+                            Button(intent: StopFocusIntent(activityId: context.activityID)) {
                                 HStack(spacing: 4) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 12, weight: .bold))
@@ -293,7 +293,7 @@ struct TempoLiveActivityLockScreenBanner: View {
                 )
                 .tint(WidgetTheme.blue)
                 
-                Button(intent: StopFocusIntent()) {
+                Button(intent: StopFocusIntent(activityId: context.activityID)) {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark")
                             .font(.system(size: 10, weight: .heavy))

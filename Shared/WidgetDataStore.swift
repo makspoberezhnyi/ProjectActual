@@ -84,6 +84,7 @@ final public class WidgetDataStore: @unchecked Sendable {
     public func saveSnapshot(_ snapshot: WidgetSnapshotData) {
         if let data = try? JSONEncoder().encode(snapshot) {
             userDefaults?.set(data, forKey: snapshotKey)
+            userDefaults?.synchronize()
         }
     }
     
@@ -203,10 +204,12 @@ final public class WidgetDataStore: @unchecked Sendable {
     public func savePendingSessions(_ list: [PendingSessionData]) {
         if let data = try? JSONEncoder().encode(list) {
             userDefaults?.set(data, forKey: pendingQueueKey)
+            userDefaults?.synchronize()
         }
     }
     
     public func clearPendingSessions() {
         userDefaults?.removeObject(forKey: pendingQueueKey)
+        userDefaults?.synchronize()
     }
 }

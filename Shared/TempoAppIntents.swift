@@ -95,10 +95,26 @@ public struct StopFocusIntent: AppIntent {
     public static let description = IntentDescription("Stops the active focus timer.")
     public static let openAppWhenRun: Bool = false
     
-    public init() {}
+    @Parameter(title: "Activity ID")
+    public var activityId: String?
+    
+    public init() {
+        self.activityId = nil
+    }
+    
+    public init(activityId: String?) {
+        self.activityId = activityId
+    }
     
     public func perform() async throws -> some IntentResult {
         WidgetDataStore.shared.stopActiveSession()
+        
+        let targetId = activityId
+        for activity in Activity<TempoActivityAttributes>.activities {
+            if targetId == nil || activity.id == targetId {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+        }
         
         for activity in Activity<TempoActivityAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)
