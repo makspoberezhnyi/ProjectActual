@@ -136,22 +136,22 @@ struct LogTabView: View {
                         .defaultScrollAnchor(.bottom)
                         .onChange(of: sessions.count) { _, _ in
                             if let last = sessions.last {
-                                withAnimation(AppMotion.smoothOut) { proxy.scrollTo(last.id, anchor: .bottom) }
+                                withAnimation(AppMotion.messageScroll) { proxy.scrollTo(last.id, anchor: .bottom) }
                             }
                         }
                         .onChange(of: sessions.last?.schedulePayload) { _, _ in
                             if let last = sessions.last {
-                                withAnimation(AppMotion.smoothOut) { proxy.scrollTo(last.id, anchor: .bottom) }
+                                withAnimation(AppMotion.messageScroll) { proxy.scrollTo(last.id, anchor: .bottom) }
                             }
                         }
                         .onChange(of: isTyping) { _, isTypingNow in
                             if isTypingNow {
-                                withAnimation(AppMotion.smoothOut) { proxy.scrollTo("typing", anchor: .bottom) }
+                                withAnimation(AppMotion.messageScroll) { proxy.scrollTo("typing", anchor: .bottom) }
                             }
                         }
                         .onChange(of: targetScrollId) { _, target in
                             if let target {
-                                withAnimation(AppMotion.smoothOut) {
+                                withAnimation(AppMotion.messageScroll) {
                                     proxy.scrollTo(target, anchor: .top)
                                 }
                                 targetScrollId = nil
@@ -470,14 +470,22 @@ struct LogTabView: View {
         guard !inputText.isEmpty else { return }
         let savedText = inputText
         
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.prepare()
+        impact.impactOccurred()
+        
         // If there is an active session awaiting an estimate, check if input is a duration
         if let pendingSession = sessions.last(where: { $0.startedAt == nil && $0.estimatedMinutes == nil && $0.endedAt == nil && !($0.isScheduleQuery ?? false) }) {
             if ChatParser.isDurationOnly(savedText), let mins = ChatParser.extractMinutes(from: savedText) {
-                inputText = ""
+                withAnimation(AppMotion.messageFly) {
+                    inputText = ""
+                }
                 setEstimate(mins, for: pendingSession)
                 return
             } else if let mins = ChatParser.extractMinutes(from: savedText), !savedText.contains(" ") {
-                inputText = ""
+                withAnimation(AppMotion.messageFly) {
+                    inputText = ""
+                }
                 setEstimate(mins, for: pendingSession)
                 return
             } else {
@@ -487,7 +495,9 @@ struct LogTabView: View {
         }
         
         let intent = ChatParser.parse(savedText, sessions: sessions)
-        inputText = ""
+        withAnimation(AppMotion.messageFly) {
+            inputText = ""
+        }
         
         // 1. Conversational Chat & Small Talk
         if intent.isConversational, let reply = intent.conversationalReply {
@@ -497,10 +507,14 @@ struct LogTabView: View {
                 tempoResponse: reply,
                 createdAt: Date()
             )
-            context.insert(session)
+            withAnimation(AppMotion.messageFly) {
+                context.insert(session)
+            }
             isTyping = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                self.isTyping = false
+                withAnimation(AppMotion.messageAIPop) {
+                    self.isTyping = false
+                }
             }
             return
         }
@@ -538,7 +552,9 @@ struct LogTabView: View {
                     tempoResponse: "No active session is currently running.",
                     createdAt: Date()
                 )
-                context.insert(session)
+                withAnimation(AppMotion.messageFly) {
+                    context.insert(session)
+                }
                 try? context.save()
             }
             return
@@ -552,7 +568,9 @@ struct LogTabView: View {
                 startedAt: nil,
                 tempoResponse: "How long do you expect this to take?"
             )
-            context.insert(session)
+            withAnimation(AppMotion.messageFly) {
+                context.insert(session)
+            }
             return
         }
         
@@ -565,7 +583,9 @@ struct LogTabView: View {
             isRetroactive: intent.isRetroactive
         )
         
-        context.insert(session)
+        withAnimation(AppMotion.messageFly) {
+            context.insert(session)
+        }
         
         if !(intent.isRetroactive) {
             finalizeActiveRunningSessions(endedAt: session.startedAt ?? Date())
@@ -994,13 +1014,16 @@ struct LogTabView: View {
     
     @ViewBuilder
     private func sessionChatSequence(for session: Session) -> some View {
-        if session.isScheduleQuery == true {
-            scheduleQuerySequence(for: session)
-        } else if session.isTravelQuery == true {
-            travelQuerySequence(for: session)
-        } else {
-            standardSessionSequence(for: session)
+        Group {
+            if session.isScheduleQuery == true {
+                scheduleQuerySequence(for: session)
+            } else if session.isTravelQuery == true {
+                travelQuerySequence(for: session)
+            } else {
+                standardSessionSequence(for: session)
+            }
         }
+        .transition(.iMessageUserFly)
     }
     
     @ViewBuilder
@@ -1515,7 +1538,7 @@ struct LogTabView: View {
     }
     
     @ViewBuilder
-    private func userBubble(text: String, est: Int?) -> some View {
+    private func userBubble(text: String, est: Int?, isRecent: Bool = true) -> some View {
         HStack(alignment: .bottom, spacing: 0) {
             Spacer(minLength: 48)
             
@@ -1552,10 +1575,12 @@ struct LogTabView: View {
             )
             .shadow(color: Color.blue.opacity(0.22), radius: 6, x: 0, y: 2)
         }
+        .imessageEntrance(isUser: true, isRecent: isRecent)
+        .transition(.iMessageUserFly)
     }
     
     @ViewBuilder
-    private func aiBubble(text: String) -> some View {
+    private func aiBubble(text: String, isRecent: Bool = true) -> some View {
         HStack(alignment: .bottom, spacing: 8) {
             ZStack {
                 Circle()
@@ -1595,6 +1620,8 @@ struct LogTabView: View {
             
             Spacer(minLength: 36)
         }
+        .imessageEntrance(isUser: false, isRecent: isRecent)
+        .transition(.iMessageAIPop)
     }
     
     @ViewBuilder
