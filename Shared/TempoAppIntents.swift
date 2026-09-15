@@ -24,43 +24,45 @@ public struct StartFocusIntent: LiveActivityIntent, AppIntent {
     public func perform() async throws -> some IntentResult {
         let now = Date()
         
-        // 1. End any existing activities first with terminal state and immediate dismissal
-        let finalState = TempoActivityAttributes.ContentState(
-            estimatedMinutes: 0,
-            actualMinutes: 0,
-            isRunning: false,
-            statusMessage: "Done"
-        )
-        let finalContent = ActivityContent(state: finalState, staleDate: nil)
-        for activity in Activity<TempoActivityAttributes>.activities {
-            await activity.end(finalContent, dismissalPolicy: .immediate)
-            await activity.end(nil, dismissalPolicy: .immediate)
-        }
-        
-        // 2. Persist to AppGroup WidgetDataStore
+        // 1. Persist to AppGroup WidgetDataStore immediately
         WidgetDataStore.shared.startSession(title: taskTitle, minutes: minutes, startDate: now)
         
-        // 3. Start Live Activity on Dynamic Island & Lock Screen
-        let attributes = TempoActivityAttributes(
-            taskTitle: taskTitle,
-            startDate: now
-        )
-        let initialContent = TempoActivityAttributes.ContentState(
-            estimatedMinutes: minutes,
-            actualMinutes: 0,
-            isRunning: true
-        )
-        do {
-            let activity = try Activity<TempoActivityAttributes>.request(
-                attributes: attributes,
-                content: .init(state: initialContent, staleDate: nil),
-                pushType: nil
+        // 2. Start Live Activity asynchronously
+        Task {
+            let finalState = TempoActivityAttributes.ContentState(
+                estimatedMinutes: 0,
+                actualMinutes: 0,
+                isRunning: false,
+                statusMessage: "Done"
             )
-            print("[StartFocusIntent] Started Live Activity: \(activity.id)")
-        } catch {
-            print("[StartFocusIntent] Failed to start Live Activity: \(error)")
+            let finalContent = ActivityContent(state: finalState, staleDate: nil)
+            for activity in Activity<TempoActivityAttributes>.activities {
+                await activity.end(finalContent, dismissalPolicy: .immediate)
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+            
+            let attributes = TempoActivityAttributes(
+                taskTitle: taskTitle,
+                startDate: now
+            )
+            let initialContent = TempoActivityAttributes.ContentState(
+                estimatedMinutes: minutes,
+                actualMinutes: 0,
+                isRunning: true
+            )
+            do {
+                let activity = try Activity<TempoActivityAttributes>.request(
+                    attributes: attributes,
+                    content: .init(state: initialContent, staleDate: nil),
+                    pushType: nil
+                )
+                print("[StartFocusIntent] Started Live Activity: \(activity.id)")
+            } catch {
+                print("[StartFocusIntent] Failed to start Live Activity: \(error)")
+            }
         }
         
+        // 3. Immediately trigger Widget reload
         WidgetCenter.shared.reloadAllTimelines()
         WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
         WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")
@@ -121,6 +123,7 @@ public struct StopFocusIntent: LiveActivityIntent, AppIntent {
     }
     
     public func perform() async throws -> some IntentResult {
+        // 1. Instantly stop the session and persist completion state
         WidgetDataStore.shared.stopActiveSession()
         
         let completionState = TempoActivityAttributes.ContentState(
@@ -132,33 +135,30 @@ public struct StopFocusIntent: LiveActivityIntent, AppIntent {
         let finalContent = ActivityContent(state: completionState, staleDate: nil)
         
         let targetId = activityId
-        // 1. First broadcast the completion state to show the bouncy checkmark & confirmation UI
-        for activity in Activity<TempoActivityAttributes>.activities {
-            if targetId == nil || activity.id == targetId {
-                await activity.update(finalContent)
+        // 2. Manage Live Activity animations & dismissal asynchronously so perform() returns with 0ms delay
+        Task {
+            for activity in Activity<TempoActivityAttributes>.activities {
+                if targetId == nil || activity.id == targetId {
+                    await activity.update(finalContent)
+                }
             }
-        }
-        
-        WidgetCenter.shared.reloadAllTimelines()
-        WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
-        WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")
-        
-        // 2. Allow 550ms for the visual confirmation animation to celebrate the finished session
-        try? await Task.sleep(nanoseconds: 550_000_000)
-        
-        // 3. Immediately dismiss the Live Activity
-        for activity in Activity<TempoActivityAttributes>.activities {
-            if targetId == nil || activity.id == targetId {
+            
+            // Allow 600ms for Live Activity dynamic island / banner animation then dismiss
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            
+            for activity in Activity<TempoActivityAttributes>.activities {
+                if targetId == nil || activity.id == targetId {
+                    await activity.end(finalContent, dismissalPolicy: .immediate)
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
+            for activity in Activity<TempoActivityAttributes>.activities {
                 await activity.end(finalContent, dismissalPolicy: .immediate)
                 await activity.end(nil, dismissalPolicy: .immediate)
             }
         }
         
-        for activity in Activity<TempoActivityAttributes>.activities {
-            await activity.end(finalContent, dismissalPolicy: .immediate)
-            await activity.end(nil, dismissalPolicy: .immediate)
-        }
-        
+        // 3. Immediately trigger Widget reloads without any sleep delay
         WidgetCenter.shared.reloadAllTimelines()
         WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
         WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")

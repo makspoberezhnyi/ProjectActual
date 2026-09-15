@@ -415,7 +415,9 @@ struct TempoWidgetProvider: TimelineProvider {
     
     func getSnapshot(in context: Context, completion: @escaping (TempoWidgetEntry) -> Void) {
         let snapshot = WidgetDataStore.shared.loadSnapshot()
-        completion(TempoWidgetEntry(date: Date(), snapshot: snapshot, isCelebration: false))
+        let now = Date()
+        let isCelebration = snapshot.lastCompletedAt.map { now.timeIntervalSince($0) < 6 } ?? false
+        completion(TempoWidgetEntry(date: now, snapshot: snapshot, isCelebration: isCelebration))
     }
     
     func getTimeline(in context: Context, completion: @escaping (Timeline<TempoWidgetEntry>) -> Void) {
@@ -423,12 +425,11 @@ struct TempoWidgetProvider: TimelineProvider {
         let now = Date()
         
         var entries: [TempoWidgetEntry] = []
-        if let completedAt = snapshot.lastCompletedAt, now.timeIntervalSince(completedAt) < 7 {
+        if let completedAt = snapshot.lastCompletedAt, now.timeIntervalSince(completedAt) < 6 {
             // 1. Immediately show full-size completed celebration screen
             let celebrationEntry = TempoWidgetEntry(date: now, snapshot: snapshot, isCelebration: true)
-            // 2. Schedule automatic transition back to functional widget view after 3.5 seconds
-            let revertDate = completedAt.addingTimeInterval(3.5)
-            let returnDate = revertDate > now ? revertDate : now.addingTimeInterval(3.5)
+            // 2. Schedule automatic transition back to functional widget view after 3.2 seconds
+            let returnDate = now.addingTimeInterval(3.2)
             let functionalEntry = TempoWidgetEntry(date: returnDate, snapshot: snapshot, isCelebration: false)
             entries = [celebrationEntry, functionalEntry]
         } else {
@@ -447,25 +448,28 @@ struct TempoWidgetEntryView: View {
     var entry: TempoWidgetEntry
     
     var body: some View {
-        if entry.isCelebration {
-            switch family {
-            case .systemSmall:
-                smallCelebrationView
-            case .systemMedium:
-                mediumCelebrationView
-            default:
-                smallCelebrationView
-            }
-        } else {
-            switch family {
-            case .systemSmall:
-                smallWidgetView
-            case .systemMedium:
-                mediumWidgetView
-            default:
-                smallWidgetView
+        Group {
+            if entry.isCelebration {
+                switch family {
+                case .systemSmall:
+                    smallCelebrationView
+                case .systemMedium:
+                    mediumCelebrationView
+                default:
+                    smallCelebrationView
+                }
+            } else {
+                switch family {
+                case .systemSmall:
+                    smallWidgetView
+                case .systemMedium:
+                    mediumWidgetView
+                default:
+                    smallWidgetView
+                }
             }
         }
+        .animation(.snappy(duration: 0.3), value: entry.isCelebration)
     }
     
     // Full-Size Completed Screen for Small Widget
