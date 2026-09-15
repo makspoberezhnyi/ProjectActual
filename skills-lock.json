@@ -31,6 +31,12 @@
       "skillPath": "skills/app-clips/SKILL.md",
       "computedHash": "8df5111f82fb07e2c8de43195a3eea41638839c4c46c9120e436d25ca650e84c"
     },
+    "app-icon": {
+      "source": "melvynx/aiblueprint",
+      "sourceType": "github",
+      "skillPath": "skills/app-icon/SKILL.md",
+      "computedHash": "0d667e0070efb20f7ef0461162441b22c12f4a9572654084a00d83c449f5084b"
+    },
     "app-intents": {
       "source": "dpearson2699/swift-ios-skills",
       "sourceType": "github",
