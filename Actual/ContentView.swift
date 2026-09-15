@@ -22,23 +22,17 @@ struct ContentView: View {
                 }
                 .tag(0)
             
-            CoreTabView(isRunning: isRunning, calibrationScore: calibrationScore)
-                .tabItem {
-                    Label("Core", systemImage: "aqi.medium")
-                }
-                .tag(1)
-            
             HistoryTabView(sessions: sessions)
                 .tabItem {
                     Label("History", systemImage: "clock.fill")
                 }
-                .tag(2)
+                .tag(1)
             
             InsightsTabView(sessions: sessions, calibrationScore: calibrationScore)
                 .tabItem {
                     Label("Insights", systemImage: "chart.pie.fill")
                 }
-                .tag(3)
+                .tag(2)
         }
         .tint(.primary)
         .onOpenURL { url in
@@ -48,12 +42,10 @@ struct ContentView: View {
                     NotificationCenter.default.post(name: .checkScheduleNotification, object: nil)
                 } else if url.host == "log" || url.host == "chat" {
                     selectedTab = 0
-                } else if url.host == "insights" {
-                    selectedTab = 3
                 } else if url.host == "history" {
-                    selectedTab = 2
-                } else if url.host == "core" {
                     selectedTab = 1
+                } else if url.host == "insights" {
+                    selectedTab = 2
                 }
             }
         }
