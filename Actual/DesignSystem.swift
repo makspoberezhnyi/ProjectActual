@@ -114,94 +114,38 @@ public enum AppMotion {
     public static let distanceBase: CGFloat = 8
     public static let distanceMedium: CGFloat = 12
     
-    // iMessage-Style Spring Physics
-    public static let messageFly = Animation.spring(response: 0.38, dampingFraction: 0.65)
-    public static let messageAIPop = Animation.spring(response: 0.36, dampingFraction: 0.72)
-    public static let messageScroll = Animation.spring(response: 0.36, dampingFraction: 0.78)
+    // iMessage-Style Spring Physics (high frame rate, fluid ProMotion)
+    public static let messageFly = Animation.spring(response: 0.32, dampingFraction: 0.74)
+    public static let messageAIPop = Animation.spring(response: 0.30, dampingFraction: 0.78)
+    public static let messageScroll = Animation.spring(response: 0.32, dampingFraction: 0.82)
 }
 
-// MARK: - iMessage-Style Fly-in Transitions & Modifiers (transitions-polish)
-
-public struct IMessageFlyModifier: ViewModifier {
-    public var scale: CGFloat
-    public var offsetX: CGFloat
-    public var offsetY: CGFloat
-    public var opacity: Double
-    public var anchor: UnitPoint
-    
-    public init(scale: CGFloat, offsetX: CGFloat, offsetY: CGFloat, opacity: Double, anchor: UnitPoint = .bottomTrailing) {
-        self.scale = scale
-        self.offsetX = offsetX
-        self.offsetY = offsetY
-        self.opacity = opacity
-        self.anchor = anchor
-    }
-    
-    public func body(content: Content) -> some View {
-        content
-            .scaleEffect(scale, anchor: anchor)
-            .offset(x: offsetX, y: offsetY)
-            .opacity(opacity)
-    }
-}
+// MARK: - iMessage-Style Fluid Transitions (swiftui-animation)
 
 @MainActor
 public extension AnyTransition {
     static var iMessageUserFly: AnyTransition {
         .asymmetric(
-            insertion: .modifier(
-                active: IMessageFlyModifier(scale: 0.35, offsetX: 30, offsetY: 55, opacity: 0.0, anchor: .bottomTrailing),
-                identity: IMessageFlyModifier(scale: 1.0, offsetX: 0, offsetY: 0, opacity: 1.0, anchor: .bottomTrailing)
-            ).animation(AppMotion.messageFly),
-            removal: .scale(scale: 0.85).combined(with: .opacity).animation(.easeOut(duration: AppMotion.quick))
+            insertion: .scale(scale: 0.82, anchor: .bottomTrailing)
+                .combined(with: .offset(y: 18))
+                .combined(with: .opacity)
+                .animation(AppMotion.messageFly),
+            removal: .scale(scale: 0.85)
+                .combined(with: .opacity)
+                .animation(.easeOut(duration: AppMotion.quick))
         )
     }
     
     static var iMessageAIPop: AnyTransition {
         .asymmetric(
-            insertion: .modifier(
-                active: IMessageFlyModifier(scale: 0.70, offsetX: -16, offsetY: 25, opacity: 0.0, anchor: .bottomLeading),
-                identity: IMessageFlyModifier(scale: 1.0, offsetX: 0, offsetY: 0, opacity: 1.0, anchor: .bottomLeading)
-            ).animation(AppMotion.messageAIPop),
-            removal: .scale(scale: 0.85).combined(with: .opacity).animation(.easeOut(duration: AppMotion.quick))
+            insertion: .scale(scale: 0.82, anchor: .bottomLeading)
+                .combined(with: .offset(y: 14))
+                .combined(with: .opacity)
+                .animation(AppMotion.messageAIPop),
+            removal: .scale(scale: 0.85)
+                .combined(with: .opacity)
+                .animation(.easeOut(duration: AppMotion.quick))
         )
-    }
-}
-
-public struct MessageEntranceModifier: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var isUser: Bool
-    var isRecent: Bool
-    @State private var hasAppeared: Bool = false
-    
-    public init(isUser: Bool, isRecent: Bool) {
-        self.isUser = isUser
-        self.isRecent = isRecent
-    }
-    
-    public func body(content: Content) -> some View {
-        if isRecent && !reduceMotion {
-            content
-                .scaleEffect(hasAppeared ? 1.0 : (isUser ? 0.35 : 0.70), anchor: isUser ? .bottomTrailing : .bottomLeading)
-                .offset(
-                    x: hasAppeared ? 0 : (isUser ? 28 : -14),
-                    y: hasAppeared ? 0 : (isUser ? 50 : 25)
-                )
-                .opacity(hasAppeared ? 1.0 : 0.0)
-                .onAppear {
-                    withAnimation(isUser ? AppMotion.messageFly : AppMotion.messageAIPop) {
-                        hasAppeared = true
-                    }
-                }
-        } else {
-            content
-        }
-    }
-}
-
-public extension View {
-    func imessageEntrance(isUser: Bool, isRecent: Bool = true) -> some View {
-        modifier(MessageEntranceModifier(isUser: isUser, isRecent: isRecent))
     }
 }
 

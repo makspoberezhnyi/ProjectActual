@@ -16,8 +16,6 @@ struct LogTabView: View {
     @State private var showSettings: Bool = false
     @State private var showDateJump: Bool = false
     @State private var targetScrollId: String? = nil
-    @State private var flyingMessageText: String? = nil
-    @State private var isFlyingMessage: Bool = false
     
     @State private var dismissedSuggestionIds: Set<String> = []
     
@@ -157,6 +155,8 @@ struct LogTabView: View {
                         .onChange(of: isTyping) { _, isTypingNow in
                             if isTypingNow {
                                 withAnimation(AppMotion.messageScroll) { proxy.scrollTo("typing", anchor: .bottom) }
+                            } else if let last = sessions.last {
+                                withAnimation(AppMotion.messageScroll) { proxy.scrollTo(last.id, anchor: .bottom) }
                             }
                         }
                         .onChange(of: targetScrollId) { _, target in
@@ -174,51 +174,6 @@ struct LogTabView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                         .padding(.bottom, 12)
-                }
-                
-                // Direct Flight Bubble: Flies smoothly from textfield into chat
-                if let flyingText = flyingMessageText {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer(minLength: 48)
-                            VStack(alignment: .trailing, spacing: 3) {
-                                Text(flyingText)
-                                    .font(.system(size: 15, weight: .regular, design: .default))
-                                    .foregroundStyle(.white)
-                                    .multilineTextAlignment(.trailing)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0.05, green: 0.52, blue: 1.0),
-                                        Color(red: 0.0, green: 0.44, blue: 0.98)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                in: UnevenRoundedRectangle(
-                                    topLeadingRadius: 18,
-                                    bottomLeadingRadius: isFlyingMessage ? 18 : 22,
-                                    bottomTrailingRadius: isFlyingMessage ? 4 : 22,
-                                    topTrailingRadius: 18,
-                                    style: .continuous
-                                )
-                            )
-                            .shadow(color: Color.blue.opacity(0.35), radius: 8, x: 0, y: 3)
-                            .scaleEffect(reduceMotion ? 1.0 : (isFlyingMessage ? 1.0 : 0.85), anchor: .bottomTrailing)
-                            .offset(
-                                x: reduceMotion ? 0 : (isFlyingMessage ? 0 : -35),
-                                y: reduceMotion ? 0 : (isFlyingMessage ? -75 : -14)
-                            )
-                            .opacity(reduceMotion ? 1.0 : (isFlyingMessage ? 1.0 : 0.95))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 12)
-                    }
-                    .allowsHitTesting(false)
                 }
             }
             .navigationTitle("Tempo")
@@ -520,32 +475,18 @@ struct LogTabView: View {
     }
     
     private func submit() {
-        guard !inputText.isEmpty else { return }
-        let savedText = inputText
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let savedText = trimmed
         
-        let impact = UIImpactFeedbackGenerator(style: .medium)
+        let impact = UIImpactFeedbackGenerator(style: .light)
         impact.prepare()
         impact.impactOccurred()
         
         inputText = ""
-        flyingMessageText = savedText
-        isFlyingMessage = false
         
-        if reduceMotion {
+        withAnimation(AppMotion.messageFly) {
             processSubmittedText(savedText)
-            flyingMessageText = nil
-            isFlyingMessage = false
-        } else {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.68)) {
-                isFlyingMessage = true
-            }
-            
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(300))
-                processSubmittedText(savedText)
-                flyingMessageText = nil
-                isFlyingMessage = false
-            }
         }
     }
     
@@ -585,9 +526,11 @@ struct LogTabView: View {
             context.insert(session)
             try? context.save()
             
-            isTyping = true
+            withAnimation(AppMotion.messageFly) {
+                isTyping = true
+            }
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(850))
+                try? await Task.sleep(for: .milliseconds(650))
                 let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
                 arrivalHaptic.impactOccurred()
                 withAnimation(AppMotion.messageAIPop) {
@@ -636,9 +579,11 @@ struct LogTabView: View {
                 context.insert(session)
                 try? context.save()
                 
-                isTyping = true
+                withAnimation(AppMotion.messageFly) {
+                    isTyping = true
+                }
                 Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(750))
+                    try? await Task.sleep(for: .milliseconds(650))
                     let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
                     arrivalHaptic.impactOccurred()
                     withAnimation(AppMotion.messageAIPop) {
@@ -664,9 +609,11 @@ struct LogTabView: View {
             context.insert(session)
             try? context.save()
             
-            isTyping = true
+            withAnimation(AppMotion.messageFly) {
+                isTyping = true
+            }
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(850))
+                try? await Task.sleep(for: .milliseconds(650))
                 let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
                 arrivalHaptic.impactOccurred()
                 withAnimation(AppMotion.messageAIPop) {
@@ -707,10 +654,12 @@ struct LogTabView: View {
             )
         }
         
-        isTyping = true
+        withAnimation(AppMotion.messageFly) {
+            isTyping = true
+        }
         
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(900))
+            try? await Task.sleep(for: .milliseconds(700))
             let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
             arrivalHaptic.impactOccurred()
             withAnimation(AppMotion.messageAIPop) {
@@ -1118,9 +1067,11 @@ struct LogTabView: View {
             sessionId: session.sessionIdentifier
         )
         
-        isTyping = true
+        withAnimation(AppMotion.messageFly) {
+            isTyping = true
+        }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(850))
+            try? await Task.sleep(for: .milliseconds(650))
             let arrivalHaptic = UIImpactFeedbackGenerator(style: .light)
             arrivalHaptic.impactOccurred()
             withAnimation(AppMotion.messageAIPop) {
@@ -1153,7 +1104,6 @@ struct LogTabView: View {
                 standardSessionSequence(for: session)
             }
         }
-        .transition(.iMessageUserFly)
     }
     
     @ViewBuilder
@@ -1671,7 +1621,7 @@ struct LogTabView: View {
     }
     
     @ViewBuilder
-    private func userBubble(text: String, est: Int?, isRecent: Bool = true) -> some View {
+    private func userBubble(text: String, est: Int?) -> some View {
         HStack(alignment: .bottom, spacing: 0) {
             Spacer(minLength: 48)
             
@@ -1708,12 +1658,11 @@ struct LogTabView: View {
             )
             .shadow(color: Color.blue.opacity(0.22), radius: 6, x: 0, y: 2)
         }
-        .imessageEntrance(isUser: true, isRecent: isRecent)
         .transition(.iMessageUserFly)
     }
     
     @ViewBuilder
-    private func aiBubble(text: String, isRecent: Bool = true) -> some View {
+    private func aiBubble(text: String) -> some View {
         HStack(alignment: .bottom, spacing: 8) {
             ZStack {
                 Circle()
@@ -1753,7 +1702,6 @@ struct LogTabView: View {
             
             Spacer(minLength: 36)
         }
-        .imessageEntrance(isUser: false, isRecent: isRecent)
         .transition(.iMessageAIPop)
     }
     
