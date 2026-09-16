@@ -45,10 +45,19 @@ build-device/
 *.obj
 *.out
 
-# Editors
+# Editors & Workspace
 .vscode/
 .idea/
 references/
+screenshots/
+
+# AI Agent skills and caches
+.agents/
+agent/
+skills-lock.json
+.claude/
+CLAUDE.md
+Claude outputs/
 
 # System files
 .DS_Store
