@@ -23,6 +23,11 @@ final class Session {
     var isLinkedToCalendar: Bool?
     var isLinkedToReminders: Bool?
     var createdAt: Date?
+    var destinationLatitude: Double?
+    var destinationLongitude: Double?
+    var destinationTitle: String?
+    var destinationRadiusMeters: Double?
+    var isArrivalTrackingActive: Bool?
     
     init(
         rawText: String,
@@ -41,7 +46,12 @@ final class Session {
         linkedEventIdentifier: String? = nil,
         isLinkedToCalendar: Bool? = nil,
         isLinkedToReminders: Bool? = nil,
-        createdAt: Date? = Date()
+        createdAt: Date? = Date(),
+        destinationLatitude: Double? = nil,
+        destinationLongitude: Double? = nil,
+        destinationTitle: String? = nil,
+        destinationRadiusMeters: Double? = nil,
+        isArrivalTrackingActive: Bool? = nil
     ) {
         self.rawText = rawText
         self.estimatedMinutes = estimatedMinutes
@@ -60,6 +70,11 @@ final class Session {
         self.isLinkedToCalendar = isLinkedToCalendar
         self.isLinkedToReminders = isLinkedToReminders
         self.createdAt = createdAt ?? Date()
+        self.destinationLatitude = destinationLatitude
+        self.destinationLongitude = destinationLongitude
+        self.destinationTitle = destinationTitle
+        self.destinationRadiusMeters = destinationRadiusMeters
+        self.isArrivalTrackingActive = isArrivalTrackingActive
     }
     
     var sessionIdentifier: String {
@@ -148,6 +163,11 @@ struct SessionDTO: Codable {
     var isLinkedToCalendar: Bool?
     var isLinkedToReminders: Bool?
     var createdAt: Date?
+    var destinationLatitude: Double?
+    var destinationLongitude: Double?
+    var destinationTitle: String?
+    var destinationRadiusMeters: Double?
+    var isArrivalTrackingActive: Bool?
     
     init(from session: Session) {
         self.rawText = session.rawText
@@ -169,6 +189,11 @@ struct SessionDTO: Codable {
         self.isLinkedToCalendar = session.isLinkedToCalendar
         self.isLinkedToReminders = session.isLinkedToReminders
         self.createdAt = session.createdAt
+        self.destinationLatitude = session.destinationLatitude
+        self.destinationLongitude = session.destinationLongitude
+        self.destinationTitle = session.destinationTitle
+        self.destinationRadiusMeters = session.destinationRadiusMeters
+        self.isArrivalTrackingActive = session.isArrivalTrackingActive
     }
     
     func toSession() -> Session {
@@ -189,7 +214,12 @@ struct SessionDTO: Codable {
             linkedEventIdentifier: linkedEventIdentifier,
             isLinkedToCalendar: isLinkedToCalendar,
             isLinkedToReminders: isLinkedToReminders,
-            createdAt: createdAt
+            createdAt: createdAt,
+            destinationLatitude: destinationLatitude,
+            destinationLongitude: destinationLongitude,
+            destinationTitle: destinationTitle,
+            destinationRadiusMeters: destinationRadiusMeters,
+            isArrivalTrackingActive: isArrivalTrackingActive
         )
         session.actualMinutes = actualMinutes
         session.endedAt = endedAt

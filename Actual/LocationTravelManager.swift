@@ -142,6 +142,22 @@ public struct TravelAssessmentResult: Identifiable, Codable, Hashable {
     }
 }
 
+public struct MonitoredArrivalTarget: Equatable, Sendable {
+    public var sessionId: String
+    public var title: String
+    public var latitude: Double
+    public var longitude: Double
+    public var arrivalRadius: Double // in meters
+    
+    public init(sessionId: String, title: String, latitude: Double, longitude: Double, arrivalRadius: Double = 80.0) {
+        self.sessionId = sessionId
+        self.title = title
+        self.latitude = latitude
+        self.longitude = longitude
+        self.arrivalRadius = arrivalRadius
+    }
+}
+
 @MainActor
 @Observable
 public final class LocationTravelManager: NSObject, @preconcurrency CLLocationManagerDelegate {
@@ -150,6 +166,11 @@ public final class LocationTravelManager: NSObject, @preconcurrency CLLocationMa
     private let locationManager = CLLocationManager()
     public var userLocation: CLLocation?
     public var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    
+    // Real-time Arrival Monitoring State
+    public var activeArrivalTarget: MonitoredArrivalTarget?
+    public var remainingDistanceMeters: Double?
+    public var isTrackingArrival: Bool { activeArrivalTarget != nil }
     
     // Dynamic localized fallback coordinates based on user's timezone / locale
     private var fallbackLocation: CLLocation {
@@ -183,17 +204,93 @@ public final class LocationTravelManager: NSObject, @preconcurrency CLLocationMa
         }
     }
     
+    // MARK: - Real-time Arrival Tracking Lifecycle
+    public func startMonitoringArrival(
+        sessionId: String,
+        title: String,
+        latitude: Double,
+        longitude: Double,
+        radius: Double = 80.0
+    ) {
+        requestAuthorization()
+        let target = MonitoredArrivalTarget(
+            sessionId: sessionId,
+            title: title,
+            latitude: latitude,
+            longitude: longitude,
+            arrivalRadius: radius
+        )
+        self.activeArrivalTarget = target
+        
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.distanceFilter = 10.0
+        locationManager.startUpdatingLocation()
+        
+        let destLoc = CLLocation(latitude: latitude, longitude: longitude)
+        let cur = effectiveLocation
+        self.remainingDistanceMeters = cur.distance(from: destLoc)
+    }
+    
+    public func stopMonitoringArrival() {
+        self.activeArrivalTarget = nil
+        self.remainingDistanceMeters = nil
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        locationManager.distanceFilter = kCLDistanceFilterNone
+        locationManager.stopUpdatingLocation()
+    }
+    
+    public func simulateArrival() {
+        guard let target = activeArrivalTarget else { return }
+        let title = target.title
+        let sId = target.sessionId
+        stopMonitoringArrival()
+        TactileFeedback.success()
+        NotificationCenter.default.post(
+            name: .sessionDestinationReached,
+            object: nil,
+            userInfo: [
+                "sessionId": sId,
+                "destinationTitle": title
+            ]
+        )
+    }
+    
     // MARK: - CLLocationManagerDelegate
     public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         self.authorizationStatus = manager.authorizationStatus
         if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
-            manager.requestLocation()
+            if activeArrivalTarget != nil {
+                manager.startUpdatingLocation()
+            } else {
+                manager.requestLocation()
+            }
         }
     }
     
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         if let location = locations.last {
             self.userLocation = location
+            
+            if let target = activeArrivalTarget {
+                let destLoc = CLLocation(latitude: target.latitude, longitude: target.longitude)
+                let distance = location.distance(from: destLoc)
+                self.remainingDistanceMeters = distance
+                
+                if distance <= target.arrivalRadius {
+                    let title = target.title
+                    let sId = target.sessionId
+                    stopMonitoringArrival()
+                    TactileFeedback.success()
+                    NotificationCenter.default.post(
+                        name: .sessionDestinationReached,
+                        object: nil,
+                        userInfo: [
+                            "sessionId": sId,
+                            "destinationTitle": title
+                        ]
+                    )
+                }
+            }
         }
     }
     
@@ -487,7 +584,7 @@ public final class LocationTravelManager: NSObject, @preconcurrency CLLocationMa
         )
     }
     
-    private func formatDistance(meters: Double) -> String {
+    public func formatDistance(meters: Double) -> String {
         let isMetric = Locale.current.measurementSystem == .metric
         if isMetric {
             if meters < 1000 {

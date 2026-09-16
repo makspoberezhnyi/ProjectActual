@@ -152,4 +152,61 @@ final class RoutineEngineTests: XCTestCase {
         let suggestions = RoutineEngine.shared.getActiveSuggestions(for: sept4Date, sessions: sessions)
         XCTAssertTrue(suggestions.isEmpty, "Already completed breakfast on query date should not be prompted again")
     }
+    
+    func testLocationArrivalMonitoring() {
+        let manager = LocationTravelManager.shared
+        let sessionId = "test-session-123"
+        let destTitle = "Coffee Shop"
+        let targetLat = 51.7592
+        let targetLon = 19.4560
+        
+        manager.startMonitoringArrival(
+            sessionId: sessionId,
+            title: destTitle,
+            latitude: targetLat,
+            longitude: targetLon,
+            radius: 80.0
+        )
+        
+        XCTAssertTrue(manager.isTrackingArrival)
+        XCTAssertEqual(manager.activeArrivalTarget?.sessionId, sessionId)
+        XCTAssertEqual(manager.activeArrivalTarget?.title, destTitle)
+        XCTAssertEqual(manager.activeArrivalTarget?.latitude, targetLat)
+        XCTAssertEqual(manager.activeArrivalTarget?.longitude, targetLon)
+        
+        // Test stop monitoring
+        manager.stopMonitoringArrival()
+        XCTAssertFalse(manager.isTrackingArrival)
+        XCTAssertNil(manager.activeArrivalTarget)
+        XCTAssertNil(manager.remainingDistanceMeters)
+    }
+    
+    func testSessionDestinationPersistence() {
+        let session = Session(
+            rawText: "Drive to Office",
+            estimatedMinutes: 30,
+            startedAt: Date(),
+            destinationLatitude: 51.7592,
+            destinationLongitude: 19.4560,
+            destinationTitle: "Office",
+            destinationRadiusMeters: 100.0,
+            isArrivalTrackingActive: true
+        )
+        
+        XCTAssertEqual(session.destinationLatitude, 51.7592)
+        XCTAssertEqual(session.destinationLongitude, 19.4560)
+        XCTAssertEqual(session.destinationTitle, "Office")
+        XCTAssertEqual(session.destinationRadiusMeters, 100.0)
+        XCTAssertEqual(session.isArrivalTrackingActive, true)
+        
+        let dto = SessionDTO(from: session)
+        XCTAssertEqual(dto.destinationLatitude, 51.7592)
+        XCTAssertEqual(dto.destinationLongitude, 19.4560)
+        XCTAssertEqual(dto.destinationTitle, "Office")
+        
+        let restored = dto.toSession()
+        XCTAssertEqual(restored.destinationLatitude, 51.7592)
+        XCTAssertEqual(restored.destinationLongitude, 19.4560)
+        XCTAssertEqual(restored.destinationTitle, "Office")
+    }
 }

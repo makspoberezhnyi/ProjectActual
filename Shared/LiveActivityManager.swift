@@ -9,6 +9,9 @@ final public class LiveActivityManager: Sendable {
     private var currentActivity: Activity<TempoActivityAttributes>?
     
     private func terminateActivities(ids: Set<String>? = nil, finalState: TempoActivityAttributes.ContentState? = nil) {
+        let targetIds = ids ?? Set(Activity<TempoActivityAttributes>.activities.map(\.id))
+        guard !targetIds.isEmpty else { return }
+        
         let state = finalState ?? TempoActivityAttributes.ContentState(
             estimatedMinutes: 0,
             actualMinutes: 0,
@@ -18,11 +21,10 @@ final public class LiveActivityManager: Sendable {
         let finalContent = ActivityContent(state: state, staleDate: nil)
         Task {
             for activity in Activity<TempoActivityAttributes>.activities {
-                if let ids, !ids.contains(activity.id) {
-                    continue
+                if targetIds.contains(activity.id) {
+                    await activity.end(finalContent, dismissalPolicy: .immediate)
+                    await activity.end(nil, dismissalPolicy: .immediate)
                 }
-                await activity.end(finalContent, dismissalPolicy: .immediate)
-                await activity.end(nil, dismissalPolicy: .immediate)
             }
         }
     }
@@ -45,6 +47,8 @@ final public class LiveActivityManager: Sendable {
             isLinkedToReminders: isLinkedToReminders
         )
         WidgetCenter.shared.reloadAllTimelines()
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")
         
         let areEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
         print("[LiveActivityManager] areActivitiesEnabled: \(areEnabled)")
@@ -53,10 +57,14 @@ final public class LiveActivityManager: Sendable {
             return
         }
         
-        // 2. End any existing activities first by capturing existing IDs
+        // 2. End any existing activities first (capture IDs synchronously before requesting the new activity)
         let existingIds = Set(Activity<TempoActivityAttributes>.activities.map(\.id))
         if !existingIds.isEmpty {
-            terminateActivities(ids: existingIds)
+            Task { @MainActor in
+                for activity in Activity<TempoActivityAttributes>.activities where existingIds.contains(activity.id) {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
         }
         
         let attributes = TempoActivityAttributes(
@@ -87,8 +95,10 @@ final public class LiveActivityManager: Sendable {
     public func updateLiveActivity(estimatedMinutes: Int, statusMessage: String? = nil) {
         WidgetDataStore.shared.updateActiveSessionEstimate(to: estimatedMinutes)
         WidgetCenter.shared.reloadAllTimelines()
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")
         
-        Task {
+        Task { @MainActor in
             for activity in Activity<TempoActivityAttributes>.activities {
                 let updatedState = TempoActivityAttributes.ContentState(
                     estimatedMinutes: estimatedMinutes,
@@ -103,18 +113,51 @@ final public class LiveActivityManager: Sendable {
     
     public func endLiveActivity(actualMinutes: Int) {
         // Sync widget snapshot
-        WidgetDataStore.shared.stopActiveSession()
+        WidgetDataStore.shared.stopActiveSession(actualMinutes: actualMinutes)
         WidgetCenter.shared.reloadAllTimelines()
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")
         
-        terminateActivities()
+        let completionState = TempoActivityAttributes.ContentState(
+            estimatedMinutes: 0,
+            actualMinutes: actualMinutes,
+            isRunning: false,
+            statusMessage: "Done"
+        )
+        let finalContent = ActivityContent(state: completionState, staleDate: nil)
+        
+        let targetIds = Set(Activity<TempoActivityAttributes>.activities.map(\.id))
+        guard !targetIds.isEmpty else {
+            self.currentActivity = nil
+            return
+        }
+        
+        Task { @MainActor in
+            for activity in Activity<TempoActivityAttributes>.activities where targetIds.contains(activity.id) {
+                await activity.end(finalContent, dismissalPolicy: .immediate)
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+        }
         self.currentActivity = nil
     }
     
     public func cancelAllLiveActivities() {
         WidgetDataStore.shared.stopActiveSession()
         WidgetCenter.shared.reloadAllTimelines()
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "TempoLockScreenWidget")
         
-        terminateActivities()
+        let targetIds = Set(Activity<TempoActivityAttributes>.activities.map(\.id))
+        guard !targetIds.isEmpty else {
+            self.currentActivity = nil
+            return
+        }
+        
+        Task { @MainActor in
+            for activity in Activity<TempoActivityAttributes>.activities where targetIds.contains(activity.id) {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+        }
         self.currentActivity = nil
     }
 }

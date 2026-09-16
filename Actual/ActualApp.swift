@@ -5,6 +5,7 @@ import SwiftData
 struct ActualApp: App {
     init() {
         _ = NotificationManager.shared
+        WatchConnectivityManager.shared.activate()
     }
     
     var body: some Scene {

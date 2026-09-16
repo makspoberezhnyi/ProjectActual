@@ -29,6 +29,9 @@ dist/
 build/
 build-sim/
 build_device/
+build-dd/
+build-device/
+*.xcuserstate
 *.xcodeproj/*xcuserdata*
 *.xcworkspace/*xcuserdata*
 .claude/
@@ -45,6 +48,7 @@ build_device/
 # Editors
 .vscode/
 .idea/
+references/
 
 # System files
 .DS_Store

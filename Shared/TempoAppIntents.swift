@@ -28,17 +28,22 @@ public struct StartFocusIntent: LiveActivityIntent, AppIntent {
         WidgetDataStore.shared.startSession(title: taskTitle, minutes: minutes, startDate: now)
         
         // 2. Start Live Activity asynchronously
+        let existingIds = Set(Activity<TempoActivityAttributes>.activities.map(\.id))
         Task {
-            let finalState = TempoActivityAttributes.ContentState(
-                estimatedMinutes: 0,
-                actualMinutes: 0,
-                isRunning: false,
-                statusMessage: "Done"
-            )
-            let finalContent = ActivityContent(state: finalState, staleDate: nil)
-            for activity in Activity<TempoActivityAttributes>.activities {
-                await activity.end(finalContent, dismissalPolicy: .immediate)
-                await activity.end(nil, dismissalPolicy: .immediate)
+            if !existingIds.isEmpty {
+                let finalState = TempoActivityAttributes.ContentState(
+                    estimatedMinutes: 0,
+                    actualMinutes: 0,
+                    isRunning: false,
+                    statusMessage: "Done"
+                )
+                let finalContent = ActivityContent(state: finalState, staleDate: nil)
+                for activity in Activity<TempoActivityAttributes>.activities {
+                    if existingIds.contains(activity.id) {
+                        await activity.end(finalContent, dismissalPolicy: .immediate)
+                        await activity.end(nil, dismissalPolicy: .immediate)
+                    }
+                }
             }
             
             let attributes = TempoActivityAttributes(
@@ -134,11 +139,18 @@ public struct StopFocusIntent: LiveActivityIntent, AppIntent {
         )
         let finalContent = ActivityContent(state: completionState, staleDate: nil)
         
-        let targetId = activityId
+        let targetIds: Set<String>
+        if let activityId {
+            targetIds = [activityId]
+        } else {
+            targetIds = Set(Activity<TempoActivityAttributes>.activities.map(\.id))
+        }
+        
         // 2. Manage Live Activity animations & dismissal asynchronously so perform() returns with 0ms delay
         Task {
+            guard !targetIds.isEmpty else { return }
             for activity in Activity<TempoActivityAttributes>.activities {
-                if targetId == nil || activity.id == targetId {
+                if targetIds.contains(activity.id) {
                     await activity.update(finalContent)
                 }
             }
@@ -147,14 +159,10 @@ public struct StopFocusIntent: LiveActivityIntent, AppIntent {
             try? await Task.sleep(nanoseconds: 600_000_000)
             
             for activity in Activity<TempoActivityAttributes>.activities {
-                if targetId == nil || activity.id == targetId {
+                if targetIds.contains(activity.id) {
                     await activity.end(finalContent, dismissalPolicy: .immediate)
                     await activity.end(nil, dismissalPolicy: .immediate)
                 }
-            }
-            for activity in Activity<TempoActivityAttributes>.activities {
-                await activity.end(finalContent, dismissalPolicy: .immediate)
-                await activity.end(nil, dismissalPolicy: .immediate)
             }
         }
         

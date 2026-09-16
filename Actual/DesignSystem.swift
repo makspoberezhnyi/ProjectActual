@@ -10,9 +10,13 @@ public enum Theme {
     
     // Unified Apple Design Palette
     public static let brandPrimary = Color(red: 0.05, green: 0.52, blue: 1.0)
-    public static let brandCoral = Color(red: 1.0, green: 0.4, blue: 0.3)
-    public static let brandSuccess = Color(red: 0.2, green: 0.78, blue: 0.35)
-    public static let brandMint = Color(red: 0.05, green: 0.52, blue: 1.0) // Harmonized to Apple Blue
+    public static let brandCyan = Color(red: 0.0, green: 0.72, blue: 0.92)
+    public static let brandEmerald = Color(red: 0.18, green: 0.80, blue: 0.55)
+    public static let brandIndigo = Color(red: 0.40, green: 0.45, blue: 0.85)
+    public static let brandSlate = Color(red: 0.55, green: 0.60, blue: 0.70)
+    public static let brandCoral = Color(red: 0.95, green: 0.35, blue: 0.40)
+    public static let brandSuccess = Color(red: 0.18, green: 0.80, blue: 0.55)
+    public static let brandMint = Color(red: 0.05, green: 0.52, blue: 1.0)
     public static let brandBackground = Color(UIColor.systemGroupedBackground)
 }
 
@@ -118,6 +122,49 @@ public enum AppMotion {
     public static let messageFly = Animation.spring(response: 0.32, dampingFraction: 0.74)
     public static let messageAIPop = Animation.spring(response: 0.30, dampingFraction: 0.78)
     public static let messageScroll = Animation.spring(response: 0.32, dampingFraction: 0.82)
+    
+    // Card & Accordion Expansions (swiftui-animation)
+    public static let cardExpand = Animation.spring(response: 0.36, dampingFraction: 0.80)
+}
+
+// MARK: - Central Tactile Feedback Engine (make-interfaces-feel-better)
+@MainActor
+public enum TactileFeedback {
+    public static func light() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #endif
+    }
+    public static func medium() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
+    }
+    public static func heavy() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        #endif
+    }
+    public static func rigid() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+        #endif
+    }
+    public static func success() {
+        #if canImport(UIKit)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        #endif
+    }
+    public static func warning() {
+        #if canImport(UIKit)
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        #endif
+    }
+    public static func selection() {
+        #if canImport(UIKit)
+        UISelectionFeedbackGenerator().selectionChanged()
+        #endif
+    }
 }
 
 // MARK: - iMessage-Style Fluid Transitions (swiftui-animation)
@@ -147,21 +194,35 @@ public extension AnyTransition {
                 .animation(.easeOut(duration: AppMotion.quick))
         )
     }
+    
+    static var cardExpandTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)),
+            removal: .opacity.combined(with: .scale(scale: 0.97, anchor: .top))
+        )
+    }
 }
 
-// MARK: - Tactile Press Button Style (transitions.dev scale & spring return)
+// MARK: - Tactile Press Button Style (transitions.dev scale & spring return with haptics)
 public struct PressableScaleButtonStyle: ButtonStyle {
     var scale: CGFloat = AppMotion.scaleCard
+    var enableHaptics: Bool = true
     
-    public init(scale: CGFloat = AppMotion.scaleCard) {
+    public init(scale: CGFloat = AppMotion.scaleCard, enableHaptics: Bool = true) {
         self.scale = scale
+        self.enableHaptics = enableHaptics
     }
     
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? scale : 1.0)
-            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .opacity(configuration.isPressed ? 0.92 : 1.0)
             .animation(AppMotion.snappy, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                if isPressed && enableHaptics {
+                    TactileFeedback.light()
+                }
+            }
     }
 }
 
@@ -169,8 +230,8 @@ public extension ButtonStyle where Self == PressableScaleButtonStyle {
     static var pressable: PressableScaleButtonStyle {
         PressableScaleButtonStyle()
     }
-    static func pressable(scale: CGFloat) -> PressableScaleButtonStyle {
-        PressableScaleButtonStyle(scale: scale)
+    static func pressable(scale: CGFloat, haptics: Bool = true) -> PressableScaleButtonStyle {
+        PressableScaleButtonStyle(scale: scale, enableHaptics: haptics)
     }
 }
 
@@ -215,8 +276,8 @@ public extension View {
         modifier(ShimmerModifier(isActive: isActive))
     }
     
-    func pressable(scale: CGFloat = AppMotion.scaleCard) -> some View {
-        buttonStyle(PressableScaleButtonStyle(scale: scale))
+    func pressable(scale: CGFloat = AppMotion.scaleCard, haptics: Bool = true) -> some View {
+        buttonStyle(PressableScaleButtonStyle(scale: scale, enableHaptics: haptics))
     }
 }
 

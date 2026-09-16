@@ -20,35 +20,35 @@ struct WidgetTheme {
     static let success = Color(red: 0.2, green: 0.78, blue: 0.35)
     
     static func primaryText(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color(red: 0.08, green: 0.09, blue: 0.12) : .white
+        scheme == .light ? Color(red: 0.05, green: 0.07, blue: 0.12) : .white
     }
     
     static func secondaryText(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color(red: 0.42, green: 0.44, blue: 0.50) : Color.white.opacity(0.60)
+        scheme == .light ? Color(red: 0.26, green: 0.30, blue: 0.40) : Color.white.opacity(0.60)
     }
     
     static func tertiaryText(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color(red: 0.58, green: 0.60, blue: 0.66) : Color.white.opacity(0.45)
+        scheme == .light ? Color(red: 0.40, green: 0.44, blue: 0.54) : Color.white.opacity(0.45)
     }
     
     static func cardBackground(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color.black.opacity(0.04) : Color.white.opacity(0.10)
+        scheme == .light ? Color.white.opacity(0.85) : Color(red: 0.06, green: 0.09, blue: 0.165).opacity(0.85)
     }
     
     static func actionButtonBackground(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color.black.opacity(0.06) : Color.white.opacity(0.18)
+        scheme == .light ? Color.white.opacity(0.92) : Color(red: 0.09, green: 0.13, blue: 0.22).opacity(0.88)
     }
     
     static func glassStroke(for scheme: ColorScheme) -> LinearGradient {
         if scheme == .light {
             return LinearGradient(
-                colors: [Color.black.opacity(0.10), Color.black.opacity(0.03)],
+                colors: [Color.white.opacity(0.95), Color.blue.opacity(0.25), Color.white.opacity(0.50)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         } else {
             return LinearGradient(
-                colors: [.white.opacity(0.24), .white.opacity(0.06)],
+                colors: [Color.white.opacity(0.26), Color.cyan.opacity(0.20), Color.white.opacity(0.06)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -61,35 +61,36 @@ struct WidgetTheme {
             if scheme == .light {
                 LinearGradient(
                     colors: [
-                        Color(red: 0.98, green: 0.98, blue: 1.0),
-                        Color(red: 0.92, green: 0.94, blue: 0.97)
+                        Color(red: 0.97, green: 0.98, blue: 1.0),
+                        Color(red: 0.92, green: 0.94, blue: 0.98)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
                 RadialGradient(
-                    colors: [WidgetTheme.blue.opacity(0.12), Color.clear],
+                    colors: [Color.blue.opacity(0.12), Color.clear],
                     center: .topTrailing,
-                    startRadius: 10,
-                    endRadius: 140
+                    startRadius: 8,
+                    endRadius: 130
                 )
             } else {
                 LinearGradient(
                     colors: [
-                        Color(red: 0.10, green: 0.12, blue: 0.16),
-                        Color(red: 0.05, green: 0.06, blue: 0.08)
+                        Color(red: 0.08, green: 0.10, blue: 0.16),
+                        Color(red: 0.04, green: 0.06, blue: 0.10)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
                 RadialGradient(
-                    colors: [WidgetTheme.blue.opacity(0.18), Color.clear],
+                    colors: [Color.cyan.opacity(0.14), Color.clear],
                     center: .topTrailing,
-                    startRadius: 10,
-                    endRadius: 120
+                    startRadius: 8,
+                    endRadius: 130
                 )
             }
         }
+        .ignoresSafeArea()
     }
 }
 
@@ -112,7 +113,7 @@ struct TempoLiveActivity: Widget {
                             .symbolEffect(.bounce, value: isComplete)
                         
                         Text(context.attributes.taskTitle)
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
@@ -125,7 +126,7 @@ struct TempoLiveActivity: Widget {
                     HStack(spacing: 4) {
                         if isComplete {
                             Text("Done ✓")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(WidgetTheme.success)
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 4)
@@ -133,7 +134,8 @@ struct TempoLiveActivity: Widget {
                                 .overlay(Capsule().strokeBorder(WidgetTheme.success.opacity(0.35), lineWidth: 0.8))
                         } else {
                             Text("\(context.state.estimatedMinutes)m")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .font(.system(size: 12, weight: .semibold))
+                                .monospacedDigit()
                                 .foregroundStyle(WidgetTheme.blue)
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 4)
@@ -152,7 +154,7 @@ struct TempoLiveActivity: Widget {
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(WidgetTheme.success)
                             Text("Session Completed & Logged")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(.white)
                             Image(systemName: "sparkles")
                                 .font(.system(size: 11, weight: .bold))
@@ -175,7 +177,7 @@ struct TempoLiveActivity: Widget {
                                         .frame(width: 6, height: 6)
                                     
                                     Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                                        .font(.system(size: 24, weight: .semibold))
                                         .monospacedDigit()
                                         .foregroundStyle(.white)
                                 }
@@ -188,7 +190,7 @@ struct TempoLiveActivity: Widget {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.system(size: 12, weight: .bold))
                                         Text("Done")
-                                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                                            .font(.system(size: 13, weight: .semibold))
                                     }
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 16)
@@ -225,12 +227,12 @@ struct TempoLiveActivity: Widget {
             } compactTrailing: {
                 if isComplete {
                     Text("Done")
-                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(WidgetTheme.success)
                         .frame(width: 34, alignment: .trailing)
                 } else {
                     Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: 12, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.blue)
                         .multilineTextAlignment(.trailing)
@@ -279,31 +281,32 @@ struct TempoLiveActivityLockScreenBanner: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.taskTitle)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                         .lineLimit(1)
                     
                     HStack(spacing: 6) {
                         if isComplete {
                             Text("✓ Session Completed & Logged")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(WidgetTheme.success)
                         } else {
                             Text("Target: \(context.state.estimatedMinutes)m Focus")
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .font(.system(size: 11, weight: .medium))
+                                .monospacedDigit()
                                 .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
                             
                             if let status = context.state.statusMessage {
                                 Text("• \(status)")
-                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .font(.system(size: 10, weight: .semibold))
                                     .foregroundStyle(WidgetTheme.blue)
                             } else if context.attributes.isLinkedToCalendar == true {
                                 Text("• Calendar")
-                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .font(.system(size: 10, weight: .semibold))
                                     .foregroundStyle(WidgetTheme.blue)
                             } else if context.attributes.isLinkedToReminders == true {
                                 Text("• Reminders")
-                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .font(.system(size: 10, weight: .semibold))
                                     .foregroundStyle(WidgetTheme.blue)
                             }
                         }
@@ -318,7 +321,7 @@ struct TempoLiveActivityLockScreenBanner: View {
                         Image(systemName: "sparkles")
                             .font(.system(size: 11))
                         Text("DONE")
-                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundStyle(WidgetTheme.success)
                     .padding(.horizontal, 10)
@@ -328,12 +331,12 @@ struct TempoLiveActivityLockScreenBanner: View {
                 } else {
                     VStack(alignment: .trailing, spacing: 1) {
                         Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                            .font(.system(size: 21, weight: .heavy, design: .rounded))
+                            .font(.system(size: 21, weight: .semibold))
                             .monospacedDigit()
                             .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                         
                         Text("ELAPSED")
-                            .font(.system(size: 8, weight: .heavy, design: .rounded))
+                            .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(WidgetTheme.blue)
                     }
                 }
@@ -355,7 +358,7 @@ struct TempoLiveActivityLockScreenBanner: View {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 10, weight: .heavy))
                             Text("Done")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .font(.system(size: 12, weight: .semibold))
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
@@ -391,6 +394,7 @@ struct TempoFocusWidget: Widget {
         .configurationDisplayName("Tempo Focus")
         .description("Track your focus sessions and launch quick timers directly from your Home Screen.")
         .supportedFamilies([.systemSmall, .systemMedium])
+        .contentMarginsDisabled()
     }
 }
 
@@ -437,7 +441,7 @@ struct TempoWidgetProvider: TimelineProvider {
             entries = [entry]
         }
         
-        let timeline = Timeline(entries: entries, policy: .after(now.addingTimeInterval(30)))
+        let timeline = Timeline(entries: entries, policy: .atEnd)
         completion(timeline)
     }
 }
@@ -469,40 +473,43 @@ struct TempoWidgetEntryView: View {
                 }
             }
         }
+        .unredacted()
         .animation(.snappy(duration: 0.3), value: entry.isCelebration)
     }
     
     // Full-Size Completed Screen for Small Widget
     private var smallCelebrationView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             Spacer(minLength: 0)
             
             ZStack {
                 Circle()
                     .fill(WidgetTheme.success.opacity(colorScheme == .light ? 0.16 : 0.28))
-                    .frame(width: 48, height: 48)
+                    .frame(width: 44, height: 44)
                 
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.system(size: 28, weight: .bold))
                     .foregroundStyle(WidgetTheme.success)
                     .symbolEffect(.bounce, value: true)
             }
             
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 Text("Completed!")
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                 
                 if let mins = entry.snapshot.lastCompletedMinutes {
                     Text("+\(mins)m Focused")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold))
+                        .monospacedDigit()
                         .foregroundStyle(WidgetTheme.success)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
                         .background(WidgetTheme.success.opacity(0.16), in: Capsule())
                 } else {
                     Text("\(entry.snapshot.todayCompletedCount) Done Today")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11, weight: .medium))
+                        .monospacedDigit()
                         .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
                 }
             }
@@ -510,7 +517,8 @@ struct TempoWidgetEntryView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(6)
+        .padding(12)
+        .widgetURL(URL(string: "tempo://today"))
     }
     
     // Full-Size Completed Screen for Medium Widget
@@ -530,7 +538,7 @@ struct TempoWidgetEntryView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text("Session Completed!")
-                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                     
                     Image(systemName: "sparkles")
@@ -540,7 +548,7 @@ struct TempoWidgetEntryView: View {
                 
                 if let title = entry.snapshot.lastCompletedTitle {
                     Text(title)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
                         .lineLimit(1)
                 }
@@ -548,7 +556,8 @@ struct TempoWidgetEntryView: View {
                 HStack(spacing: 6) {
                     if let mins = entry.snapshot.lastCompletedMinutes {
                         Text("+\(mins)m Logged")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.system(size: 11, weight: .semibold))
+                            .monospacedDigit()
                             .foregroundStyle(WidgetTheme.success)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 2)
@@ -556,7 +565,8 @@ struct TempoWidgetEntryView: View {
                     }
                     
                     Text("• \(entry.snapshot.todayCompletedCount) done today (\(entry.snapshot.todayMinutes)m total)")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 11, weight: .regular))
+                        .monospacedDigit()
                         .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
                 }
                 .padding(.top, 2)
@@ -565,19 +575,23 @@ struct TempoWidgetEntryView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(12)
+        .padding(14)
+        .widgetURL(URL(string: "tempo://today"))
     }
     
     // Small Widget
     private var smallWidgetView: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "timer")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(WidgetTheme.blue)
-                Text("TEMPO")
-                    .font(.system(size: 9, weight: .heavy, design: .rounded))
-                    .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
+        VStack(alignment: .leading, spacing: 0) {
+            // Header Row
+            HStack(alignment: .center) {
+                HStack(spacing: 4) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(WidgetTheme.blue)
+                    Text("TEMPO")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
+                }
                 Spacer()
                 
                 let score = Int(entry.snapshot.calibrationScore * 100)
@@ -585,51 +599,45 @@ struct TempoWidgetEntryView: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: 8))
                     Text("\(score)%")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .font(.system(size: 10, weight: .semibold))
+                        .monospacedDigit()
                 }
                 .foregroundStyle(WidgetTheme.blue)
             }
             
-            Spacer()
+            Spacer(minLength: 4)
             
-            if entry.snapshot.isRunning, let title = entry.snapshot.activeTaskTitle, let start = entry.snapshot.activeTaskStartedAt {
+            // Content Area
+            if entry.snapshot.isRunning {
+                let title = entry.snapshot.activeTaskTitle ?? "Focus Session"
+                let start = entry.snapshot.activeTaskStartedAt ?? Date()
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                         .lineLimit(1)
                     
                     Text(timerInterval: start...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
+                        .font(.system(size: 20, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.blue)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("\(entry.snapshot.todayMinutes)m")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
+                        .font(.system(size: 24, weight: .semibold))
+                        .monospacedDigit()
                         .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                     
-                    if entry.snapshot.todayCompletedCount > 0 {
-                        HStack(spacing: 3) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(WidgetTheme.success)
-                                .symbolEffect(.bounce, value: entry.snapshot.todayCompletedCount)
-                            Text("\(entry.snapshot.todayCompletedCount) completed")
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                .foregroundStyle(WidgetTheme.success)
-                        }
-                    } else {
-                        Text("Focused Today")
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
-                    }
+                    Text("Focused Today")
+                        .font(.system(size: 10, weight: .regular))
+                        .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
                 }
             }
             
-            Spacer()
+            Spacer(minLength: 4)
             
+            // Action Button
             if entry.snapshot.isRunning {
                 Button(intent: StopFocusIntent()) {
                     HStack {
@@ -637,11 +645,11 @@ struct TempoWidgetEntryView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 10))
                         Text("Done")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.system(size: 11, weight: .semibold))
                         Spacer()
                     }
                     .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                    .padding(.vertical, 6)
+                    .frame(height: 28)
                     .background(WidgetTheme.actionButtonBackground(for: colorScheme), in: Capsule())
                     .overlay(Capsule().strokeBorder(WidgetTheme.glassStroke(for: colorScheme), lineWidth: 1))
                 }
@@ -653,18 +661,20 @@ struct TempoWidgetEntryView: View {
                         Image(systemName: "play.fill")
                             .font(.system(size: 8))
                         Text("25m Focus")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.system(size: 11, weight: .semibold))
+                            .monospacedDigit()
                         Spacer()
                     }
                     .foregroundStyle(.white)
-                    .padding(.vertical, 6)
+                    .frame(height: 28)
                     .background(WidgetTheme.blue, in: Capsule())
                     .shadow(color: WidgetTheme.blue.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(6)
+        .padding(14)
+        .widgetURL(URL(string: "tempo://today"))
     }
     
     // Medium Widget with Interactive Shortcut Buttons
@@ -681,48 +691,37 @@ struct TempoWidgetEntryView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    if entry.snapshot.isRunning, let title = entry.snapshot.activeTaskTitle {
+                    if entry.snapshot.isRunning {
+                        let title = entry.snapshot.activeTaskTitle ?? "Focus Session"
+                        let est = entry.snapshot.activeTaskEstimatedMinutes ?? 25
                         Text(title)
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
                         
-                        Text("Focus Session • \(entry.snapshot.activeTaskEstimatedMinutes ?? 25)m")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        Text("Focus Session • \(est)m")
+                            .font(.system(size: 10, weight: .medium))
+                            .monospacedDigit()
                             .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
                     } else {
                         Text("TEMPO FOCUS")
-                            .font(.system(size: 9, weight: .heavy, design: .rounded))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
                         
-                        HStack(spacing: 6) {
-                            Text("\(entry.snapshot.todayMinutes)m Total Today")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                            
-                            if entry.snapshot.todayCompletedCount > 0 {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .symbolEffect(.bounce, value: entry.snapshot.todayCompletedCount)
-                                    Text("\(entry.snapshot.todayCompletedCount) done")
-                                        .font(.system(size: 9, weight: .heavy, design: .rounded))
-                                }
-                                .foregroundStyle(WidgetTheme.success)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(WidgetTheme.success.opacity(0.16), in: Capsule())
-                            }
-                        }
+                        Text("\(entry.snapshot.todayMinutes)m Total Today")
+                            .font(.system(size: 14, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                     }
                 }
                 
                 Spacer()
                 
-                if entry.snapshot.isRunning, let start = entry.snapshot.activeTaskStartedAt {
+                if entry.snapshot.isRunning {
+                    let start = entry.snapshot.activeTaskStartedAt ?? Date()
                     Text(timerInterval: start...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
+                        .font(.system(size: 20, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.blue)
                 } else {
@@ -730,7 +729,8 @@ struct TempoWidgetEntryView: View {
                         Image(systemName: "sparkles")
                             .font(.system(size: 10))
                         Text("\(Int(entry.snapshot.calibrationScore * 100))% Calibrated")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .font(.system(size: 10, weight: .semibold))
+                            .monospacedDigit()
                             .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                     }
                     .padding(.horizontal, 8)
@@ -741,7 +741,9 @@ struct TempoWidgetEntryView: View {
             }
             
             // Interactive Shortcut Buttons or Active View
-            if entry.snapshot.isRunning, let start = entry.snapshot.activeTaskStartedAt, let est = entry.snapshot.activeTaskEstimatedMinutes {
+            if entry.snapshot.isRunning {
+                let start = entry.snapshot.activeTaskStartedAt ?? Date()
+                let est = entry.snapshot.activeTaskEstimatedMinutes ?? 25
                 VStack(spacing: 8) {
                     ProgressView(
                         timerInterval: start...start.addingTimeInterval(Double(max(1, est) * 60)),
@@ -757,7 +759,7 @@ struct TempoWidgetEntryView: View {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 12, weight: .bold))
                             Text("Complete Session")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .font(.system(size: 13, weight: .semibold))
                             Spacer()
                         }
                         .foregroundStyle(.white)
@@ -775,7 +777,8 @@ struct TempoWidgetEntryView: View {
                 }
             }
         }
-        .padding(8)
+        .padding(14)
+        .widgetURL(URL(string: "tempo://today"))
     }
     
     @ViewBuilder
@@ -787,11 +790,12 @@ struct TempoWidgetEntryView: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(WidgetTheme.blue)
                     Text("\(mins)m")
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold))
+                        .monospacedDigit()
                         .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
                 }
                 Text(task)
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
                     .lineLimit(1)
             }
@@ -836,11 +840,12 @@ struct AccessoryView: View {
                     
                     if entry.isCelebration {
                         Text("DONE")
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.primary)
                     } else {
                         Text("\(entry.snapshot.todayMinutes)m")
-                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .font(.system(size: 11, weight: .semibold))
+                            .monospacedDigit()
                             .foregroundStyle(.primary)
                     }
                 }
@@ -853,22 +858,24 @@ struct AccessoryView: View {
                         .foregroundStyle(entry.isCelebration ? WidgetTheme.success : (entry.snapshot.isRunning ? WidgetTheme.blue : WidgetTheme.success))
                         .symbolEffect(.bounce, value: entry.isCelebration)
                     Text(entry.isCelebration ? "COMPLETED ✓" : "TEMPO FOCUS")
-                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.primary)
                 }
                 
                 if entry.isCelebration {
                     Text("+\(entry.snapshot.lastCompletedMinutes ?? 0)m logged • \(entry.snapshot.todayCompletedCount) done")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(.system(size: 12, weight: .medium))
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
                 } else if entry.snapshot.isRunning, let start = entry.snapshot.activeTaskStartedAt {
                     Text(timerInterval: start...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .font(.system(size: 16, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(.primary)
                 } else {
                     Text("\(entry.snapshot.todayMinutes)m today • \(entry.snapshot.todayCompletedCount) done")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(.system(size: 12, weight: .medium))
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
             }

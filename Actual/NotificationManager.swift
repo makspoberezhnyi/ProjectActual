@@ -215,4 +215,5 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
 public extension Notification.Name {
     static let finishSessionFromNotification = Notification.Name("TEMPO_FINISH_SESSION_FROM_NOTIFICATION")
     static let extendSessionFromNotification = Notification.Name("TEMPO_EXTEND_SESSION_FROM_NOTIFICATION")
+    static let sessionDestinationReached = Notification.Name("TEMPO_SESSION_DESTINATION_REACHED")
 }

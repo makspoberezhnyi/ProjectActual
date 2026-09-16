@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import CoreLocation
+import WidgetKit
 
 // MARK: - LOG TAB
 struct LogTabView: View {
@@ -13,14 +14,16 @@ struct LogTabView: View {
     
     @State private var inputText: String = ""
     @State private var isTyping: Bool = false
-    @State private var showSettings: Bool = false
     @State private var showDateJump: Bool = false
     @State private var targetScrollId: String? = nil
-    
     @State private var dismissedSuggestionIds: Set<String> = []
+    @State private var expandedTravelSessionIds: Set<String> = []
+    @State private var expandedScheduleItemIds: Set<String> = []
+    @State private var expandedActiveSessionIds: Set<String> = []
     
     @Bindable private var eventKit = EventKitManager.shared
     @Bindable private var routineEngine = RoutineEngine.shared
+    @Bindable private var travelManager = LocationTravelManager.shared
     
     var groupedSessions: [(Date, [Session])] {
         let calendar = Calendar.current
@@ -189,19 +192,6 @@ struct LogTabView: View {
                             .foregroundStyle(.primary.opacity(0.8))
                     }
                 }
-                
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.primary.opacity(0.8))
-                    }
-                }
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsView(sessions: sessions)
             }
             .sheet(isPresented: $showDateJump) {
                 DateJumpSheet(loggedDays: groupedSessions.map { $0.0 }) { selectedDate in
@@ -229,20 +219,43 @@ struct LogTabView: View {
             syncPendingWidgetSessions()
         }
         .onReceive(NotificationCenter.default.publisher(for: .finishSessionFromNotification)) { notif in
+            let source = notif.userInfo?["source"] as? String
+            let explicitActual = notif.userInfo?["actualMinutes"] as? Int
+            let label = source != nil ? "Finished (\(source!))" : "Finished via Notification"
             if let targetId = notif.userInfo?["sessionId"] as? String,
                let targetSession = sessions.first(where: { $0.sessionIdentifier == targetId && $0.isRunning }) {
-                stopSession(targetSession, endCommandText: "Finished via Notification")
+                stopSession(targetSession, endCommandText: label, explicitActualMinutes: explicitActual)
             } else if let runningSession = sessions.last(where: { $0.isRunning }) {
-                stopSession(runningSession, endCommandText: "Finished via Notification")
+                stopSession(runningSession, endCommandText: label, explicitActualMinutes: explicitActual)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .extendSessionFromNotification)) { notif in
             let minutesToAdd = notif.userInfo?["minutes"] as? Int ?? 5
+            let source = notif.userInfo?["source"] as? String
+            let label = source != nil ? "+\(minutesToAdd)m (\(source!))" : "+\(minutesToAdd)m (via Notification)"
             if let targetId = notif.userInfo?["sessionId"] as? String,
                let targetSession = sessions.first(where: { $0.sessionIdentifier == targetId && $0.isRunning }) {
-                extendRunningSession(targetSession, by: minutesToAdd, userCommandText: "+\(minutesToAdd)m (via Notification)")
+                extendRunningSession(targetSession, by: minutesToAdd, userCommandText: label)
             } else if let runningSession = sessions.last(where: { $0.isRunning }) {
-                extendRunningSession(runningSession, by: minutesToAdd, userCommandText: "+\(minutesToAdd)m (via Notification)")
+                extendRunningSession(runningSession, by: minutesToAdd, userCommandText: label)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sessionDestinationReached)) { notif in
+            let targetId = notif.userInfo?["sessionId"] as? String
+            let destTitle = notif.userInfo?["destinationTitle"] as? String ?? "Destination"
+            let label = "Arrived at \(destTitle)"
+            if let targetId, let targetSession = sessions.first(where: { $0.sessionIdentifier == targetId && $0.isRunning }) {
+                stopSession(targetSession, endCommandText: label)
+                TactileFeedback.success()
+                withAnimation(AppMotion.messageAIPop) {
+                    targetSession.tempoEndResponse = "🎯 You arrived at \(destTitle)! Commute session completed and logged."
+                }
+            } else if let runningSession = sessions.last(where: { $0.isRunning }) {
+                stopSession(runningSession, endCommandText: label)
+                TactileFeedback.success()
+                withAnimation(AppMotion.messageAIPop) {
+                    runningSession.tempoEndResponse = "🎯 You arrived at \(destTitle)! Commute session completed and logged."
+                }
             }
         }
     }
@@ -323,16 +336,13 @@ struct LogTabView: View {
                     }
                     session.tempoEndResponse = "Done. Logged \(item.actualMinutes ?? 0)m.\(syncNote)"
                 } else {
-                    finalizeActiveRunningSessions(endedAt: item.startedAt)
+                    finalizeActiveRunningSessions(except: session, endedAt: item.startedAt)
+                    NotificationManager.shared.scheduleTimerCompletion(title: session.rawText, durationMinutes: session.estimatedMinutes ?? 25, sessionId: session.sessionIdentifier)
                     remainingPending.append(item)
                 }
                 context.insert(session)
                 didModify = true
             }
-        }
-        
-        if !WidgetDataStore.shared.loadSnapshot().isRunning && sessions.allSatisfy({ !$0.isRunning }) {
-            LiveActivityManager.shared.cancelAllLiveActivities()
         }
         
         if didModify {
@@ -375,13 +385,13 @@ struct LogTabView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
                     Text("SUGGESTED TASK")
-                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(Color.blue)
                         .tracking(0.5)
                 }
                 
                 Text(suggestion.prompt)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
             }
@@ -398,7 +408,8 @@ struct LogTabView: View {
                     Image(systemName: "play.fill")
                         .font(.system(size: 9))
                     Text("\(suggestion.minutes)m")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: 12, weight: .semibold))
+                        .monospacedDigit()
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12)
@@ -413,7 +424,7 @@ struct LogTabView: View {
                 }
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.primary.opacity(0.45))
                     .padding(6)
             }
@@ -444,7 +455,7 @@ struct LogTabView: View {
             .pressable(scale: 0.92)
             
             TextField("What are you doing?", text: $inputText)
-                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .font(.system(size: 15, weight: .medium))
                 .padding(.horizontal, 18)
                 .padding(.vertical, 13)
                 .background(.ultraThinMaterial, in: Capsule())
@@ -708,6 +719,11 @@ struct LogTabView: View {
                 estimatedMinutes: mins,
                 startDate: session.startedAt ?? Date()
             )
+            WatchConnectivityManager.shared.syncActiveSession(
+                title: intent.text,
+                estimatedMinutes: mins,
+                startDate: session.startedAt ?? Date()
+            )
             NotificationManager.shared.scheduleTimerCompletion(
                 title: intent.text,
                 durationMinutes: mins,
@@ -854,31 +870,64 @@ struct LogTabView: View {
         }
     }
     
-    private func startCommuteFocus(title: String, minutes: Int, mode: TravelTransportMode = .driving) {
+    private func startCommuteFocus(
+        title: String,
+        minutes: Int,
+        mode: TravelTransportMode = .driving,
+        destLat: Double? = nil,
+        destLon: Double? = nil,
+        destName: String? = nil,
+        trackArrival: Bool = true
+    ) {
+        let hasCoords = destLat != nil && destLon != nil
+        let trackSuffix = (trackArrival && hasCoords) ? " Live arrival tracking active." : ""
         let responseMsg: String
         switch mode {
         case .driving:
-            responseMsg = "🚗 Commute timer started. Drive safely!"
+            responseMsg = "🚗 Commute timer started. Drive safely!\(trackSuffix)"
         case .transit:
-            responseMsg = "🚆 Transit commute timer started. Have a good ride!"
+            responseMsg = "🚆 Transit commute timer started. Have a good ride!\(trackSuffix)"
         case .walking:
-            responseMsg = "🚶 Walking timer started. Enjoy your walk!"
+            responseMsg = "🚶 Walking timer started. Enjoy your walk!\(trackSuffix)"
         case .cycling:
-            responseMsg = "🚴 Cycling timer started. Ride safely!"
+            responseMsg = "🚴 Cycling timer started. Ride safely!\(trackSuffix)"
         }
         
+        let radius: Double = (mode == .driving || mode == .transit) ? 120.0 : 70.0
         let session = Session(
             rawText: title,
             estimatedMinutes: minutes,
             startedAt: Date(),
             tempoResponse: responseMsg,
             integrationSource: "maps",
-            createdAt: Date()
+            createdAt: Date(),
+            destinationLatitude: destLat,
+            destinationLongitude: destLon,
+            destinationTitle: destName ?? title,
+            destinationRadiusMeters: radius,
+            isArrivalTrackingActive: trackArrival && hasCoords
         )
         context.insert(session)
         finalizeActiveRunningSessions(except: session, endedAt: session.startedAt ?? Date())
+        try? context.save()
+        
+        if trackArrival, let lat = destLat, let lon = destLon {
+            LocationTravelManager.shared.startMonitoringArrival(
+                sessionId: session.sessionIdentifier,
+                title: destName ?? title,
+                latitude: lat,
+                longitude: lon,
+                radius: radius
+            )
+        }
+        
         LiveActivityManager.shared.startLiveActivity(
             taskTitle: title,
+            estimatedMinutes: minutes,
+            startDate: session.startedAt ?? Date()
+        )
+        WatchConnectivityManager.shared.syncActiveSession(
+            title: title,
             estimatedMinutes: minutes,
             startDate: session.startedAt ?? Date()
         )
@@ -895,6 +944,11 @@ struct LogTabView: View {
         
         // Update Live Activity & Widget Store
         LiveActivityManager.shared.updateLiveActivity(estimatedMinutes: newMinutes, statusMessage: "\(newMinutes)m")
+        WatchConnectivityManager.shared.syncActiveSession(
+            title: session.rawText,
+            estimatedMinutes: newMinutes,
+            startDate: session.startedAt ?? Date()
+        )
         
         // Reschedule local notification
         let remainingMinutes: Int
@@ -944,6 +998,11 @@ struct LogTabView: View {
         
         // Update Live Activity & Widget snapshot
         LiveActivityManager.shared.updateLiveActivity(estimatedMinutes: newEst, statusMessage: "+\(minutesToAdd)m")
+        WatchConnectivityManager.shared.syncActiveSession(
+            title: session.rawText,
+            estimatedMinutes: newEst,
+            startDate: session.startedAt ?? Date()
+        )
         
         // Reschedule local notification
         let remainingMinutes: Int
@@ -955,7 +1014,7 @@ struct LogTabView: View {
         }
         NotificationManager.shared.cancelTimerNotification(sessionId: session.sessionIdentifier)
         NotificationManager.shared.scheduleTimerCompletion(
-            title: session.rawText ?? "Focus Session",
+            title: session.rawText,
             durationMinutes: remainingMinutes,
             sessionId: session.sessionIdentifier
         )
@@ -987,13 +1046,19 @@ struct LogTabView: View {
         }
     }
     
-    private func stopSession(_ session: Session, endCommandText: String) {
+    private func stopSession(_ session: Session, endCommandText: String, explicitActualMinutes: Int? = nil) {
+        if LocationTravelManager.shared.activeArrivalTarget?.sessionId == session.sessionIdentifier {
+            LocationTravelManager.shared.stopMonitoringArrival()
+        }
         session.endedAt = Date()
-        let actual = max(1, Int(Date().timeIntervalSince(session.startedAt ?? Date()) / 60))
+        let actual = explicitActualMinutes ?? max(1, Int(Date().timeIntervalSince(session.startedAt ?? Date()) / 60))
         session.actualMinutes = actual
         session.endCommandText = endCommandText
         
         LiveActivityManager.shared.endLiveActivity(actualMinutes: actual)
+        WatchConnectivityManager.shared.syncSessionStopped(actualMinutes: actual)
+        WidgetDataStore.shared.stopActiveSession(actualMinutes: actual)
+        WidgetCenter.shared.reloadAllTimelines()
         NotificationManager.shared.cancelTimerNotification(sessionId: session.sessionIdentifier)
         
         // Bidirectional sync with Apple Calendar or Reminders
@@ -1112,6 +1177,22 @@ struct LogTabView: View {
             isLinkedToReminders: !item.isCalendarEvent,
             createdAt: Date()
         )
+        
+        if let lat = item.latitude, let lon = item.longitude {
+            session.destinationLatitude = lat
+            session.destinationLongitude = lon
+            session.destinationTitle = item.location ?? item.title
+            session.destinationRadiusMeters = 80.0
+            session.isArrivalTrackingActive = true
+            LocationTravelManager.shared.startMonitoringArrival(
+                sessionId: session.sessionIdentifier,
+                title: item.location ?? item.title,
+                latitude: lat,
+                longitude: lon,
+                radius: 80.0
+            )
+        }
+        
         finalizeActiveRunningSessions(except: session, endedAt: session.startedAt ?? Date())
         context.insert(session)
         try? context.save()
@@ -1123,6 +1204,11 @@ struct LogTabView: View {
             linkedEventIdentifier: item.id,
             isLinkedToCalendar: item.isCalendarEvent,
             isLinkedToReminders: !item.isCalendarEvent
+        )
+        WatchConnectivityManager.shared.syncActiveSession(
+            title: item.title,
+            estimatedMinutes: item.estimatedMinutes,
+            startDate: session.startedAt ?? Date()
         )
         NotificationManager.shared.scheduleTimerCompletion(
             title: item.title,
@@ -1166,6 +1252,11 @@ struct LogTabView: View {
         
         LiveActivityManager.shared.startLiveActivity(
             taskTitle: taskTitle,
+            estimatedMinutes: minutes,
+            startDate: session.startedAt ?? Date()
+        )
+        WatchConnectivityManager.shared.syncActiveSession(
+            title: taskTitle,
             estimatedMinutes: minutes,
             startDate: session.startedAt ?? Date()
         )
@@ -1220,6 +1311,11 @@ struct LogTabView: View {
             isLinkedToCalendar: session.isLinkedToCalendar,
             isLinkedToReminders: session.isLinkedToReminders
         )
+        WatchConnectivityManager.shared.syncActiveSession(
+            title: session.rawText,
+            estimatedMinutes: minutes,
+            startDate: session.startedAt ?? Date()
+        )
         NotificationManager.shared.scheduleTimerCompletion(
             title: session.rawText,
             durationMinutes: minutes,
@@ -1244,8 +1340,8 @@ struct LogTabView: View {
     @ViewBuilder
     private func glassChip(text: String) -> some View {
         Text(text)
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .foregroundStyle(.primary.opacity(0.5))
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.primary.opacity(0.55))
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
             .background(.ultraThinMaterial, in: Capsule())
@@ -1278,7 +1374,7 @@ struct LogTabView: View {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Theme.brandCoral)
                     Text("Assessing traffic & ride ETA...")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.primary.opacity(0.75))
                     ProgressView()
                         .scaleEffect(0.65)
@@ -1299,103 +1395,154 @@ struct LogTabView: View {
     
     @ViewBuilder
     private func travelAssessmentCard(result: TravelAssessmentResult, session: Session) -> some View {
+        let isCollapsed = expandedTravelSessionIds.contains(session.sessionIdentifier)
+        
         VStack(alignment: .leading, spacing: 12) {
-            // Destination & Duration Header
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(transportModeColor(result.transportMode).opacity(0.18))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: result.transportMode.iconName)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(transportModeColor(result.transportMode))
+            // Destination & Duration Header (Tappable for accordion expand/collapse)
+            Button {
+                withAnimation(AppMotion.cardExpand) {
+                    if isCollapsed {
+                        expandedTravelSessionIds.remove(session.sessionIdentifier)
+                    } else {
+                        expandedTravelSessionIds.insert(session.sessionIdentifier)
+                    }
                 }
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(result.destinationTitle)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    if let addr = result.destinationAddress {
-                        Text(addr)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(.primary.opacity(0.55))
+            } label: {
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(transportModeColor(result.transportMode).opacity(0.18))
+                            .frame(width: 36, height: 36)
+                        Image(systemName: result.transportMode.iconName)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(transportModeColor(result.transportMode))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(result.destinationTitle)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
                             .lineLimit(1)
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(result.formattedDuration)
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
-                        .foregroundStyle(transportModeColor(result.transportMode))
-                    Text(result.distanceString)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.55))
-                }
-            }
-            
-            // Interactive Mode Selector Pills (Car, City Transport, By Feet, Bicycle)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(TravelTransportMode.allCases) { mode in
-                        let isSelected = result.transportMode == mode
-                        Button {
-                            recalculateTravel(session: session, newMode: mode)
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: mode.iconName)
-                                    .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                                Text(mode.displayName)
-                                    .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
-                            }
-                            .foregroundStyle(isSelected ? Color.white : .primary.opacity(0.75))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                isSelected ? transportModeColor(mode) : Color.primary.opacity(0.06),
-                                in: Capsule()
-                            )
-                            .shadow(color: isSelected ? transportModeColor(mode).opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
+                        if let addr = result.destinationAddress {
+                            Text(addr)
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundStyle(.primary.opacity(0.55))
+                                .lineLimit(1)
                         }
-                        .buttonStyle(.plain)
                     }
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(result.formattedDuration)
+                            .font(.system(size: 20, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(transportModeColor(result.transportMode))
+                        Text(result.distanceString)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.primary.opacity(0.55))
+                    }
+                    
+                    Image(systemName: isCollapsed ? "chevron.down" : "chevron.up")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 2)
                 }
             }
+            .buttonStyle(.plain)
             
-            // Action Buttons
-            HStack(spacing: 8) {
-                Button {
-                    startCommuteFocus(title: "\(result.transportMode.actionTitle): \(result.destinationTitle)", minutes: result.travelDurationMinutes, mode: result.transportMode)
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 9))
-                        Text("Start \(result.transportMode.actionTitle) (\(result.formattedDuration))")
+            if !isCollapsed {
+                VStack(alignment: .leading, spacing: 12) {
+                    // Interactive Mode Selector Pills (Car, City Transport, By Feet, Bicycle)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(TravelTransportMode.allCases) { mode in
+                                let isSelected = result.transportMode == mode
+                                Button {
+                                    recalculateTravel(session: session, newMode: mode)
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: mode.iconName)
+                                            .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+                                        Text(mode.displayName)
+                                            .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+                                    }
+                                    .foregroundStyle(isSelected ? Color.white : .primary.opacity(0.75))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        isSelected ? transportModeColor(mode) : Color.primary.opacity(0.06),
+                                        in: Capsule()
+                                    )
+                                    .shadow(color: isSelected ? transportModeColor(mode).opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
+                                }
+                                .pressable(scale: 0.95)
+                            }
+                        }
                     }
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 8)
-                    .background(transportModeColor(result.transportMode), in: Capsule())
-                    .shadow(color: transportModeColor(result.transportMode).opacity(0.25), radius: 4, x: 0, y: 2)
-                }
-                
-                Button {
-                    LocationTravelManager.shared.openInMaps(result: result)
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "map.fill")
-                            .font(.system(size: 10))
-                        Text("Apple Maps")
+                    
+                    // GPS Arrival Detection Badge
+                    HStack(spacing: 6) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color.teal)
+                        Text("GPS Arrival Tracking Ready")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.primary.opacity(0.85))
+                        Spacer()
+                        Text("Auto-ends upon arrival")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
                     }
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.primary.opacity(0.08), in: Capsule())
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    
+                    // Action Buttons
+                    HStack(spacing: 8) {
+                        Button {
+                            startCommuteFocus(
+                                title: "\(result.transportMode.actionTitle): \(result.destinationTitle)",
+                                minutes: result.travelDurationMinutes,
+                                mode: result.transportMode,
+                                destLat: result.latitude,
+                                destLon: result.longitude,
+                                destName: result.destinationTitle,
+                                trackArrival: true
+                            )
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 9))
+                                Text("Start \(result.transportMode.actionTitle) (\(result.formattedDuration))")
+                            }
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 8)
+                            .background(transportModeColor(result.transportMode), in: Capsule())
+                            .shadow(color: transportModeColor(result.transportMode).opacity(0.25), radius: 4, x: 0, y: 2)
+                        }
+                        .pressable(scale: 0.96)
+                        
+                        Button {
+                            LocationTravelManager.shared.openInMaps(result: result)
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "map.fill")
+                                    .font(.system(size: 10))
+                                Text("Apple Maps")
+                            }
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.primary.opacity(0.08), in: Capsule())
+                        }
+                        .pressable(scale: 0.96)
+                    }
                 }
+                .transition(.cardExpandTransition)
             }
         }
         .padding(14)
@@ -1415,7 +1562,7 @@ struct LogTabView: View {
         switch mode {
         case .driving: return Color.blue
         case .transit: return Color.teal
-        case .walking: return Color.orange
+        case .walking: return Color.teal
         case .cycling: return Color.green
         }
     }
@@ -1439,17 +1586,17 @@ struct LogTabView: View {
                         if isCalOnly {
                             RealCalendarAppIcon(size: 16)
                             Text("Checking Apple Calendar...")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.primary.opacity(0.75))
                         } else if isRemOnly {
                             RealRemindersAppIcon(size: 16)
                             Text("Checking Apple Reminders...")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.primary.opacity(0.75))
                         } else {
                             RealUnifiedIntegrationIcon(size: 16)
                             Text("Checking Calendar & Reminders...")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.primary.opacity(0.75))
                         }
                         ProgressView()
@@ -1478,7 +1625,7 @@ struct LogTabView: View {
                         }
                         
                         Text(session.tempoResponse ?? "No scheduled items found.")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.primary.opacity(0.9))
                         
                         Spacer(minLength: 0)
@@ -1498,17 +1645,17 @@ struct LogTabView: View {
                             if isCalOnly {
                                 RealCalendarAppIcon(size: 16)
                                 Text("Apple Calendar")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(.primary.opacity(0.85))
                             } else if isRemOnly {
                                 RealRemindersAppIcon(size: 16)
                                 Text("Apple Reminders")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(.primary.opacity(0.85))
                             } else {
                                 RealUnifiedIntegrationIcon(size: 16)
                                 Text("Calendar & Reminders")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(.primary.opacity(0.85))
                             }
                             
@@ -1517,7 +1664,8 @@ struct LogTabView: View {
                                 .foregroundStyle(.primary.opacity(0.35))
                             
                             Text("\(items.count) item\(items.count == 1 ? "" : "s")")
-                                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                .font(.system(size: 11, weight: .semibold))
+                                .monospacedDigit()
                                 .foregroundStyle(Color.blue)
                         }
                         .padding(.horizontal, 11)
@@ -1531,67 +1679,151 @@ struct LogTabView: View {
                     
                     VStack(spacing: 8) {
                         ForEach(items) { item in
-                            HStack(spacing: 12) {
-                                if item.isCalendarEvent {
-                                    RealCalendarAppIcon(size: 28)
-                                } else {
-                                    RealRemindersAppIcon(size: 28)
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.title)
-                                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
-                                    
-                                    HStack(spacing: 5) {
-                                        if let time = item.timeString, !time.isEmpty {
-                                            Text(time)
-                                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                                .foregroundStyle(.primary.opacity(0.6))
-                                            Text("•")
-                                                .font(.system(size: 9))
-                                                .foregroundStyle(.primary.opacity(0.3))
-                                        }
-                                        Text("\(item.estimatedMinutes)m Focus")
-                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(item.isCalendarEvent ? Color.red.opacity(0.9) : Color.blue.opacity(0.9))
+                            let isExpanded = expandedScheduleItemIds.contains(item.id)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 12) {
+                                    if item.isCalendarEvent {
+                                        RealCalendarAppIcon(size: 28)
+                                    } else {
+                                        RealRemindersAppIcon(size: 28)
                                     }
                                     
-                                    // Location & Travel ETA Info Badge
-                                    if let loc = item.location, !loc.isEmpty {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "location.fill")
-                                                .font(.system(size: 8))
-                                                .foregroundStyle(.primary.opacity(0.5))
-                                            Text(loc)
-                                                .font(.system(size: 10, weight: .medium, design: .rounded))
-                                                .foregroundStyle(.primary.opacity(0.6))
-                                                .lineLimit(1)
-                                            if let eta = item.travelEtaMinutes {
-                                                Text("• 🚗 \(eta)m drive")
-                                                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                                                    .foregroundStyle(Theme.brandCoral)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.title)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        
+                                        HStack(spacing: 5) {
+                                            if let time = item.timeString, !time.isEmpty {
+                                                Text(time)
+                                                    .font(.system(size: 11, weight: .regular))
+                                                    .monospacedDigit()
+                                                    .foregroundStyle(.primary.opacity(0.6))
+                                                Text("•")
+                                                    .font(.system(size: 9))
+                                                    .foregroundStyle(.primary.opacity(0.3))
+                                            }
+                                            Text("\(item.estimatedMinutes)m Focus")
+                                                .font(.system(size: 11, weight: .medium))
+                                                .monospacedDigit()
+                                                .foregroundStyle(item.isCalendarEvent ? Color.red.opacity(0.9) : Color.blue.opacity(0.9))
+                                        }
+                                        
+                                        // Location & Travel ETA Info Badge
+                                        if let loc = item.location, !loc.isEmpty {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "location.fill")
+                                                    .font(.system(size: 8))
+                                                    .foregroundStyle(.primary.opacity(0.5))
+                                                Text(loc)
+                                                    .font(.system(size: 10, weight: .regular))
+                                                    .foregroundStyle(.primary.opacity(0.6))
+                                                    .lineLimit(1)
+                                                if let eta = item.travelEtaMinutes {
+                                                    Text("• 🚗 \(eta)m drive")
+                                                        .font(.system(size: 10, weight: .semibold))
+                                                        .monospacedDigit()
+                                                        .foregroundStyle(Theme.brandCoral)
+                                                }
                                             }
                                         }
                                     }
+                                    
+                                    Spacer(minLength: 8)
+                                    
+                                    Button {
+                                        launchSessionFromSchedule(item: item)
+                                    } label: {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "play.fill")
+                                                .font(.system(size: 8))
+                                            Text("Start")
+                                                .font(.system(size: 11, weight: .semibold))
+                                        }
+                                        .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(colorScheme == .dark ? Color.white : Color.black, in: Capsule())
+                                    }
+                                    .pressable(scale: 0.94)
                                 }
                                 
-                                Spacer(minLength: 8)
-                                
-                                Button {
-                                    launchSessionFromSchedule(item: item)
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "play.fill")
-                                            .font(.system(size: 8))
-                                        Text("Start")
-                                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                                if isExpanded {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Divider().opacity(0.15)
+                                        
+                                        HStack(spacing: 8) {
+                                            if let loc = item.location, !loc.isEmpty {
+                                                Button {
+                                                    let res = TravelAssessmentResult(
+                                                        destinationTitle: item.title,
+                                                        destinationAddress: loc,
+                                                        travelDurationMinutes: item.travelEtaMinutes ?? 20,
+                                                        distanceMeters: 0,
+                                                        distanceString: item.travelDistanceString ?? "",
+                                                        latitude: item.latitude,
+                                                        longitude: item.longitude
+                                                    )
+                                                    LocationTravelManager.shared.openInMaps(result: res)
+                                                } label: {
+                                                    HStack(spacing: 4) {
+                                                        Image(systemName: "map.fill")
+                                                            .font(.system(size: 9))
+                                                        Text("Maps")
+                                                            .font(.system(size: 11, weight: .medium))
+                                                    }
+                                                    .foregroundStyle(.primary)
+                                                    .padding(.horizontal, 10)
+                                                    .padding(.vertical, 5)
+                                                    .background(Color.primary.opacity(0.08), in: Capsule())
+                                                }
+                                                .pressable(scale: 0.94)
+                                            }
+                                            
+                                            if !item.isCalendarEvent {
+                                                Button {
+                                                    Task {
+                                                        let ok = await eventKit.completeReminder(identifier: item.id)
+                                                        if ok {
+                                                            removeItemFromScheduleQuery(querySession: session, itemId: item.id)
+                                                        }
+                                                    }
+                                                } label: {
+                                                    HStack(spacing: 4) {
+                                                        Image(systemName: "checkmark.circle")
+                                                            .font(.system(size: 9))
+                                                        Text("Complete")
+                                                            .font(.system(size: 11, weight: .medium))
+                                                    }
+                                                    .foregroundStyle(Color.green)
+                                                    .padding(.horizontal, 10)
+                                                    .padding(.vertical, 5)
+                                                    .background(Color.green.opacity(0.12), in: Capsule())
+                                                }
+                                                .pressable(scale: 0.94)
+                                            }
+                                            
+                                            Spacer()
+                                            
+                                            Button(role: .destructive) {
+                                                Task {
+                                                    let ok = await eventKit.deleteItem(identifier: item.id, isCalendarEvent: item.isCalendarEvent)
+                                                    if ok {
+                                                        removeItemFromScheduleQuery(querySession: session, itemId: item.id)
+                                                    }
+                                                }
+                                            } label: {
+                                                Image(systemName: "trash")
+                                                    .font(.system(size: 10))
+                                                    .foregroundStyle(.red.opacity(0.8))
+                                                    .padding(6)
+                                            }
+                                            .pressable(scale: 0.90)
+                                        }
                                     }
-                                    .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(colorScheme == .dark ? Color.white : Color.black, in: Capsule())
+                                    .transition(.cardExpandTransition)
                                 }
                             }
                             .padding(.horizontal, 12)
@@ -1601,6 +1833,16 @@ struct LogTabView: View {
                                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                                     .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
                             )
+                            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .onTapGesture {
+                                withAnimation(AppMotion.cardExpand) {
+                                    if isExpanded {
+                                        expandedScheduleItemIds.remove(item.id)
+                                    } else {
+                                        expandedScheduleItemIds.insert(item.id)
+                                    }
+                                }
+                            }
                             .contextMenu {
                                 Button {
                                     launchSessionFromSchedule(item: item)
@@ -1677,6 +1919,9 @@ struct LogTabView: View {
     }
     
     private func cancelRunningSession(_ session: Session) {
+        if LocationTravelManager.shared.activeArrivalTarget?.sessionId == session.sessionIdentifier {
+            LocationTravelManager.shared.stopMonitoringArrival()
+        }
         if let eventId = session.linkedEventIdentifier {
             if session.isLinkedToReminders == true {
                 Task {
@@ -1721,7 +1966,8 @@ struct LogTabView: View {
                                         setEstimate(mins, for: session)
                                     } label: {
                                         Text("\(mins)m")
-                                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .monospacedDigit()
                                             .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 8)
@@ -1743,72 +1989,8 @@ struct LogTabView: View {
             }
             
             if session.isRunning && session.tempoResponse != nil {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        liveTimerBubble(startDate: session.startedAt ?? Date())
-                            .onTapGesture {
-                                stopSession(session, endCommandText: "Stopped")
-                            }
-                            .contextMenu {
-                                Button("Finish & Log", systemImage: "checkmark.circle") {
-                                    stopSession(session, endCommandText: "Stopped")
-                                }
-                                Button("Cancel & Discard", systemImage: "xmark.circle", role: .destructive) {
-                                    cancelRunningSession(session)
-                                }
-                            }
-                        
-                        Spacer()
-                    }
-                    
-                    // Quick Action Chips in Chat
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach([5, 10, 15, 30], id: \.self) { mins in
-                                Button {
-                                    extendRunningSession(session, by: mins, userCommandText: "+\(mins)m")
-                                } label: {
-                                    HStack(spacing: 3) {
-                                        Image(systemName: "plus")
-                                            .font(.system(size: 9, weight: .bold))
-                                        Text("\(mins)m")
-                                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    }
-                                    .foregroundStyle(Color.blue)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(
-                                        Capsule()
-                                            .fill(colorScheme == .dark ? Color.blue.opacity(0.18) : Color.blue.opacity(0.10))
-                                    )
-                                    .overlay(
-                                        Capsule()
-                                            .strokeBorder(Color.blue.opacity(0.3), lineWidth: 0.8)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            
-                            Button {
-                                stopSession(session, endCommandText: "Done")
-                            } label: {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 9, weight: .bold))
-                                    Text("Done")
-                                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                                }
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Color.blue, in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.leading, 32)
-                    }
-                }
-                .transition(.iMessageAIPop)
+                runningFocusCard(for: session)
+                    .transition(.iMessageAIPop)
             }
             
             if !session.isRunning, session.actualMinutes != nil {
@@ -1841,7 +2023,8 @@ struct LogTabView: View {
                 
                 if let est = est {
                     Text("Est: \(est)m")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 11, weight: .medium))
+                        .monospacedDigit()
                         .foregroundStyle(.white.opacity(0.8))
                 }
             }
@@ -1914,6 +2097,228 @@ struct LogTabView: View {
     }
     
     @ViewBuilder
+    private func runningFocusCard(for session: Session) -> some View {
+        let isExpanded = expandedActiveSessionIds.contains(session.sessionIdentifier)
+        let isArrivalActive = session.isArrivalTrackingActive == true || (travelManager.activeArrivalTarget?.sessionId == session.sessionIdentifier)
+        
+        VStack(alignment: .leading, spacing: 10) {
+            // Main Live Timer Bar (Tappable for expansion)
+            HStack(spacing: 8) {
+                liveTimerBubble(startDate: session.startedAt ?? Date())
+                    .onTapGesture {
+                        withAnimation(AppMotion.cardExpand) {
+                            if isExpanded {
+                                expandedActiveSessionIds.remove(session.sessionIdentifier)
+                            } else {
+                                expandedActiveSessionIds.insert(session.sessionIdentifier)
+                            }
+                        }
+                    }
+                    .contextMenu {
+                        Button("Finish & Log", systemImage: "checkmark.circle") {
+                            stopSession(session, endCommandText: "Stopped")
+                        }
+                        Button("Cancel & Discard", systemImage: "xmark.circle", role: .destructive) {
+                            cancelRunningSession(session)
+                        }
+                    }
+                
+                Spacer()
+                
+                Button {
+                    withAnimation(AppMotion.cardExpand) {
+                        if isExpanded {
+                            expandedActiveSessionIds.remove(session.sessionIdentifier)
+                        } else {
+                            expandedActiveSessionIds.insert(session.sessionIdentifier)
+                        }
+                    }
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary.opacity(0.8))
+                }
+                .pressable(scale: 0.90)
+            }
+            
+            // Live Real-Time GPS Arrival Tracking Card (if destination tracking is active)
+            if isArrivalActive {
+                HStack(spacing: 10) {
+                    TimelineView(.animation) { timeline in
+                        let pulse = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.2) < 0.6
+                        ZStack {
+                            Circle()
+                                .fill(Color.teal.opacity(pulse ? 0.35 : 0.15))
+                                .frame(width: 28, height: 28)
+                                .scaleEffect(pulse ? 1.15 : 0.95)
+                                .animation(AppMotion.smoothOut, value: pulse)
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(Color.teal)
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 5) {
+                            Text(session.destinationTitle ?? "Destination")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            
+                            if let dist = travelManager.remainingDistanceMeters {
+                                Text("•")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(.secondary)
+                                Text(travelManager.formatDistance(meters: dist))
+                                    .font(.system(size: 12, weight: .bold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(Color.teal)
+                            }
+                        }
+                        
+                        Text("Session auto-completes on arrival")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        travelManager.simulateArrival()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flag.checkered")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("Arrived")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(Color.teal)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.teal.opacity(0.14), in: Capsule())
+                    }
+                    .pressable(scale: 0.92)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.teal.opacity(0.35), lineWidth: 0.9)
+                )
+                .transition(.cardExpandTransition)
+            }
+            
+            // Expanded Controls (Progress & Extensions)
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Text("Quick Add:")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        
+                        ForEach([5, 10, 15, 30], id: \.self) { mins in
+                            Button {
+                                extendRunningSession(session, by: mins, userCommandText: "+\(mins)m")
+                            } label: {
+                                Text("+\(mins)m")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(Color.blue)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 5)
+                                    .background(Color.blue.opacity(0.12), in: Capsule())
+                            }
+                            .pressable(scale: 0.92)
+                        }
+                    }
+                    
+                    HStack(spacing: 8) {
+                        Button {
+                            stopSession(session, endCommandText: "Done")
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 12))
+                                Text("Finish & Log Session")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .background(Color.blue, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .shadow(color: Color.blue.opacity(0.25), radius: 4, x: 0, y: 2)
+                        }
+                        .pressable(scale: 0.96)
+                        
+                        Button {
+                            cancelRunningSession(session)
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.red.opacity(0.85))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
+                                .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .pressable(scale: 0.92)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 0.8)
+                )
+                .transition(.cardExpandTransition)
+            } else if !isArrivalActive {
+                // Compact Quick Action Chips in Chat
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach([5, 10, 15, 30], id: \.self) { mins in
+                            Button {
+                                extendRunningSession(session, by: mins, userCommandText: "+\(mins)m")
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 9, weight: .bold))
+                                    Text("\(mins)m")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .monospacedDigit()
+                                }
+                                .foregroundStyle(Color.blue)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.blue.opacity(0.10), in: Capsule())
+                                .overlay(Capsule().strokeBorder(Color.blue.opacity(0.3), lineWidth: 0.8))
+                            }
+                            .pressable(scale: 0.94)
+                        }
+                        
+                        Button {
+                            stopSession(session, endCommandText: "Done")
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                Text("Done")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.blue, in: Capsule())
+                        }
+                        .pressable(scale: 0.94)
+                    }
+                    .padding(.leading, 32)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
     private func liveTimerBubble(startDate: Date) -> some View {
         TimelineView(.animation) { timeline in
             let elapsed = timeline.date.timeIntervalSince(startDate)
@@ -1943,7 +2348,7 @@ struct LogTabView: View {
                         .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.95) : Color.black.opacity(0.9))
                     
                     Text("Running")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 16)
@@ -2050,14 +2455,15 @@ struct RealCalendarAppIcon: View {
                     .fill(Color(red: 0.95, green: 0.23, blue: 0.23))
                     
                     Text(weekdayString)
-                        .font(.system(size: max(6, size * 0.28), weight: .heavy, design: .rounded))
+                        .font(.system(size: max(6, size * 0.28), weight: .semibold))
                         .foregroundStyle(.white)
                 }
                 .frame(height: size * 0.38)
                 
                 // White bottom with day number
                 Text(dayString)
-                    .font(.system(size: max(8, size * 0.44), weight: .bold, design: .rounded))
+                    .font(.system(size: max(8, size * 0.44), weight: .semibold))
+                    .monospacedDigit()
                     .foregroundStyle(Color.black.opacity(0.85))
                     .frame(maxHeight: .infinity)
             }
@@ -2152,7 +2558,7 @@ struct DateJumpSheet: View {
                         }
                     } header: {
                         Text("Jump to Date")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.primary.opacity(0.6))
                     }
                     .listRowBackground(
@@ -2174,14 +2580,14 @@ struct DateJumpSheet: View {
                                 } label: {
                                     HStack {
                                         Image(systemName: "calendar")
-                                            .font(.system(size: 13, weight: .bold))
+                                            .font(.system(size: 13, weight: .semibold))
                                             .foregroundStyle(Theme.brandMint)
                                         Text(dayLabel(for: day))
-                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                            .font(.system(size: 14, weight: .medium))
                                             .foregroundStyle(.primary)
                                         Spacer()
                                         Image(systemName: "chevron.right")
-                                            .font(.system(size: 11, weight: .bold))
+                                            .font(.system(size: 11, weight: .semibold))
                                             .foregroundStyle(.primary.opacity(0.3))
                                     }
                                     .padding(.vertical, 4)
@@ -2189,16 +2595,16 @@ struct DateJumpSheet: View {
                             }
                         } header: {
                             Text("Logged Days")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.primary.opacity(0.6))
                         }
                         .listRowBackground(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .fill(.ultraThinMaterial)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
-                                )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+                            )
                         )
                         .listRowSeparator(.hidden)
                     }
@@ -2213,7 +2619,7 @@ struct DateJumpSheet: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.primary)
                 }
             }
