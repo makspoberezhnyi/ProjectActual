@@ -53,17 +53,9 @@ final class TempoConvoEngine {
         
         // 3. Identity & Capabilities ("Who are you", "What can you do", "Help")
         if isHelpOrIdentity(clean) {
-            let helpText = """
-            I'm Tempo — your adaptive focus & time calibration assistant! Here is what I can do:
-            
-            ⏱ **Focus Timers**: Type any task with an estimate (e.g. *"Design mockups for 30m"*) to start a calibrated session.
-            📅 **Apple Calendar & Reminders**: Type *"Check my schedule"* to see your upcoming events and to-dos.
-            🚗 **Travel & Ride Time**: Ask *"How long is the ride to the airport?"* or *"Time to my next meeting"* for real-time traffic ETAs.
-            📊 **Bias Calibration**: I learn your actual focus velocity and help eliminate planning bias.
-            """
             return ConversationalResponse(
-                replyText: helpText,
-                suggestedQuickActions: ["Check calendar & reminders", "How long the ride can take to Airport?"]
+                replyText: TempoUXCopy.Chat.identityHelpText,
+                suggestedQuickActions: TempoUXCopy.Chat.defaultQuickActions
             )
         }
         

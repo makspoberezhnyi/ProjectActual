@@ -64,7 +64,7 @@ struct LogTabView: View {
                 $0.rawText.localizedCaseInsensitiveContains(p.taskTitle)
             })
         }) {
-            return (topPattern.id, topPattern.taskTitle, topPattern.typicalMinutes, "Ready to focus on \(topPattern.taskTitle)?")
+            return (topPattern.id, topPattern.taskTitle, topPattern.typicalMinutes, TempoUXCopy.Chat.proactiveRoutinePrompt(title: topPattern.taskTitle, minutes: topPattern.typicalMinutes))
         }
         
         return nil
@@ -92,12 +92,12 @@ struct LogTabView: View {
                         ScrollView {
                             VStack(spacing: 18) {
                                 if sessions.isEmpty {
-                                    aiBubble(text: "Ready when you are. Tell me what you're doing, or check your calendar & tasks.")
+                                    aiBubble(text: TempoUXCopy.Chat.emptyStateGreeting)
                                         .padding(.top, 24)
                                 } else {
                                     let todaySessions = sessions.filter { Calendar.current.isDateInToday($0.timestamp) }
                                     if todaySessions.isEmpty {
-                                        aiBubble(text: "Welcome back. Tell me what you're doing, or check your calendar & tasks.")
+                                        aiBubble(text: TempoUXCopy.Chat.returningTodayGreeting)
                                             .padding(.top, 24)
                                     }
                                 }
