@@ -27,13 +27,11 @@ struct FocusInstrumentView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 4)
 
-                // 1. Hero mascot. It shrinks a little while you type so the keyboard has room.
-                ZStack {
-                    TempoAura()
-                    mascot
-                        .scaleEffect(inputFocused ? 0.72 : 1)
-                }
-                .frame(height: inputFocused ? 170 : 236)
+                // 1. Hero: the clock standing on its desk. It shrinks toward its feet while you type.
+                mascot
+                    .scaleEffect(inputFocused ? 0.72 : 1, anchor: .bottom)
+                    .standingOnDesk(mascotSize: 215)
+                    .frame(height: inputFocused ? 170 : 236, alignment: .bottom)
 
                 // 2. The mascot talks back right under itself.
                 speechBubble
@@ -63,6 +61,7 @@ struct FocusInstrumentView: View {
 
                     // 5. Primary & contextual controls
                     controls
+                        .deskFrontEdge(gap: 8)
                         .padding(.bottom, 14)
                         .transition(.opacity)
                 } else {

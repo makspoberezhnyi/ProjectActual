@@ -107,4 +107,6 @@ The market is currently fractured into **3 disconnected silos**—nobody unifies
 
 **Your history drives the timer.** Type a task you've done before without a time, like "Design review", and Tempo sets the timer to your real average and tells you so. Guess too short and it warns you. Finish a block and it tells you your updated average. This is the original idea of the app, now front and center.
 
+**A clock on a desk.** The mascot no longer floats. It stands on two little feet on a zoomed-in oak desk (walnut in dark mode), with a contact shadow under it. Every squash, tilt and hop pivots on its feet, and held poses stand tall or slump instead of hovering. Only quick moves leave the desk: a hop when you tap it, rattling while it rings, a landing squash. When idle it fidgets now and then with a glance, a rock on its feet, a tiny hop or a double blink. On Focus, Stopwatch and the ringing screen the table's front edge and legs show under the controls; the Alarms tab ends its hero with the desk's front edge.
+
 **Next up:** the commute alarm that adjusts itself from real prep time, and a pause state for the Live Activity.

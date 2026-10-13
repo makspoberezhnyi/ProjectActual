@@ -16,6 +16,7 @@ struct AlarmsInstrumentView: View {
         NavigationStack {
             List {
                 hero
+                    .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
@@ -82,7 +83,6 @@ struct AlarmsInstrumentView: View {
     private var hero: some View {
         VStack(spacing: 6) {
             ZStack {
-                TempoAura(size: 300)
                 TempoInteractiveMascotView(
                     size: 170,
                     onBodyTap: {
@@ -103,16 +103,21 @@ struct AlarmsInstrumentView: View {
                         return TempoMascotLive(regime: .alarmBedtimeMoody)
                     }
                 )
+                .standingOnDesk(mascotSize: 170, depth: 56, reach: 600)
             }
-            .frame(height: 200)
+            .frame(height: 200, alignment: .bottom)
 
             MascotSpeechBubble(text: store.mascotVoiceMessage)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 28)
             NextAlarmCaption()
                 .padding(.top, 2)
+            // The desk's front edge closes the hero; the alarm list sits below the table.
+            DeskFront()
+                .frame(height: 30)
+                .padding(.top, 12)
         }
         .frame(maxWidth: .infinity)
-        .padding(.bottom, 6)
+        .clipped()
     }
 
     private var permissionHint: some View {

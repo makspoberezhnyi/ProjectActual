@@ -17,12 +17,10 @@ struct StopwatchInstrumentView: View {
         ZStack {
             SharedBackground()
             VStack(spacing: 0) {
-                ZStack {
-                    TempoAura()
-                    mascot
-                }
-                .frame(height: 220)
-                .padding(.top, 8)
+                mascot
+                    .standingOnDesk(mascotSize: 195)
+                    .frame(height: 220, alignment: .bottom)
+                    .padding(.top, 8)
 
                 MascotSpeechBubble(text: store.mascotVoiceMessage)
                     .padding(.horizontal, 28)
@@ -52,6 +50,8 @@ struct StopwatchInstrumentView: View {
                 }
 
                 laps
+                    // Laps sit on the desk; its front edge peeks out just above the tab bar.
+                    .deskFrontEdge(gap: -34)
             }
             .animation(.spring(duration: 0.35, bounce: 0.15), value: hasTime)
             .animation(.spring(duration: 0.35, bounce: 0.15), value: store.chronoIsRunning)
