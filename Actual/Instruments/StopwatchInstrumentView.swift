@@ -4,8 +4,12 @@ import SwiftData
 struct StopwatchInstrumentView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable private var store = TimeOSStore.shared
+    @State private var showSave = false
+    @State private var saveTitle = ""
 
     init() {}
+
+    private var canSave: Bool { !store.chronoIsRunning && store.chronoTotalElapsed() >= 1 }
 
     private var hasTime: Bool { store.chronoIsRunning || store.chronoTotalElapsed() > 0 }
 
@@ -25,12 +29,45 @@ struct StopwatchInstrumentView: View {
 
                 controls
                     .padding(.top, 20)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 8)
+
+                if canSave {
+                    Button {
+                        saveTitle = ""
+                        showSave = true
+                    } label: {
+                        Label("Save to logbook", systemImage: "tray.and.arrow.down.fill")
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .foregroundStyle(Color.tempoAccent)
+                            .padding(.horizontal, 16)
+                            .frame(height: 36)
+                            .background(Capsule().fill(Color.tempoAccent.opacity(0.12)))
+                    }
+                    .buttonStyle(TempoPressStyle())
+                    .padding(.bottom, 8)
+                    .transition(.scale.combined(with: .opacity))
+                }
 
                 laps
             }
             .animation(.spring(duration: 0.35, bounce: 0.15), value: hasTime)
             .animation(.spring(duration: 0.35, bounce: 0.15), value: store.chronoIsRunning)
+        }
+        .alert("What was this?", isPresented: $showSave) {
+            TextField("Task name", text: $saveTitle)
+            Button("Save") {
+                let total = store.chronoTotalElapsed()
+                store.claimChronoAsCalibratedTask(
+                    title: saveTitle.isEmpty ? "Stopwatch run" : saveTitle,
+                    estimatedMinutes: max(1, Int((total / 60).rounded())),
+                    actualSeconds: total,
+                    context: modelContext
+                )
+                store.pressChronoLeftEar()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Tempo logs it so it learns how long this really takes.")
         }
     }
 

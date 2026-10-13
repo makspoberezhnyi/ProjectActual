@@ -53,7 +53,26 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
             options: [.customDismissAction]
         )
         
-        UNUserNotificationCenter.current().setNotificationCategories([sessionCategory])
+        let alarmCategory = UNNotificationCategory(
+            identifier: TempoAlarmScheduler.alarmCategory,
+            actions: [
+                UNNotificationAction(identifier: TempoAlarmScheduler.snoozeAction, title: "Snooze 9 min", options: []),
+                UNNotificationAction(identifier: TempoAlarmScheduler.wakeAction, title: "Wake up", options: [.foreground])
+            ],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+        let timerCategory = UNNotificationCategory(
+            identifier: TempoAlarmScheduler.timerCategory,
+            actions: [
+                UNNotificationAction(identifier: TempoAlarmScheduler.timerDoneAction, title: "Done & log", options: [.foreground]),
+                UNNotificationAction(identifier: TempoAlarmScheduler.timerExtendAction, title: "+5 min", options: [])
+            ],
+            intentIdentifiers: [],
+            options: []
+        )
+        
+        UNUserNotificationCenter.current().setNotificationCategories([sessionCategory, alarmCategory, timerCategory])
     }
     
     public func checkAuthorizationStatus() async {
@@ -162,6 +181,21 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        let identifier = notification.request.identifier
+        // Alarms and timers ring inside the app (mascot + chime), so the banner would double up.
+        if identifier == TempoAlarmScheduler.timerIdentifier {
+            Task { @MainActor in TimeOSStore.shared.timerReachedZero() }
+            completionHandler([])
+            return
+        }
+        if identifier.hasPrefix(TempoAlarmScheduler.alarmPrefix) {
+            let alarmID = (notification.request.content.userInfo["alarmID"] as? String).flatMap(UUID.init(uuidString:))
+            Task { @MainActor in
+                if let alarmID { TimeOSStore.shared.ringAlarm(alarmID) }
+            }
+            completionHandler([])
+            return
+        }
         completionHandler([.banner, .sound, .badge])
     }
     
@@ -173,6 +207,53 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
         let userInfo = response.notification.request.content.userInfo
         let actionId = response.actionIdentifier
         let sessionId = userInfo["sessionId"] as? String
+        let identifier = response.notification.request.identifier
+        
+        if identifier == TempoAlarmScheduler.timerIdentifier {
+            Task { @MainActor in
+                let store = TimeOSStore.shared
+                store.selectedMainTab = 0
+                switch actionId {
+                case TempoAlarmScheduler.timerExtendAction:
+                    store.extendTimer(bySeconds: 5 * 60)
+                case TempoAlarmScheduler.timerDoneAction:
+                    if let context = store.modelContext {
+                        store.completeAndCalibrateTimer(context: context)
+                    }
+                default:
+                    break
+                }
+            }
+            completionHandler()
+            return
+        }
+        
+        if identifier.hasPrefix(TempoAlarmScheduler.alarmPrefix),
+           let alarmID = (userInfo["alarmID"] as? String).flatMap(UUID.init(uuidString:)) {
+            Task { @MainActor in
+                let store = TimeOSStore.shared
+                switch actionId {
+                case TempoAlarmScheduler.snoozeAction:
+                    store.snoozeAlarm(alarmID)
+                case TempoAlarmScheduler.wakeAction:
+                    if let alarm = store.alarms.first(where: { $0.id == alarmID }),
+                       alarm.chainedTaskTitle != nil,
+                       let context = store.modelContext {
+                        store.dismissAlarmAndStartRoutine(alarm, context: context)
+                    } else {
+                        store.stopAlarm(alarmID)
+                    }
+                case UNNotificationDismissActionIdentifier:
+                    store.stopAlarm(alarmID)
+                default:
+                    // Opened from the banner: show the ringing screen quietly so they can stop or chain.
+                    store.selectedMainTab = 1
+                    store.ringAlarm(alarmID, playSound: false, force: true)
+                }
+            }
+            completionHandler()
+            return
+        }
         
         if actionId == Self.finishActionIdentifier {
             var notifUserInfo: [String: Any] = [:]

@@ -5,56 +5,150 @@ import MapKit
 struct AddTempoAlarmSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var store: TimeOSStore
-    
-    @State private var wakeDate: Date = Calendar.current.date(bySettingHour: 7, minute: 30, second: 0, of: Date()) ?? Date()
-    @State private var label: String = "Morning Wake"
-    @State private var isBedtime: Bool = false
-    @State private var chainRoutine: Bool = true
-    @State private var chainedTitle: String = "Morning Focus"
-    @State private var chainedMinutes: Int = 25
-    
+    /// When set, the sheet edits this alarm instead of creating a new one.
+    var editing: TempoAlarm? = nil
+
+    @State private var wakeDate: Date
+    @State private var label: String
+    @State private var weekdays: Set<Int>
+    @State private var isBedtime: Bool
+    @State private var chainRoutine: Bool
+    @State private var chainedTitle: String
+    @State private var chainedMinutes: Int
+
+    init(store: TimeOSStore, editing: TempoAlarm? = nil) {
+        _store = Bindable(wrappedValue: store)
+        self.editing = editing
+        let hour = editing?.hour ?? 7
+        let minute = editing?.minute ?? 30
+        _wakeDate = State(initialValue: Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date())
+        _label = State(initialValue: editing?.label ?? "Wake up")
+        _weekdays = State(initialValue: Set(editing?.activeWeekdays ?? Array(1...7)))
+        _isBedtime = State(initialValue: editing?.isBedtimeWindDown ?? false)
+        _chainRoutine = State(initialValue: editing.map { $0.chainedTaskTitle != nil } ?? true)
+        _chainedTitle = State(initialValue: editing?.chainedTaskTitle ?? "Morning routine")
+        _chainedMinutes = State(initialValue: editing?.chainedTaskMinutes ?? 20)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     DatePicker("Time", selection: $wakeDate, displayedComponents: .hourAndMinute)
                         .datePickerStyle(.wheel)
-                    TextField("Label", text: $label)
-                    Toggle("Bedtime Mode", isOn: $isBedtime)
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
                 }
-                
+
+                Section("Repeat") {
+                    weekdayPicker
+                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+                }
+
                 Section {
-                    Toggle("Chain Focus Timer", isOn: $chainRoutine)
+                    TextField("Label", text: $label)
+                    Toggle("Bedtime mode", isOn: $isBedtime)
+                        .tint(Color.tempoAccent)
+                }
+
+                Section {
+                    Toggle("Start a timer when I wake up", isOn: $chainRoutine)
+                        .tint(Color.tempoAccent)
                     if chainRoutine {
                         TextField("Routine", text: $chainedTitle)
                         Stepper("\(chainedMinutes) min", value: $chainedMinutes, in: 5...90, step: 5)
                     }
+                } footer: {
+                    Text("Tap Start on the ringing screen and Tempo times your routine for you.")
+                }
+
+                if let editing {
+                    Section {
+                        Button("Delete alarm", role: .destructive) {
+                            store.deleteAlarm(editing.id)
+                            dismiss()
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
                 }
             }
-            .navigationTitle("New Alarm")
+            .navigationTitle(editing == nil ? "New Alarm" : "Edit Alarm")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Cancel")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        let comp = Calendar.current.dateComponents([.hour, .minute], from: wakeDate)
-                        store.addAlarm(
-                            hour: comp.hour ?? 7,
-                            minute: comp.minute ?? 30,
-                            label: label,
-                            isBedtime: isBedtime,
-                            chainedTitle: chainRoutine ? chainedTitle : nil,
-                            chainedMinutes: chainRoutine ? chainedMinutes : nil
-                        )
+                        save()
                         dismiss()
                     } label: {
                         Image(systemName: "checkmark")
                             .fontWeight(.bold)
                     }
+                    .tint(Color.tempoAccent)
+                    .disabled(weekdays.isEmpty)
+                    .accessibilityLabel("Save")
                 }
             }
+        }
+    }
+
+    /// Seven round day toggles, ordered by the user's first weekday.
+    private var weekdayPicker: some View {
+        let cal = Calendar.current
+        let symbols = cal.veryShortWeekdaySymbols
+        let order = (0..<7).map { (cal.firstWeekday - 1 + $0) % 7 + 1 }
+        return HStack(spacing: 6) {
+            ForEach(order, id: \.self) { day in
+                let on = weekdays.contains(day)
+                Button {
+                    if on { weekdays.remove(day) } else { weekdays.insert(day) }
+                    TactileFeedback.selection()
+                } label: {
+                    Text(symbols[day - 1])
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(on ? Color.white : Color.tempoInk)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 36)
+                        .background(Circle().fill(on ? Color.tempoAccent : Color.tempoInk.opacity(0.07)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(cal.weekdaySymbols[day - 1])
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+    }
+
+    private func save() {
+        let comp = Calendar.current.dateComponents([.hour, .minute], from: wakeDate)
+        let days = weekdays.count == 7 ? nil : weekdays.sorted()
+        let cleanLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        if var alarm = editing {
+            alarm.hour = comp.hour ?? alarm.hour
+            alarm.minute = comp.minute ?? alarm.minute
+            alarm.label = cleanLabel.isEmpty ? "Alarm" : cleanLabel
+            alarm.repeatWeekdays = days
+            alarm.isBedtimeWindDown = isBedtime
+            alarm.chainedTaskTitle = chainRoutine && !chainedTitle.isEmpty ? chainedTitle : nil
+            alarm.chainedTaskMinutes = chainRoutine ? chainedMinutes : nil
+            store.updateAlarm(alarm)
+        } else {
+            store.addAlarm(
+                hour: comp.hour ?? 7,
+                minute: comp.minute ?? 30,
+                label: cleanLabel,
+                isBedtime: isBedtime,
+                chainedTitle: chainRoutine ? chainedTitle : nil,
+                chainedMinutes: chainRoutine ? chainedMinutes : nil,
+                repeatWeekdays: days
+            )
+        }
+        // First alarm is the natural moment to ask for alarm permission.
+        Task {
+            await TempoAlarmScheduler.shared.requestPermissions()
+            TempoAlarmScheduler.shared.sync(store.alarms)
         }
     }
 }

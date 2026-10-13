@@ -17,6 +17,8 @@ public struct TempoAlarm: Identifiable, Codable, Equatable {
     public var chainedTaskTitle: String?
     public var chainedTaskMinutes: Int?
     public var snoozedUntil: Date?
+    /// Calendar weekdays (1 = Sunday … 7 = Saturday). `nil` or empty means every day.
+    public var repeatWeekdays: [Int]?
     
     public init(
         id: UUID = UUID(),
@@ -28,7 +30,8 @@ public struct TempoAlarm: Identifiable, Codable, Equatable {
         isCommuteAutoCalibrated: Bool = false,
         chainedTaskTitle: String? = nil,
         chainedTaskMinutes: Int? = nil,
-        snoozedUntil: Date? = nil
+        snoozedUntil: Date? = nil,
+        repeatWeekdays: [Int]? = nil
     ) {
         self.id = id
         self.hour = hour
@@ -40,6 +43,31 @@ public struct TempoAlarm: Identifiable, Codable, Equatable {
         self.chainedTaskTitle = chainedTaskTitle
         self.chainedTaskMinutes = chainedTaskMinutes
         self.snoozedUntil = snoozedUntil
+        self.repeatWeekdays = repeatWeekdays
+    }
+    
+    public var activeWeekdays: [Int] {
+        let days = (repeatWeekdays ?? []).filter { (1...7).contains($0) }
+        return days.isEmpty ? Array(1...7) : Array(Set(days)).sorted()
+    }
+    
+    public func ringsOn(weekday: Int) -> Bool {
+        activeWeekdays.contains(weekday)
+    }
+    
+    /// Changes whenever the alarm needs to be rescheduled with the system.
+    public var scheduleSignature: String {
+        "\(hour):\(minute)|\(activeWeekdays.map(String.init).joined(separator: ","))|\(label)"
+    }
+    
+    /// "Every day", "Weekdays", "Weekends" or short day names.
+    public var repeatSummary: String {
+        let days = activeWeekdays
+        if days.count == 7 { return "Every day" }
+        if days == [2, 3, 4, 5, 6] { return "Weekdays" }
+        if days == [1, 7] { return "Weekends" }
+        let symbols = Calendar.current.shortWeekdaySymbols
+        return days.map { symbols[$0 - 1] }.joined(separator: " ")
     }
     
     public var formattedTime: String {
@@ -213,11 +241,16 @@ public final class TimeOSStore {
     /// Top-level Tab Bar index: 0 = Focus, 1 = Alarms, 2 = Stopwatch, 3 = World, 4 = Logbook
     public var selectedMainTab: Int = 0
     /// Single-line Mascot Voice Pill replacing the legacy scrolling chat log
-    public var mascotVoiceMessage: String = "Type a task like \"Design review 30m\" or dial the bezel to calibrate."
+    public var mascotVoiceMessage: String = "Hi, I'm Tempo. Tell me what you're working on, like \"Design review 30m\", or drag the numbers to set a timer."
     
     // --- 1. ALARMS STATE ---
     public var alarms: [TempoAlarm] = []
+    /// The alarm currently ringing (in-app chime, AlarmKit alert, or a preview).
     public var activeRingingAlarmID: UUID? = nil
+    /// True while AlarmKit plays the sound, so the app must not ring on top of it.
+    public var ringingIsSystemAlarm: Bool = false
+    /// True when the ring was started from the mascot as a sound check.
+    public var ringingIsPreview: Bool = false
     
     // --- 2. CHRONOGRAPH STOPWATCH STATE ---
     public var chronoIsRunning: Bool = false
@@ -236,6 +269,8 @@ public final class TimeOSStore {
     public var timerAccumulatedSeconds: TimeInterval = 0
     public var timerIsRestMode: Bool = false
     public var timerIsKitchenUtility: Bool = false
+    /// The countdown reached zero and the app is ringing for it.
+    public var timerAlertActive: Bool = false
     public var timerPresets: [TempoTimerPreset] = [
         TempoTimerPreset(title: "Focus", durationSeconds: 25 * 60, icon: "flame.fill"),
         TempoTimerPreset(title: "Coffee", durationSeconds: 4 * 60, icon: "cup.and.saucer.fill", isKitchenUtility: true),
@@ -250,28 +285,37 @@ public final class TimeOSStore {
     // --- 5. MASCOT STUDIO STATE ---
     public var selectedStudioRegime: TempoMascotRegime = .alarmRinging
     
+    /// Set by ContentView so notification actions ("Done & log") can write sessions.
+    @ObservationIgnored public var modelContext: ModelContext?
+    @ObservationIgnored private var heartbeatTask: Task<Void, Never>?
+    @ObservationIgnored private var timerZeroHandled = false
+    @ObservationIgnored private var recentlyHandledAlarms: [UUID: Date] = [:]
+    
     private let defaults = UserDefaults.standard
     private let alarmsKey = "tempo.timeos.alarms.v2"
     private let citiesKey = "tempo.timeos.cities.v2"
+    private let runtimeKey = "tempo.timeos.runtime.v1"
     
     private init() {
         loadPersistedState()
+        loadRuntimeState()
+        startHeartbeat()
     }
     
     // MARK: - Persistence
     
     public func loadPersistedState() {
         if let data = defaults.data(forKey: alarmsKey),
-           let decoded = try? JSONDecoder().decode([TempoAlarm].self, from: data),
-           !decoded.isEmpty {
+           let decoded = try? JSONDecoder().decode([TempoAlarm].self, from: data) {
             alarms = decoded
         } else {
+            // Starter alarms ship switched off. Real alarms must never ring unless the user asked.
             alarms = [
                 TempoAlarm(
                     hour: 7,
                     minute: 0,
                     label: "Wake Up",
-                    isEnabled: true,
+                    isEnabled: false,
                     chainedTaskTitle: "Morning Routine",
                     chainedTaskMinutes: 20
                 ),
@@ -279,7 +323,7 @@ public final class TimeOSStore {
                     hour: 8,
                     minute: 25,
                     label: "Commute",
-                    isEnabled: true,
+                    isEnabled: false,
                     isCommuteAutoCalibrated: true,
                     chainedTaskTitle: "Commute",
                     chainedTaskMinutes: 30
@@ -288,15 +332,14 @@ public final class TimeOSStore {
                     hour: 23,
                     minute: 0,
                     label: "Sleep",
-                    isEnabled: true,
+                    isEnabled: false,
                     isBedtimeWindDown: true
                 )
             ]
         }
         
         if let cData = defaults.data(forKey: citiesKey),
-           let cDecoded = try? JSONDecoder().decode([TempoWorldCity].self, from: cData),
-           !cDecoded.isEmpty {
+           let cDecoded = try? JSONDecoder().decode([TempoWorldCity].self, from: cData) {
             worldCities = cDecoded
         } else {
             worldCities = [
@@ -312,7 +355,71 @@ public final class TimeOSStore {
         if let data = try? JSONEncoder().encode(alarms) {
             defaults.set(data, forKey: alarmsKey)
         }
-        scheduleAlarmNotifications()
+        TempoAlarmScheduler.shared.sync(alarms)
+    }
+    
+    /// Timer and stopwatch survive the app being closed or killed.
+    private struct RuntimeSnapshot: Codable {
+        var timerTargetSeconds: Int
+        var timerLinkedTaskTitle: String
+        var timerIsRunning: Bool
+        var timerStartedAt: Date?
+        var timerAccumulatedSeconds: TimeInterval
+        var timerIsRestMode: Bool
+        var timerIsKitchenUtility: Bool
+        var chronoIsRunning: Bool
+        var chronoStartedAt: Date?
+        var chronoAccumulatedSeconds: TimeInterval
+        var chronoLapStartedAt: Date?
+        var chronoLapAccumulatedSeconds: TimeInterval
+        var chronoLaps: [ChronoLap]
+    }
+    
+    public func persistRuntimeState() {
+        let snapshot = RuntimeSnapshot(
+            timerTargetSeconds: timerTargetSeconds,
+            timerLinkedTaskTitle: timerLinkedTaskTitle,
+            timerIsRunning: timerIsRunning,
+            timerStartedAt: timerStartedAt,
+            timerAccumulatedSeconds: timerAccumulatedSeconds,
+            timerIsRestMode: timerIsRestMode,
+            timerIsKitchenUtility: timerIsKitchenUtility,
+            chronoIsRunning: chronoIsRunning,
+            chronoStartedAt: chronoStartedAt,
+            chronoAccumulatedSeconds: chronoAccumulatedSeconds,
+            chronoLapStartedAt: chronoLapStartedAt,
+            chronoLapAccumulatedSeconds: chronoLapAccumulatedSeconds,
+            chronoLaps: chronoLaps
+        )
+        if let data = try? JSONEncoder().encode(snapshot) {
+            defaults.set(data, forKey: runtimeKey)
+        }
+    }
+    
+    private func loadRuntimeState() {
+        // Snoozes that ran out while the app was closed are over.
+        for idx in alarms.indices {
+            if let until = alarms[idx].snoozedUntil, until < Date().addingTimeInterval(-5 * 60) {
+                alarms[idx].snoozedUntil = nil
+            }
+        }
+        guard let data = defaults.data(forKey: runtimeKey),
+              let snap = try? JSONDecoder().decode(RuntimeSnapshot.self, from: data) else { return }
+        timerTargetSeconds = snap.timerTargetSeconds
+        timerLinkedTaskTitle = snap.timerLinkedTaskTitle
+        timerIsRunning = snap.timerIsRunning
+        timerStartedAt = snap.timerStartedAt
+        timerAccumulatedSeconds = snap.timerAccumulatedSeconds
+        timerIsRestMode = snap.timerIsRestMode
+        timerIsKitchenUtility = snap.timerIsKitchenUtility
+        chronoIsRunning = snap.chronoIsRunning
+        chronoStartedAt = snap.chronoStartedAt
+        chronoAccumulatedSeconds = snap.chronoAccumulatedSeconds
+        chronoLapStartedAt = snap.chronoLapStartedAt
+        chronoLapAccumulatedSeconds = snap.chronoLapAccumulatedSeconds
+        chronoLaps = snap.chronoLaps
+        // The notification already rang for a timer that ended while we were closed.
+        timerZeroHandled = timerRemaining() <= 0
     }
     
     public func saveCities() {
@@ -328,38 +435,94 @@ public final class TimeOSStore {
         alarms[idx].isEnabled.toggle()
         if !alarms[idx].isEnabled {
             alarms[idx].snoozedUntil = nil
-            if activeRingingAlarmID == id { activeRingingAlarmID = nil }
+            if activeRingingAlarmID == id { stopAlarm(id) }
         }
         TactileFeedback.light()
         saveAlarms()
     }
     
+    /// Sound check from the mascot: rings the alarm right now without touching its schedule.
     public func triggerAlarmPreview(_ id: UUID) {
         if activeRingingAlarmID == id {
-            activeRingingAlarmID = nil
+            stopAlarm(id)
         } else {
-            activeRingingAlarmID = id
-            TactileFeedback.heavy()
+            ringAlarm(id, playSound: true, force: true)
+            ringingIsPreview = true
+        }
+    }
+    
+    /// Starts ringing in the app. Ignores repeats of an occurrence the user already handled.
+    public func ringAlarm(_ id: UUID, playSound: Bool = true, force: Bool = false) {
+        guard alarms.contains(where: { $0.id == id }) else { return }
+        if activeRingingAlarmID == id { return }
+        if !force, let handled = recentlyHandledAlarms[id], Date().timeIntervalSince(handled) < 5 * 60 { return }
+        timerAlertActive = false
+        activeRingingAlarmID = id
+        ringingIsSystemAlarm = false
+        ringingIsPreview = false
+        if playSound {
+            TempoSoundEngine.shared.startRinging()
+        }
+        TactileFeedback.heavy()
+    }
+    
+    /// Called by AlarmKit updates: the mascot rings along with the system alert.
+    public func systemAlarmStateChanged(alertingID: UUID?) {
+        if let alertingID {
+            guard activeRingingAlarmID != alertingID else { return }
+            TempoSoundEngine.shared.stopRinging()
+            activeRingingAlarmID = alertingID
+            ringingIsSystemAlarm = true
+            ringingIsPreview = false
+        } else if ringingIsSystemAlarm {
+            if let id = activeRingingAlarmID { recentlyHandledAlarms[id] = Date() }
+            activeRingingAlarmID = nil
+            ringingIsSystemAlarm = false
+        }
+    }
+    
+    /// Stop: silences the ring and clears any queued follow-up rings for this occurrence.
+    public func stopAlarm(_ id: UUID) {
+        let wasPreview = ringingIsPreview
+        TempoSoundEngine.shared.stopRinging()
+        if activeRingingAlarmID == id {
+            activeRingingAlarmID = nil
+        }
+        ringingIsSystemAlarm = false
+        ringingIsPreview = false
+        guard !wasPreview else { return }
+        recentlyHandledAlarms[id] = Date()
+        TempoAlarmScheduler.shared.silenceCurrentOccurrence(of: id, keepSnooze: false)
+        guard let idx = alarms.firstIndex(where: { $0.id == id }) else { return }
+        mascotVoiceMessage = alarms[idx].isBedtimeWindDown
+            ? "Wind-down time. Phone down, sleep well."
+            : "Alarm off. Have a good one."
+        if alarms[idx].snoozedUntil != nil {
+            alarms[idx].snoozedUntil = nil
+            saveAlarms()
         }
     }
     
     public func snoozeAlarm(_ id: UUID, minutes: Int = 9) {
         guard let idx = alarms.firstIndex(where: { $0.id == id }) else { return }
-        alarms[idx].snoozedUntil = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        if ringingIsPreview {
+            stopAlarm(id)
+            return
+        }
+        let until = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        alarms[idx].snoozedUntil = until
+        TempoSoundEngine.shared.stopRinging()
         if activeRingingAlarmID == id { activeRingingAlarmID = nil }
+        ringingIsSystemAlarm = false
+        recentlyHandledAlarms[id] = Date()
+        TempoAlarmScheduler.shared.snooze(alarms[idx], until: until)
         TactileFeedback.medium()
         saveAlarms()
     }
     
     /// Connected Time Chain: Dismissing an alarm can immediately launch its chained routine timer & SwiftData Session!
     public func dismissAlarmAndStartRoutine(_ alarm: TempoAlarm, context: ModelContext) {
-        if let idx = alarms.firstIndex(where: { $0.id == alarm.id }) {
-            alarms[idx].snoozedUntil = nil
-        }
-        if activeRingingAlarmID == alarm.id {
-            activeRingingAlarmID = nil
-        }
-        saveAlarms()
+        stopAlarm(alarm.id)
         
         let taskTitle = alarm.chainedTaskTitle ?? alarm.label
         let estMins = alarm.chainedTaskMinutes ?? 20
@@ -368,7 +531,7 @@ public final class TimeOSStore {
         startTimer(title: taskTitle, seconds: estMins * 60, isRest: false, isKitchen: false)
         activeService = .timers
         selectedMainTab = 0
-        mascotVoiceMessage = "Woke up & chained \(estMins)m bezel timer for \"\(taskTitle)\"."
+        mascotVoiceMessage = "Good morning. \(estMins)m on the clock for \"\(taskTitle)\"."
         
         // Also log an active Session in SwiftData so Task Calibration tracks it automatically
         let session = Session(
@@ -382,50 +545,100 @@ public final class TimeOSStore {
         TactileFeedback.success()
     }
     
-    public func addAlarm(hour: Int, minute: Int, label: String, isBedtime: Bool, chainedTitle: String?, chainedMinutes: Int?) {
+    public func addAlarm(hour: Int, minute: Int, label: String, isBedtime: Bool, chainedTitle: String?, chainedMinutes: Int?, repeatWeekdays: [Int]? = nil) {
         let alarm = TempoAlarm(
             hour: hour,
             minute: minute,
-            label: label.isEmpty ? "Tempo Alarm" : label,
+            label: label.isEmpty ? "Alarm" : label,
             isEnabled: true,
             isBedtimeWindDown: isBedtime,
             chainedTaskTitle: (chainedTitle?.isEmpty == false) ? chainedTitle : nil,
-            chainedTaskMinutes: chainedMinutes
+            chainedTaskMinutes: chainedMinutes,
+            repeatWeekdays: repeatWeekdays
         )
         alarms.append(alarm)
-        alarms.sort { ($0.hour * 60 + $0.minute) < ($1.hour * 60 + $1.minute) }
+        sortAlarms()
+        saveAlarms()
+        mascotVoiceMessage = "Alarm set for \(alarm.formattedTime)."
+        TactileFeedback.success()
+    }
+    
+    public func updateAlarm(_ alarm: TempoAlarm) {
+        guard let idx = alarms.firstIndex(where: { $0.id == alarm.id }) else { return }
+        var updated = alarm
+        updated.isEnabled = true
+        updated.snoozedUntil = nil
+        alarms[idx] = updated
+        sortAlarms()
         saveAlarms()
         TactileFeedback.success()
     }
     
     public func deleteAlarm(_ id: UUID) {
+        if activeRingingAlarmID == id { stopAlarm(id) }
         alarms.removeAll { $0.id == id }
         saveAlarms()
     }
     
-    private func scheduleAlarmNotifications() {
-        let center = UNUserNotificationCenter.current()
-        for alarm in alarms {
-            let identifier = "tempo.alarm.\(alarm.id.uuidString)"
-            center.removePendingNotificationRequests(withIdentifiers: [identifier])
-            guard alarm.isEnabled else { continue }
-            
-            let content = UNMutableNotificationContent()
-            content.title = alarm.isBedtimeWindDown ? "Tempo · Bedtime Wind-Down" : "Tempo · Twin-Bell Alarm"
-            if let chain = alarm.chainedTaskTitle, let mins = alarm.chainedTaskMinutes {
-                content.body = "\(alarm.label) — Ready to start your \(mins)m \(chain) block?"
-            } else {
-                content.body = alarm.label
+    private func sortAlarms() {
+        alarms.sort { ($0.hour * 60 + $0.minute) < ($1.hour * 60 + $1.minute) }
+    }
+    
+    /// The next time any enabled alarm rings, snoozes included.
+    public func nextAlarmFire(after now: Date = Date()) -> (alarm: TempoAlarm, date: Date)? {
+        var best: (TempoAlarm, Date)?
+        for alarm in alarms where alarm.isEnabled {
+            var candidates = Array(TempoAlarmScheduler.nextFireDates(for: alarm, after: now, within: 7).prefix(1))
+            if let snooze = alarm.snoozedUntil, snooze > now { candidates.append(snooze) }
+            for date in candidates where best.map({ date < $0.1 }) ?? true {
+                best = (alarm, date)
             }
-            content.sound = .default
-            
-            var comps = DateComponents()
-            comps.hour = alarm.hour
-            comps.minute = alarm.minute
-            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
-            let req = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-            center.add(req)
         }
+        return best.map { (alarm: $0.0, date: $0.1) }
+    }
+    
+    // MARK: - Heartbeat (rings alarms and timers while the app is open)
+    
+    private func startHeartbeat() {
+        heartbeatTask?.cancel()
+        heartbeatTask = Task { @MainActor [weak self] in
+            var lastCheck = Date()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard let self else { return }
+                let now = Date()
+                // A long gap means the app was suspended; notifications covered that stretch.
+                if now.timeIntervalSince(lastCheck) < 30 {
+                    self.checkDueAlarms(from: lastCheck, to: now)
+                }
+                self.checkTimerZero(at: now)
+                lastCheck = now
+            }
+        }
+    }
+    
+    private func checkDueAlarms(from start: Date, to end: Date) {
+        // AlarmKit plays its own alert and reports it through systemAlarmStateChanged.
+        guard !TempoAlarmScheduler.shared.usesSystemAlarms else { return }
+        let cal = Calendar.current
+        for alarm in alarms where alarm.isEnabled {
+            if let snooze = alarm.snoozedUntil, snooze > start, snooze <= end {
+                ringAlarm(alarm.id, force: true)
+                return
+            }
+            guard let fire = cal.nextDate(
+                after: start,
+                matching: DateComponents(hour: alarm.hour, minute: alarm.minute, second: 0),
+                matchingPolicy: .nextTime
+            ), fire <= end, alarm.ringsOn(weekday: cal.component(.weekday, from: fire)) else { continue }
+            ringAlarm(alarm.id)
+            return
+        }
+    }
+    
+    private func checkTimerZero(at now: Date) {
+        guard timerIsRunning, !timerZeroHandled, timerRemaining(at: now) <= 0 else { return }
+        timerReachedZero()
     }
     
     // MARK: - 2. Chronograph Stopwatch Logic
@@ -464,6 +677,7 @@ public final class TimeOSStore {
             chronoIsRunning = true
             TactileFeedback.rigid()
         }
+        persistRuntimeState()
     }
     
     /// Left Black Pusher Ear: Record Lap Split (when running) or Reset (when stopped)
@@ -491,6 +705,7 @@ public final class TimeOSStore {
             chronoLaps.removeAll()
             TactileFeedback.light()
         }
+        persistRuntimeState()
     }
     
     /// Breaks Apple Clock's disposable-time assumption: claims a stopwatch run or lap split as a calibrated SwiftData Session!
@@ -520,7 +735,8 @@ public final class TimeOSStore {
             chronoLaps[idx].claimedAsSession = true
             chronoLaps[idx].label = cleanTitle
         }
-        mascotVoiceMessage = "Claimed \(actualMins)m stopwatch run as \"\(cleanTitle)\" (est. \(estimatedMinutes)m)."
+        persistRuntimeState()
+        mascotVoiceMessage = "Saved \(actualMins)m as \"\(cleanTitle)\" in your logbook."
         TactileFeedback.success()
     }
     
@@ -547,6 +763,9 @@ public final class TimeOSStore {
         timerIsRunning = false
         timerIsRestMode = isRest
         timerIsKitchenUtility = isKitchen
+        silenceTimerAlert()
+        TempoAlarmScheduler.shared.cancelTimerEnd()
+        persistRuntimeState()
         TactileFeedback.selection()
     }
     
@@ -558,7 +777,11 @@ public final class TimeOSStore {
         timerIsRunning = true
         timerIsRestMode = isRest
         timerIsKitchenUtility = isKitchen
-        mascotVoiceMessage = "Calibrating \"\(title)\" · Target \(max(1, seconds / 60))m on the bezel."
+        timerZeroHandled = false
+        silenceTimerAlert()
+        scheduleTimerEndNotification()
+        persistRuntimeState()
+        mascotVoiceMessage = "On it. \(TempoFormat.minutes(timerTargetSeconds)) for \"\(title)\"."
         TactileFeedback.medium()
     }
     
@@ -644,23 +867,38 @@ public final class TimeOSStore {
     
     public func toggleTimerPauseResume() {
         let now = Date()
+        silenceTimerAlert()
         if timerIsRunning {
             if let s = timerStartedAt {
                 timerAccumulatedSeconds += now.timeIntervalSince(s)
             }
             timerStartedAt = nil
             timerIsRunning = false
+            TempoAlarmScheduler.shared.cancelTimerEnd()
+            mascotVoiceMessage = "Paused. Tap play when you're back."
             TactileFeedback.light()
         } else {
+            if timerAccumulatedSeconds == 0 {
+                timerZeroHandled = false
+                mascotVoiceMessage = "On it. \(TempoFormat.minutes(timerTargetSeconds)) for \"\(timerLinkedTaskTitle)\"."
+            }
             timerStartedAt = now
             timerIsRunning = true
+            scheduleTimerEndNotification()
             TactileFeedback.medium()
         }
+        persistRuntimeState()
     }
     
     public func extendTimer(bySeconds delta: Int) {
         timerTargetSeconds = max(30, timerTargetSeconds + delta)
-        mascotVoiceMessage = "Extended \"\(timerLinkedTaskTitle)\" bezel target to \(timerTargetSeconds / 60)m."
+        if timerRemaining() > 0 {
+            timerZeroHandled = false
+            silenceTimerAlert()
+        }
+        if timerIsRunning { scheduleTimerEndNotification() }
+        persistRuntimeState()
+        mascotVoiceMessage = "+\(max(1, delta / 60))m. New target \(TempoFormat.minutes(timerTargetSeconds))."
         TactileFeedback.light()
     }
     
@@ -668,7 +906,44 @@ public final class TimeOSStore {
         timerIsRunning = false
         timerStartedAt = nil
         timerAccumulatedSeconds = 0
+        timerZeroHandled = false
+        silenceTimerAlert()
+        TempoAlarmScheduler.shared.cancelTimerEnd()
+        persistRuntimeState()
         TactileFeedback.light()
+    }
+    
+    /// Countdown hit 00:00 with the app open: ring, and keep counting honest overtime.
+    public func timerReachedZero() {
+        guard !timerZeroHandled else { return }
+        timerZeroHandled = true
+        guard activeRingingAlarmID == nil else { return }
+        timerAlertActive = true
+        TempoSoundEngine.shared.startRinging(maxDuration: 60)
+        mascotVoiceMessage = "Time's up for \"\(timerLinkedTaskTitle)\". Log it, or keep going and I'll count the overtime."
+        TactileFeedback.success()
+    }
+    
+    /// Stops the chime but leaves the timer running into overtime.
+    public func silenceTimerAlert() {
+        guard timerAlertActive else { return }
+        timerAlertActive = false
+        if activeRingingAlarmID == nil {
+            TempoSoundEngine.shared.stopRinging()
+        }
+    }
+    
+    private func scheduleTimerEndNotification() {
+        let remaining = timerRemaining()
+        guard timerIsRunning, remaining > 0 else {
+            TempoAlarmScheduler.shared.cancelTimerEnd()
+            return
+        }
+        TempoAlarmScheduler.shared.scheduleTimerEnd(
+            title: timerLinkedTaskTitle,
+            targetMinutes: max(1, timerTargetSeconds / 60),
+            in: remaining
+        )
     }
     
     /// Finishes the active timer and saves the Predicted vs. Actual duration into SwiftData for Task Calibration!

@@ -29,6 +29,8 @@
 		</dict>
 	</array>
     
+    <key>NSAlarmKitUsageDescription</key>
+    <string>Tempo rings your alarms like a real alarm clock, even when the phone is locked or on silent.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Tempo needs calendar access to suggest your upcoming events as timers.</string>
     <key>NSRemindersFullAccessUsageDescription</key>
