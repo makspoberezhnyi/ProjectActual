@@ -14,6 +14,13 @@ struct ContentView: View {
         sessions.contains(where: { $0.isRunning }) || timeStore.timerIsRunning || timeStore.chronoIsRunning
     }
     
+    private var isRingingPresented: Binding<Bool> {
+        Binding(
+            get: { timeStore.activeRingingAlarmID != nil || timeStore.timerAlertActive },
+            set: { _ in }
+        )
+    }
+    
     var body: some View {
         TabView(selection: $timeStore.selectedMainTab) {
             FocusInstrumentView(sessions: sessions)
@@ -47,6 +54,14 @@ struct ContentView: View {
                 .tag(4)
         }
         .tint(TempoMascotPalette.orange)
+        .fullScreenCover(isPresented: isRingingPresented) {
+            TempoRingingView()
+        }
+        .task {
+            timeStore.modelContext = context
+            await TempoAlarmScheduler.shared.requestPermissions()
+            TempoAlarmScheduler.shared.sync(timeStore.alarms)
+        }
         .onOpenURL { url in
             if url.scheme == "tempo" || url.scheme == "actual" {
                 if url.host == "timers" || url.host == "timer" || url.host == "focus" || url.host == "log" || url.host == "chat" {
@@ -72,6 +87,10 @@ struct ContentView: View {
             if newPhase == .active {
                 NotificationCenter.default.post(name: .syncWidgetSessionsNotification, object: nil)
                 updateCalibrationAndWidget()
+                // Roll the notification fallback forward so the next two days are always covered.
+                TempoAlarmScheduler.shared.sync(timeStore.alarms)
+            } else if newPhase == .background {
+                timeStore.persistRuntimeState()
             }
         }
     }

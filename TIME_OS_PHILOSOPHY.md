@@ -78,3 +78,21 @@ The market is currently fractured into **3 disconnected silos**—nobody unifies
 5. **Hidden Assumption #5: "A clock UI must either be a sterile spreadsheet OR a childish cartoon pet."**
    - *Competitors*: Either boring corporate tables (Toggl/Apple Clock) or juvenile gamification (Forest/Habitica).
    - *Tempo's Counter-Move*: **Tactile Modern Horology with Soul (Dieter Rams Braun × Living Chronograph).** The mascot *is* the watch instrument itself—its nose is the sweeping hands, its ears are the chronograph pushers/twin bells, and its bezel is the timer ring.
+
+---
+
+## 5. Build Status · Polish Pass (October 2026)
+
+**Now working for real**
+
+| Mode | What changed |
+| :--- | :--- |
+| **Alarms** | On iOS 26 alarms go through AlarmKit, so they ring like the Clock app, on the lock screen and through silent mode, with Stop and a 9 minute Snooze. On older iOS each alarm becomes a short chain of notifications with the Tempo twin-bell chime. Alarms have repeat days, can be edited by tapping a row, and the starter alarms ship switched off. |
+| **Ringing screen** | When an alarm rings or a timer hits zero, a full screen takeover shows the ringing mascot with big Stop, Snooze, Done and +5 min buttons. Alarms with a chained routine offer to start it right there. |
+| **Timers** | A notification with the chime fires when the countdown ends, even if the app is closed. Lock screen actions "Done & log" and "+5 min" work. Timer and stopwatch state survive the app being killed. |
+| **Focus chat** | The chat composer sits at the bottom like a messaging app. The mascot answers in a speech bubble under itself, and it switches to its thinking face while you type. |
+| **Stopwatch** | A visible "Save to logbook" button appears when the stopwatch is paused. |
+
+**Bug fixed:** routine reminders used to wipe every pending notification, alarms included, each time the app opened.
+
+**Next up:** a Live Activity for the bezel timer, and the commute alarm that adjusts itself from real prep time.

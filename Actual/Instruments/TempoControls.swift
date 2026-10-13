@@ -87,6 +87,14 @@ enum TempoFormat {
         return String(format: "%02d:%02d", s / 60, s % 60)
     }
 
+    /// Short human duration for the mascot's voice: "90s", "25m", "1h 30m".
+    static func minutes(_ seconds: Int) -> String {
+        if seconds < 60 { return "\(seconds)s" }
+        let m = seconds / 60
+        if m < 60 { return "\(m)m" }
+        return m % 60 == 0 ? "\(m / 60)h" : "\(m / 60)h \(m % 60)m"
+    }
+
     static func stopwatch(_ seconds: TimeInterval) -> String {
         let t = max(0, seconds)
         let m = Int(t) / 60

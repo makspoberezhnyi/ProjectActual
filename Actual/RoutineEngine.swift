@@ -264,7 +264,12 @@ final class RoutineEngine {
     
     func scheduleRoutineNotifications(sessions: [Session]) {
         let center = UNUserNotificationCenter.current()
-        center.removeAllPendingNotificationRequests()
+        // Only clear routine reminders. Alarms and the running timer live in the same queue.
+        let liveIDs = Set(minePatterns(from: sessions).prefix(5).map { "routine_\($0.id)" })
+        center.getPendingNotificationRequests { requests in
+            let stale = requests.map(\.identifier).filter { $0.hasPrefix("routine_") && !liveIDs.contains($0) }
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: stale)
+        }
         
         let patterns = minePatterns(from: sessions)
         for pattern in patterns.prefix(5) {

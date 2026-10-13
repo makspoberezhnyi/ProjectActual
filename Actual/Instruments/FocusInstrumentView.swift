@@ -25,56 +25,68 @@ struct FocusInstrumentView: View {
                 }
 
             VStack(spacing: 0) {
-                // 1. Always-visible Natural Language Task & Chat Bar
-                taskInputBar
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
+                Spacer(minLength: 4)
 
-                // 2. Mascot Voice / Travel ETA Pill
-                voiceResponsePill
-                    .padding(.horizontal, 24)
-                    .padding(.top, 10)
-
-                Spacer(minLength: 6)
-
-                // 3. Hero Mascot
+                // 1. Hero mascot. It shrinks a little while you type so the keyboard has room.
                 ZStack {
                     TempoAura()
                     mascot
+                        .scaleEffect(inputFocused ? 0.72 : 1)
                 }
-                .frame(height: 240)
+                .frame(height: inputFocused ? 170 : 236)
 
-                // 4. Active Task Label + Big Numerals
-                VStack(spacing: 2) {
-                    Text(store.timerLinkedTaskTitle.isEmpty ? "Focus" : store.timerLinkedTaskTitle)
-                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                        .foregroundStyle(Color.tempoAccent)
-                        .lineLimit(1)
+                // 2. The mascot talks back right under itself.
+                speechBubble
+                    .padding(.horizontal, 28)
+                    .padding(.top, inputFocused ? 0 : 2)
 
-                    numerals
+                if !inputFocused {
+                    // 3. Active task label + big numerals
+                    VStack(spacing: 0) {
+                        Text(store.timerLinkedTaskTitle.isEmpty ? "Focus" : store.timerLinkedTaskTitle)
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .foregroundStyle(Color.tempoAccent)
+                            .lineLimit(1)
+                        numerals
+                    }
+                    .padding(.top, 14)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+
+                    Spacer(minLength: 6)
+
+                    // 4. Presets (when idle)
+                    presets
+                        .frame(height: 50)
+                        .opacity(isIdle ? 1 : 0)
+                        .allowsHitTesting(isIdle)
+                        .padding(.bottom, 12)
+
+                    // 5. Primary & contextual controls
+                    controls
+                        .padding(.bottom, 14)
+                        .transition(.opacity)
+                } else {
+                    Spacer(minLength: 6)
+                    suggestions
+                        .padding(.bottom, 10)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .padding(.top, 4)
-
-                Spacer(minLength: 6)
-
-                // 5. Presets (when idle)
-                presets
-                    .frame(height: 50)
-                    .opacity(isIdle ? 1 : 0)
-                    .allowsHitTesting(isIdle)
-                    .padding(.bottom, 16)
-
-                // 6. Primary & Contextual Controls
-                controls
-                    .padding(.bottom, 22)
             }
             .animation(.spring(duration: 0.4, bounce: 0.15), value: isIdle)
             .animation(.spring(duration: 0.4, bounce: 0.15), value: store.timerIsRunning)
             .animation(.spring(duration: 0.35, bounce: 0.15), value: store.latestTravelResult)
+            .animation(.spring(duration: 0.4, bounce: 0.12), value: inputFocused)
+        }
+        // 6. Chat composer docked at the bottom, it rides up with the keyboard.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            taskInputBar
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
+                .padding(.bottom, 10)
         }
     }
 
-    // MARK: - 1. Always-Visible Task & Chat Input Bar
+    // MARK: - 1. Chat composer
 
     private var taskInputBar: some View {
         HStack(spacing: 10) {
@@ -83,8 +95,8 @@ struct FocusInstrumentView: View {
                 .foregroundStyle(Color.tempoAccent)
                 .symbolEffect(.pulse, isActive: store.isCalculatingTravel)
 
-            TextField("Type a task (\"Design 30m\") or ask \"Ride to…\"", text: $draft)
-                .font(.system(size: 15, weight: .medium, design: .rounded))
+            TextField("Tell Tempo what you're doing…", text: $draft)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
                 .foregroundStyle(Color.tempoInk)
                 .focused($inputFocused)
                 .submitLabel(.send)
@@ -97,7 +109,7 @@ struct FocusInstrumentView: View {
                     submitInput()
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.system(size: 28, weight: .semibold))
                         .foregroundStyle(Color.tempoAccent)
                 }
                 .buttonStyle(.plain)
@@ -115,11 +127,13 @@ struct FocusInstrumentView: View {
                 .accessibilityLabel("Dismiss keyboard")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.leading, 16)
+        .padding(.trailing, 10)
+        .frame(minHeight: 50)
         .background(
             Capsule()
                 .fill(TempoSurface.card(colorScheme))
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.08), radius: 12, y: 4)
                 .overlay(
                     Capsule()
                         .strokeBorder(
@@ -128,6 +142,37 @@ struct FocusInstrumentView: View {
                         )
                 )
         )
+        .animation(.spring(duration: 0.25), value: draft.isEmpty)
+    }
+
+    /// Quick starters shown above the keyboard so a blank field is never a dead end.
+    private var suggestions: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(suggestionChips, id: \.self) { chip in
+                    Button {
+                        draft = chip
+                        submitInput()
+                    } label: {
+                        Text(chip)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color.tempoInk)
+                            .padding(.horizontal, 14)
+                            .frame(height: 34)
+                            .background(Capsule().fill(Color.tempoInk.opacity(0.07)))
+                    }
+                    .buttonStyle(TempoPressStyle())
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var suggestionChips: [String] {
+        if store.timerIsRunning {
+            return ["+5m", "+15m", "Done", "How am I doing?"]
+        }
+        return ["Deep work 45m", "Email 15m", "Coffee 4m", "Ride to the airport", "How am I doing?"]
     }
 
     private func submitInput() {
@@ -138,72 +183,84 @@ struct FocusInstrumentView: View {
         inputFocused = false
     }
 
-    // MARK: - 2. Voice & Live Travel Pill
+    // MARK: - 2. Speech bubble (mascot voice + live travel)
 
-    @ViewBuilder
-    private var voiceResponsePill: some View {
-        if let travel = store.latestTravelResult {
-            HStack(spacing: 10) {
-                Image(systemName: travel.transportMode.iconName)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.tempoAccent)
+    private var speechBubble: some View {
+        Group {
+            if let travel = store.latestTravelResult {
+                HStack(spacing: 10) {
+                    Image(systemName: travel.transportMode.iconName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.tempoAccent)
 
-                Text("\(travel.destinationTitle) · \(travel.formattedDuration) (\(travel.distanceString))")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.tempoInk)
-                    .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(travel.destinationTitle)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.tempoInk)
+                            .lineLimit(1)
+                        Text("\(travel.formattedDuration) · \(travel.distanceString)")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color.tempoMuted)
+                    }
 
-                Spacer(minLength: 4)
+                    Spacer(minLength: 4)
 
-                Button {
-                    store.startTimer(
-                        title: "Commute to \(travel.destinationTitle)",
-                        seconds: max(1, travel.travelDurationMinutes) * 60
-                    )
-                    store.latestTravelResult = nil
-                } label: {
-                    Label("Start", systemImage: "play.fill")
-                        .labelStyle(.iconOnly)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 26, height: 26)
-                        .background(Circle().fill(Color.tempoAccent))
+                    Button {
+                        store.startTimer(
+                            title: "Commute to \(travel.destinationTitle)",
+                            seconds: max(1, travel.travelDurationMinutes) * 60
+                        )
+                        store.latestTravelResult = nil
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 30, height: 30)
+                            .background(Circle().fill(Color.tempoAccent))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Start commute timer")
+
+                    Button {
+                        LocationTravelManager.shared.openInMaps(result: travel)
+                    } label: {
+                        Image(systemName: "map.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.tempoMuted)
+                            .frame(width: 30, height: 30)
+                            .background(Circle().fill(Color.tempoInk.opacity(0.08)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open in Maps")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Start commute timer")
-
-                Button {
-                    LocationTravelManager.shared.openInMaps(result: travel)
-                } label: {
-                    Image(systemName: "map.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.tempoMuted)
-                        .frame(width: 26, height: 26)
-                        .background(Circle().fill(Color.tempoInk.opacity(0.08)))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open in Maps")
+            } else {
+                Text(store.mascotVoiceMessage)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.tempoInk.opacity(0.85))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .id(store.mascotVoiceMessage)
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-                Capsule()
-                    .fill(TempoSurface.card(colorScheme))
-                    .overlay(Capsule().strokeBorder(TempoSurface.border(colorScheme), lineWidth: 1))
-            )
-        } else {
-            Text(store.mascotVoiceMessage)
-                .font(.system(size: 13, weight: .regular, design: .rounded))
-                .foregroundStyle(Color.tempoMuted)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
         }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+        .padding(.top, SpeechBubbleShape.tailHeight)
+        .background(
+            SpeechBubbleShape()
+                .fill(TempoSurface.card(colorScheme))
+                .overlay(SpeechBubbleShape().stroke(TempoSurface.border(colorScheme), lineWidth: 1))
+        )
+        .animation(.spring(duration: 0.35, bounce: 0.2), value: store.mascotVoiceMessage)
     }
 
     // MARK: - 3. Mascot (reads live state per frame, the page does not re-render)
 
     private var mascot: some View {
-        TempoInteractiveMascotView(
+        let typing = inputFocused || !draft.isEmpty
+        return TempoInteractiveMascotView(
             size: 215,
             onLeftEarTap: { store.resetTimer() },
             onRightEarTap: { store.toggleTimerPauseResume() },
@@ -218,6 +275,8 @@ struct FocusInstrumentView: View {
                     else if store.timerIsRestMode { regime = .timerPomodoroRest }
                     else if store.timerIsKitchenUtility { regime = .timerQuickKitchen }
                     else { regime = .timerActiveCountdown }
+                } else if typing {
+                    regime = .calibEstimating
                 } else {
                     regime = .timerDialing
                 }
@@ -315,6 +374,33 @@ struct FocusInstrumentView: View {
             .opacity(isIdle ? 0 : 1)
             .scaleEffect(isIdle ? 0.6 : 1)
             .allowsHitTesting(!isIdle)
+    }
+}
+
+/// Rounded bubble with a small tail pointing up at the mascot.
+struct SpeechBubbleShape: Shape {
+    static let tailHeight: CGFloat = 8
+    private let radius: CGFloat = 18
+    private let tailWidth: CGFloat = 18
+
+    func path(in rect: CGRect) -> Path {
+        let body = CGRect(x: rect.minX, y: rect.minY + Self.tailHeight, width: rect.width, height: rect.height - Self.tailHeight)
+        let r = min(radius, body.height / 2, body.width / 2)
+        var p = Path()
+        p.move(to: CGPoint(x: body.minX + r, y: body.minY))
+        p.addLine(to: CGPoint(x: rect.midX - tailWidth / 2, y: body.minY))
+        p.addQuadCurve(to: CGPoint(x: rect.midX, y: rect.minY), control: CGPoint(x: rect.midX - 3, y: body.minY))
+        p.addQuadCurve(to: CGPoint(x: rect.midX + tailWidth / 2, y: body.minY), control: CGPoint(x: rect.midX + 3, y: body.minY))
+        p.addLine(to: CGPoint(x: body.maxX - r, y: body.minY))
+        p.addArc(tangent1End: CGPoint(x: body.maxX, y: body.minY), tangent2End: CGPoint(x: body.maxX, y: body.minY + r), radius: r)
+        p.addLine(to: CGPoint(x: body.maxX, y: body.maxY - r))
+        p.addArc(tangent1End: CGPoint(x: body.maxX, y: body.maxY), tangent2End: CGPoint(x: body.maxX - r, y: body.maxY), radius: r)
+        p.addLine(to: CGPoint(x: body.minX + r, y: body.maxY))
+        p.addArc(tangent1End: CGPoint(x: body.minX, y: body.maxY), tangent2End: CGPoint(x: body.minX, y: body.maxY - r), radius: r)
+        p.addLine(to: CGPoint(x: body.minX, y: body.minY + r))
+        p.addArc(tangent1End: CGPoint(x: body.minX, y: body.minY), tangent2End: CGPoint(x: body.minX + r, y: body.minY), radius: r)
+        p.closeSubpath()
+        return p
     }
 }
 

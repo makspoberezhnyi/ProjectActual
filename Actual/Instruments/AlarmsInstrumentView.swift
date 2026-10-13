@@ -1,16 +1,16 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct AlarmsInstrumentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     private let store = TimeOSStore.shared
     @State private var showAdd = false
+    @State private var editing: TempoAlarm?
+    @State private var canRing = true
 
     init() {}
-
-    private var ringing: TempoAlarm? {
-        store.alarms.first { $0.id == store.activeRingingAlarmID }
-    }
 
     var body: some View {
         NavigationStack {
@@ -19,15 +19,34 @@ struct AlarmsInstrumentView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
-                ForEach(store.alarms) { alarm in
-                    AlarmRow(alarm: alarm) { store.toggleAlarm(alarm.id) }
+                if !canRing {
+                    permissionHint
                         .listRowBackground(Color.clear)
-                        .listRowSeparatorTint(Color.tempoInk.opacity(0.1))
-                        .swipeActions {
-                            Button("Delete", systemImage: "trash", role: .destructive) {
-                                store.deleteAlarm(alarm.id)
-                            }
+                        .listRowSeparator(.hidden)
+                }
+
+                ForEach(store.alarms) { alarm in
+                    AlarmRow(
+                        alarm: alarm,
+                        toggle: { store.toggleAlarm(alarm.id) },
+                        edit: { editing = alarm }
+                    )
+                    .listRowBackground(Color.clear)
+                    .listRowSeparatorTint(Color.tempoInk.opacity(0.1))
+                    .swipeActions {
+                        Button("Delete", systemImage: "trash", role: .destructive) {
+                            store.deleteAlarm(alarm.id)
                         }
+                    }
+                }
+
+                if store.alarms.isEmpty {
+                    Text("No alarms yet. Tap + to set one.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tempoMuted)
+                        .frame(maxWidth: .infinity)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
             }
             .listStyle(.plain)
@@ -44,17 +63,30 @@ struct AlarmsInstrumentView: View {
                 AddTempoAlarmSheet(store: store)
                     .presentationDetents([.large])
             }
+            .sheet(item: $editing) { alarm in
+                AddTempoAlarmSheet(store: store, editing: alarm)
+                    .presentationDetents([.large])
+            }
+            .task { await refreshPermission() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await refreshPermission() } }
+            }
         }
     }
 
+    private func refreshPermission() async {
+        await NotificationManager.shared.checkAuthorizationStatus()
+        canRing = TempoAlarmScheduler.shared.usesSystemAlarms || NotificationManager.shared.isAuthorized
+    }
+
     private var hero: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 6) {
             ZStack {
                 TempoAura(size: 300)
                 TempoInteractiveMascotView(
                     size: 170,
                     onBodyTap: {
-                        if ringing == nil, let first = store.alarms.first(where: { $0.isEnabled }) ?? store.alarms.first {
+                        if let first = store.nextAlarmFire()?.alarm ?? store.alarms.first {
                             store.triggerAlarmPreview(first.id)
                         }
                     },
@@ -74,75 +106,116 @@ struct AlarmsInstrumentView: View {
             }
             .frame(height: 200)
 
-            if let alarm = ringing {
-                HStack(spacing: 24) {
-                    TempoRoundButton(symbol: "zzz", label: "Snooze") { store.snoozeAlarm(alarm.id) }
-                    TempoRoundButton(symbol: "sunrise.fill", label: "Wake up", isPrimary: true) {
-                        store.dismissAlarmAndStartRoutine(alarm, context: modelContext)
-                    }
-                }
-                .transition(.scale.combined(with: .opacity))
-            } else {
-                NextAlarmCaption(alarms: store.alarms)
-            }
+            NextAlarmCaption()
+            Text("Tap the mascot to hear the bells")
+                .font(.caption)
+                .foregroundStyle(Color.tempoMuted.opacity(0.8))
         }
         .frame(maxWidth: .infinity)
-        .animation(.spring(duration: 0.4, bounce: 0.2), value: store.activeRingingAlarmID)
+        .padding(.bottom, 6)
+    }
+
+    private var permissionHint: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "bell.slash.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.tempoAccent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Alarms can't ring yet")
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .foregroundStyle(Color.tempoInk)
+                Text("Allow alarms and notifications for Tempo in Settings.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.tempoMuted)
+            }
+            Spacer(minLength: 4)
+            Button("Open") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+            .tint(Color.tempoAccent)
+            .buttonStyle(.bordered)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.tempoAccent.opacity(0.1)))
     }
 }
 
 private struct AlarmRow: View {
     let alarm: TempoAlarm
     let toggle: () -> Void
+    let edit: () -> Void
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(alarm.formattedTime)
-                    .font(.tempoNumerals(44))
-                    .foregroundStyle(alarm.isEnabled ? Color.tempoInk : Color.tempoMuted)
-                HStack(spacing: 6) {
-                    if alarm.isBedtimeWindDown {
-                        Image(systemName: "moon.fill")
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(alarm.formattedTime)
+                        .font(.tempoNumerals(44))
+                        .foregroundStyle(alarm.isEnabled ? Color.tempoInk : Color.tempoMuted)
+                    HStack(spacing: 6) {
+                        if alarm.isBedtimeWindDown {
+                            Image(systemName: "moon.fill")
+                        }
+                        if alarm.chainedTaskTitle != nil {
+                            Image(systemName: "link")
+                        }
+                        Text("\(alarm.label) · \(alarm.repeatSummary)")
+                            .lineLimit(1)
                     }
-                    if alarm.chainedTaskTitle != nil {
-                        Image(systemName: "link")
+                    .font(.footnote)
+                    .foregroundStyle(Color.tempoMuted)
+
+                    if let until = alarm.snoozedUntil, until > Date() {
+                        Label {
+                            Text("Snoozed until \(until, format: .dateTime.hour().minute())")
+                        } icon: {
+                            Image(systemName: "zzz")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.tempoAccent)
                     }
-                    Text(alarm.label)
                 }
-                .font(.footnote)
-                .foregroundStyle(Color.tempoMuted)
+                Spacer()
             }
-            Spacer()
+            .contentShape(Rectangle())
+            .onTapGesture(perform: edit)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Double tap to edit")
+
             Toggle("Enabled", isOn: Binding(get: { alarm.isEnabled }, set: { _ in toggle() }))
                 .labelsHidden()
                 .tint(Color.tempoAccent)
         }
         .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
     }
 }
 
 private struct NextAlarmCaption: View {
-    let alarms: [TempoAlarm]
+    private let store = TimeOSStore.shared
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             Text(caption(at: context.date))
-                .font(.subheadline)
-                .foregroundStyle(Color.tempoMuted)
+                .font(.system(.subheadline, design: .rounded, weight: .medium))
+                .foregroundStyle(Color.tempoInk.opacity(0.8))
         }
     }
 
     private func caption(at now: Date) -> String {
-        let cal = Calendar.current
-        let next = alarms
-            .filter(\.isEnabled)
-            .compactMap { cal.nextDate(after: now, matching: DateComponents(hour: $0.hour, minute: $0.minute), matchingPolicy: .nextTime) }
-            .min()
-        guard let next else { return "No alarms set" }
-        let mins = max(1, Int(next.timeIntervalSince(now) / 60))
-        return mins >= 60 ? "In \(mins / 60)h \(mins % 60)m" : "In \(mins)m"
+        guard let next = store.nextAlarmFire(after: now) else { return "No alarms set" }
+        let mins = max(1, Int(ceil(next.date.timeIntervalSince(now) / 60)))
+        let span: String
+        if mins >= 24 * 60 {
+            span = "\(mins / (24 * 60))d \((mins % (24 * 60)) / 60)h"
+        } else if mins >= 60 {
+            span = "\(mins / 60)h \(mins % 60)m"
+        } else {
+            span = "\(mins)m"
+        }
+        return "\(next.alarm.label) rings in \(span)"
     }
 }
 
