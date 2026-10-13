@@ -265,7 +265,7 @@ final class WatchSessionStore: NSObject {
             "timestamp": Date().timeIntervalSince1970
         ]
         if s.isReachable {
-            s.sendMessage(payload, replyHandler: nil) { [weak self] _ in
+            s.sendMessage(payload, replyHandler: nil) { _ in
                 s.transferUserInfo(payload)
             }
         } else {

@@ -271,6 +271,7 @@ struct WorldDeskObjects: View {
 
     private func postcard(_ city: TempoWorldCity, at now: Date) -> some View {
         let c = city.localComponents(at: now)
+        let focused = store.focusedCity?.id == city.id
         let h = Double(c.hour ?? 12), m = Double(c.minute ?? 0)
         return HStack(spacing: 8) {
             TempoWatchMascotView(
@@ -296,6 +297,12 @@ struct WorldDeskObjects: View {
         }
         .padding(8)
         .deskPaper(cornerRadius: 10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(TempoMascotPalette.orange, lineWidth: focused ? 2 : 0)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { store.focusCity(city) }
         .contextMenu {
             Button("Timer until their 9 AM", systemImage: "timer") { store.startOverlapCountdown(for: city) }
             Button("Remove", systemImage: "trash", role: .destructive) { store.removeWorldCity(city.id) }

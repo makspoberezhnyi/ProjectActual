@@ -75,6 +75,14 @@ struct TempoDeskScene: View {
         ZStack(alignment: .topLeading) {
             DeskPalette.wall
 
+            // World mode: the wall gets a window onto the city you're looking at.
+            CityWindow(store: store)
+                .frame(width: L.width - 36, height: L.horizonY - L.displayTop)
+                .offset(x: 18, y: L.displayTop)
+                .opacity(showsWindow ? 1 : 0)
+                .scaleEffect(showsWindow ? 1 : 0.96)
+                .allowsHitTesting(showsWindow)
+
             // Desk top, from its back edge behind the clock to the front edge.
             DeskSurface()
                 .frame(width: L.width, height: L.frontEdgeY - L.horizonY)
@@ -94,6 +102,8 @@ struct TempoDeskScene: View {
                 .offset(y: L.displayTop)
                 .contentShape(Rectangle())
                 .gesture(dialGesture)
+                .opacity(showsWindow ? 0 : 1)
+                .allowsHitTesting(!showsWindow)
 
             // Objects on the desk for the current mode (or the ringing controls).
             Group {
@@ -118,7 +128,10 @@ struct TempoDeskScene: View {
         }
         .frame(width: L.width, height: L.height)
         .animation(.spring(duration: 0.4, bounce: 0.15), value: isRinging)
+        .animation(.spring(duration: 0.45, bounce: 0.1), value: showsWindow)
     }
+
+    private var showsWindow: Bool { mode == .world && !isRinging }
 
     // MARK: - Clock (the same clock in every mode, morphing between jobs)
 
@@ -171,8 +184,10 @@ struct TempoDeskScene: View {
             let regime: TempoMascotRegime = store.chronoIsRunning ? .chronoRunning : (total > 0 ? .chronoPaused : .chronoZeroed)
             return TempoMascotLive(regime: regime, minuteAngle: total.truncatingRemainder(dividingBy: 60) * 6)
         case .world:
-            // The clock shows your real local time.
-            let c = Calendar.current.dateComponents([.hour, .minute, .second], from: now)
+            // The clock shows the time of the city in the window (or yours, with no cities).
+            var cal = Calendar.current
+            cal.timeZone = store.focusedCity?.timeZone ?? .current
+            let c = cal.dateComponents([.hour, .minute, .second], from: now)
             let m = Double(c.minute ?? 0) + Double(c.second ?? 0) / 60
             let h = Double((c.hour ?? 0) % 12) + m / 60
             let hour = c.hour ?? 12
