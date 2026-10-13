@@ -115,4 +115,6 @@ The market is currently fractured into **3 disconnected silos**—nobody unifies
 - *Notifications:* a new app icon (the clock standing on its desk) and a little picture of the mascot in the right mood on alarms, snoozes, timers and routine reminders, with text in the mascot's voice.
 - *Apple Watch:* rebuilt as four pages you scroll with the crown. Focus (your quick tasks, or the running block), Stopwatch (black and orange buttons like the ears), Alarms (next alarm and the list from your iPhone) and World (each city with a tiny clock showing its hour). Every page has the clock standing on a walnut desk.
 
+**Snooze, watch alarms, watch runs.** When you snooze (iOS 26), the lock screen and Dynamic Island show the sleepy twin-bell clock counting down to the next ring, with an "I'm up" button that ends the alarm. On the watch you can now add, edit, switch off and delete alarms (hour and minute on crown wheels), and the iPhone schedules the real alarm. A paused watch stopwatch has a Save button that sends the run to the iPhone logbook with its real start and end time.
+
 **Next up:** the commute alarm that adjusts itself from real prep time, and a pause state for the Live Activity.

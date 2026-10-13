@@ -2,6 +2,9 @@ import WidgetKit
 import SwiftUI
 import ActivityKit
 import AppIntents
+#if canImport(AlarmKit)
+import AlarmKit
+#endif
 
 @main
 struct ActualWidgetBundle: WidgetBundle {
@@ -10,6 +13,11 @@ struct ActualWidgetBundle: WidgetBundle {
         TempoAlarmWidget()
         TempoLockScreenWidget()
         TempoLiveActivity()
+        #if canImport(AlarmKit)
+        if #available(iOS 26.0, *) {
+            TempoAlarmLiveActivity()
+        }
+        #endif
     }
 }
 
@@ -602,3 +610,158 @@ struct LiveActivityBanner: View {
         .padding(14)
     }
 }
+
+// MARK: - ALARM SNOOZE (AlarmKit Live Activity)
+
+#if canImport(AlarmKit)
+/// What an AlarmKit alarm is doing right now, flattened for the views below.
+@available(iOS 26.0, *)
+private struct AlarmActivityState {
+    var fireDate: Date?
+    var pausedRemaining: TimeInterval?
+    var isRinging = false
+
+    init(_ state: AlarmPresentationState) {
+        switch state.mode {
+        case .countdown(let countdown):
+            fireDate = countdown.fireDate
+        case .paused(let paused):
+            pausedRemaining = max(0, paused.totalCountdownDuration - paused.previouslyElapsedDuration)
+        default:
+            isRinging = true
+        }
+    }
+
+    var regime: TempoMascotRegime { isRinging ? .alarmRinging : .alarmSnoozing }
+}
+
+/// Snoozed alarms count down on the lock screen and in the Dynamic Island with the sleepy twin-bell clock.
+@available(iOS 26.0, *)
+struct TempoAlarmLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: AlarmAttributes<TempoAlarmMetadata>.self) { context in
+            AlarmActivityBanner(
+                title: context.attributes.presentation.alert.title,
+                state: AlarmActivityState(context.state),
+                alarmID: context.state.alarmID.uuidString
+            )
+            .activityBackgroundTint(DeskPalette.wall)
+            .activitySystemActionForegroundColor(Look.ink)
+        } dynamicIsland: { context in
+            let state = AlarmActivityState(context.state)
+            return DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    ZStack(alignment: .bottom) {
+                        Capsule().fill(DeskPalette.surface).frame(width: 58, height: 7)
+                        TempoWatchMascotView(regime: state.regime, size: 54, animated: false)
+                            .padding(.bottom, 1)
+                    }
+                    .frame(width: 62, height: 60)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    AlarmCountdownText(state: state, size: 30)
+                        .foregroundStyle(Look.orange)
+                        .frame(maxWidth: 110, alignment: .trailing)
+                }
+                DynamicIslandExpandedRegion(.center) {
+                    Text(context.attributes.presentation.alert.title)
+                        .font(Look.title(15))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    HStack {
+                        Text(state.isRinging ? "Ringing!" : "Snoozing. I'll ring again soon.")
+                            .font(Look.title(12))
+                            .foregroundStyle(.white.opacity(0.7))
+                        Spacer()
+                        Button(intent: StopTempoAlarmIntent(alarmID: context.state.alarmID.uuidString)) {
+                            Text("I'm up").font(Look.title(13)).foregroundStyle(.white)
+                                .padding(.horizontal, 14)
+                                .frame(height: 30)
+                                .background(Capsule().fill(Look.orange))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } compactLeading: {
+                TempoWatchMascotView(regime: state.regime, size: 24, animated: false)
+            } compactTrailing: {
+                AlarmCountdownText(state: state, size: 13)
+                    .foregroundStyle(Look.orange)
+                    .frame(width: 46, alignment: .trailing)
+            } minimal: {
+                TempoWatchMascotView(regime: state.regime, size: 22, animated: false)
+            }
+            .keylineTint(Look.orange)
+            .widgetURL(URL(string: "tempo://alarms"))
+        }
+    }
+}
+
+@available(iOS 26.0, *)
+private struct AlarmCountdownText: View {
+    let state: AlarmActivityState
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let fire = state.fireDate {
+                Text(timerInterval: Date.now...max(Date.now, fire), countsDown: true)
+            } else if let left = state.pausedRemaining {
+                Text(Duration.seconds(left), format: .time(pattern: .minuteSecond))
+            } else {
+                Text("Now")
+            }
+        }
+        .font(size > 20 ? Look.numerals(size) : .system(size: size, weight: .semibold, design: .rounded))
+        .monospacedDigit()
+        .multilineTextAlignment(.trailing)
+    }
+}
+
+@available(iOS 26.0, *)
+private struct AlarmActivityBanner: View {
+    let title: LocalizedStringResource
+    let state: AlarmActivityState
+    let alarmID: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                DeskBackdrop(horizon: 0.6)
+                MascotStanding(regime: state.regime, size: 66, x: 39, feetY: 76)
+            }
+            .frame(width: 78, height: 86)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(Look.title(16))
+                    .foregroundStyle(Look.ink)
+                    .lineLimit(1)
+                Text(state.isRinging ? "Ringing! Time to get up." : "Snoozing. A few more minutes of dreams.")
+                    .font(Look.title(12))
+                    .foregroundStyle(Look.muted)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 4)
+
+            VStack(alignment: .trailing, spacing: 8) {
+                AlarmCountdownText(state: state, size: 28)
+                    .foregroundStyle(Look.ink)
+                    .frame(maxWidth: 96, alignment: .trailing)
+                Button(intent: StopTempoAlarmIntent(alarmID: alarmID)) {
+                    Text("I'm up").font(Look.title(12)).foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .background(Capsule().fill(Look.orange))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+    }
+}
+#endif

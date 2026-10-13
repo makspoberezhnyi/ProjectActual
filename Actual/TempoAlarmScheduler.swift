@@ -6,11 +6,6 @@ import AlarmKit
 import ActivityKit
 #endif
 
-#if canImport(AlarmKit)
-@available(iOS 26.0, *)
-struct TempoAlarmMetadata: AlarmMetadata {}
-#endif
-
 /// Owns everything that has to fire while Tempo is closed: alarms and the end of a running timer.
 ///
 /// iOS 26+: alarms go through AlarmKit, so they ring like the system Clock app
@@ -41,7 +36,8 @@ final class TempoAlarmScheduler {
     private(set) var usesSystemAlarms = false
     private var isObservingSystemAlarms = false
 
-    private let signaturesKey = "tempo.alarmkit.signatures.v1"
+    // v2: alarms gained the snooze countdown presentation, so every alarm reschedules once.
+    private let signaturesKey = "tempo.alarmkit.signatures.v2"
 
     private init() {}
 
@@ -306,7 +302,11 @@ final class TempoAlarmScheduler {
             countdownDuration: Alarm.CountdownDuration(preAlert: nil, postAlert: 9 * 60),
             schedule: schedule,
             attributes: AlarmAttributes(
-                presentation: AlarmPresentation(alert: snoozingAlert),
+                // The countdown presentation is what the snooze Live Activity shows (TempoAlarmLiveActivity).
+                presentation: AlarmPresentation(
+                    alert: snoozingAlert,
+                    countdown: AlarmPresentation.Countdown(title: "Snoozing", pauseButton: nil)
+                ),
                 metadata: TempoAlarmMetadata(),
                 tintColor: Color.tempoAccent
             ),

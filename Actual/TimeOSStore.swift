@@ -661,6 +661,12 @@ public final class TimeOSStore {
         TactileFeedback.success()
     }
     
+    /// Explicit on/off (the watch sends the state it wants, so repeats are harmless).
+    public func setAlarmEnabled(_ id: UUID, _ enabled: Bool) {
+        guard let idx = alarms.firstIndex(where: { $0.id == id }), alarms[idx].isEnabled != enabled else { return }
+        toggleAlarm(id)
+    }
+    
     public func deleteAlarm(_ id: UUID) {
         if activeRingingAlarmID == id { stopAlarm(id) }
         alarms.removeAll { $0.id == id }

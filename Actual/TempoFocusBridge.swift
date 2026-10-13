@@ -82,6 +82,8 @@ enum TempoFocusBridge {
                     "id": $0.id.uuidString,
                     "label": $0.label,
                     "time": $0.formattedTime,
+                    "hour": $0.hour,
+                    "minute": $0.minute,
                     "repeat": $0.repeatSummary,
                     "enabled": $0.isEnabled,
                     "bedtime": $0.isBedtimeWindDown

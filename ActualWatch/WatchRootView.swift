@@ -220,6 +220,8 @@ struct WatchFocusPage: View {
 struct WatchStopwatchPage: View {
     var store: WatchSessionStore
     @Environment(\.isLuminanceReduced) private var dimmed
+    @State private var showSave = false
+    @State private var runTitle = ""
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: dimmed || !store.chronoRunning ? 1 : 0.05)) { context in
@@ -252,11 +254,37 @@ struct WatchStopwatchPage: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
-                if let last = store.chronoLaps.first {
+                if !dimmed && !store.chronoRunning && elapsed >= 1 {
+                    Button {
+                        runTitle = ""
+                        showSave = true
+                    } label: {
+                        Label("Save", systemImage: "tray.and.arrow.down.fill")
+                            .font(WatchLook.title(13))
+                    }
+                    .tint(WatchLook.orange)
+                } else if let last = store.chronoLaps.first {
                     Text("Lap \(store.chronoLaps.count) · \(format(last))")
                         .font(.footnote)
                         .foregroundStyle(WatchLook.muted)
                 }
+            }
+            .padding(.horizontal, 6)
+        }
+        .sheet(isPresented: $showSave) {
+            VStack(spacing: 8) {
+                Text("What was this?")
+                    .font(WatchLook.title(14))
+                TextField("Run, study, cooking…", text: $runTitle)
+                Button {
+                    store.saveStopwatchRun(title: runTitle)
+                    showSave = false
+                } label: {
+                    Label("Save to logbook", systemImage: "checkmark")
+                        .font(WatchLook.title(13))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(WatchLook.orange)
             }
             .padding(.horizontal, 6)
         }
@@ -298,39 +326,109 @@ struct WatchAlarmsPage: View {
                         .font(WatchLook.title(15))
                 }
                 ForEach(store.alarms) { alarm in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(alarm.time).font(WatchLook.numerals(20))
-                            Text("\(alarm.label) · \(alarm.repeatText)")
-                                .font(.caption2)
-                                .foregroundStyle(WatchLook.muted)
-                                .lineLimit(1)
+                    HStack(spacing: 6) {
+                        NavigationLink(value: alarm) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(alarm.time).font(WatchLook.numerals(20))
+                                Text("\(alarm.label) · \(alarm.repeatText)")
+                                    .font(.caption2)
+                                    .foregroundStyle(WatchLook.muted)
+                                    .lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        Spacer(minLength: 2)
-                        if alarm.bedtime {
-                            Image(systemName: "moon.fill").foregroundStyle(WatchLook.muted)
-                        }
-                        Circle()
-                            .fill(alarm.enabled ? WatchLook.orange : Color.gray.opacity(0.4))
-                            .frame(width: 8, height: 8)
+                        .buttonStyle(.plain)
+                        Toggle("", isOn: Binding(
+                            get: { alarm.enabled },
+                            set: { store.setAlarmEnabled(alarm, $0) }
+                        ))
+                        .labelsHidden()
+                        .tint(WatchLook.orange)
+                        .frame(width: 44)
                     }
-                    .opacity(alarm.enabled ? 1 : 0.55)
+                    .opacity(alarm.enabled ? 1 : 0.6)
                     .padding(.vertical, 4)
                     .padding(.horizontal, 8)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.08)))
                 }
-                if !store.alarms.isEmpty {
-                    Text("Edit alarms on your iPhone")
-                        .font(.caption2)
-                        .foregroundStyle(WatchLook.muted)
-                        .padding(.top, 2)
+                NavigationLink {
+                    WatchAlarmEditor(store: store, alarm: nil)
+                } label: {
+                    Label("New alarm", systemImage: "plus")
+                        .font(WatchLook.title(14))
                 }
+                .tint(WatchLook.orange)
+                .padding(.top, 2)
             }
             .padding(.horizontal, 6)
             .padding(.bottom, 8)
         }
         .containerBackground(for: .tabView) { WatchPageBackground() }
         .navigationTitle("Alarms")
+        .navigationDestination(for: WatchAlarm.self) { alarm in
+            WatchAlarmEditor(store: store, alarm: alarm)
+        }
+    }
+}
+
+/// Set the time with the crown, rename, switch off or delete. The iPhone schedules the real alarm.
+struct WatchAlarmEditor: View {
+    var store: WatchSessionStore
+    let alarm: WatchAlarm?
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var hour = 7
+    @State private var minute = 0
+    @State private var label = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                HStack(spacing: 4) {
+                    Picker("Hour", selection: $hour) {
+                        ForEach(0..<24, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                    }
+                    Text(":").font(WatchLook.numerals(24))
+                    Picker("Minute", selection: $minute) {
+                        ForEach(0..<60, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(height: 70)
+
+                TextField("Label", text: $label)
+                    .font(WatchLook.title(13))
+
+                Button {
+                    store.saveAlarm(id: alarm?.id, hour: hour, minute: minute, label: label)
+                    dismiss()
+                } label: {
+                    Label(alarm == nil ? "Add alarm" : "Save", systemImage: "checkmark")
+                        .font(WatchLook.title(14))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(WatchLook.orange)
+
+                if let alarm {
+                    Button(role: .destructive) {
+                        store.deleteAlarm(id: alarm.id)
+                        dismiss()
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                            .font(WatchLook.title(13))
+                    }
+                }
+            }
+            .padding(.horizontal, 4)
+        }
+        .navigationTitle(alarm == nil ? "New alarm" : "Edit alarm")
+        .onAppear {
+            if let alarm {
+                hour = alarm.hour
+                minute = alarm.minute
+                label = alarm.label
+            }
+        }
     }
 }
 

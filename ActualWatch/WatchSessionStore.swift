@@ -13,6 +13,8 @@ struct WatchQuickTask: Hashable, Sendable {
 struct WatchAlarm: Identifiable, Hashable, Sendable {
     var id: String
     var label: String
+    var hour: Int
+    var minute: Int
     var time: String
     var repeatText: String
     var enabled: Bool
@@ -115,6 +117,72 @@ final class WatchSessionStore: NSObject {
         }
     }
     
+    // MARK: Alarm edits and saved runs (the phone does the real scheduling and logging)
+    
+    static func formattedTime(hour: Int, minute: Int) -> String {
+        let h12 = hour % 12 == 0 ? 12 : hour % 12
+        return String(format: "%02d:%02d %@", h12, minute, hour < 12 ? "AM" : "PM")
+    }
+    
+    func setAlarmEnabled(_ alarm: WatchAlarm, _ enabled: Bool) {
+        if let i = alarms.firstIndex(where: { $0.id == alarm.id }) { alarms[i].enabled = enabled }
+        WKInterfaceDevice.current().play(.click)
+        sendCommand(["action": "alarmSetEnabled", "alarmID": alarm.id, "enabled": enabled])
+    }
+    
+    /// `id` nil makes a new alarm. The list updates right away; the phone's confirmation follows.
+    func saveAlarm(id: String?, hour: Int, minute: Int, label: String) {
+        let clean = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let time = Self.formattedTime(hour: hour, minute: minute)
+        if let id, let i = alarms.firstIndex(where: { $0.id == id }) {
+            alarms[i].hour = hour
+            alarms[i].minute = minute
+            alarms[i].time = time
+            alarms[i].enabled = true
+            if !clean.isEmpty { alarms[i].label = clean }
+        } else {
+            alarms.append(WatchAlarm(
+                id: UUID().uuidString, label: clean.isEmpty ? "Alarm" : clean,
+                hour: hour, minute: minute, time: time, repeatText: "Every day", enabled: true, bedtime: false
+            ))
+        }
+        WKInterfaceDevice.current().play(.success)
+        var payload: [String: Any] = ["action": "alarmSave", "hour": hour, "minute": minute, "label": clean]
+        if let id { payload["alarmID"] = id }
+        sendCommand(payload)
+    }
+    
+    func deleteAlarm(id: String) {
+        alarms.removeAll { $0.id == id }
+        WKInterfaceDevice.current().play(.directionDown)
+        sendCommand(["action": "alarmDelete", "alarmID": id])
+    }
+    
+    /// Sends the paused stopwatch run to the phone's logbook, then clears the stopwatch.
+    func saveStopwatchRun(title: String) {
+        let seconds = chronoElapsed()
+        guard seconds >= 1 else { return }
+        let clean = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        sendCommand([
+            "action": "logStopwatch",
+            "taskTitle": clean.isEmpty ? "Stopwatch run" : clean,
+            "seconds": seconds,
+            "endDate": Date().timeIntervalSince1970
+        ])
+        if chronoRunning { toggleChrono() }
+        chronoAccumulated = 0
+        chronoLaps.removeAll()
+        todayMinutes += max(1, Int((seconds / 60).rounded()))
+        WKInterfaceDevice.current().play(.success)
+    }
+    
+    private func sendCommand(_ base: [String: Any]) {
+        var payload = base
+        payload["commandID"] = UUID().uuidString
+        payload["timestamp"] = Date().timeIntervalSince1970
+        sendToPhone(payload)
+    }
+    
     func applyLibrary(_ library: WatchLibrary?) {
         guard let library else { return }
         if let tasks = library.quickTasks, !tasks.isEmpty { quickTasks = tasks }
@@ -137,6 +205,8 @@ final class WatchSessionStore: NSObject {
             return WatchAlarm(
                 id: id,
                 label: label,
+                hour: item["hour"] as? Int ?? 7,
+                minute: item["minute"] as? Int ?? 0,
                 time: time,
                 repeatText: item["repeat"] as? String ?? "",
                 enabled: item["enabled"] as? Bool ?? true,
