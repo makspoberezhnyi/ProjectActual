@@ -11,6 +11,14 @@ struct WorldClockInstrumentView: View {
     var body: some View {
         NavigationStack {
             List {
+                MascotChatHeader(
+                    regime: .worldDualGMT,
+                    text: store.mascotVoiceMessage,
+                    onTap: { store.say(TempoVoice.worldTab(cities: store.worldCities)) }
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
                 ForEach(store.worldCities) { city in
                     WorldCityRow(city: city)
                         .listRowBackground(Color.clear)

@@ -57,13 +57,17 @@ struct ContentView: View {
             timeStore.modelContext = context
             timeStore.closeOrphanedSessions(context: context)
             timeStore.reconcileExternalSessions(context: context)
-            timeStore.refreshCalendarSuggestions()
+            await timeStore.refreshCalendarSuggestions()
+            timeStore.greet(force: true)
             await TempoAlarmScheduler.shared.requestPermissions()
             TempoAlarmScheduler.shared.sync(timeStore.alarms)
         }
         // The watch and Live Activity buttons leave notes in the shared store; read them right away.
         .onReceive(NotificationCenter.default.publisher(for: .syncWidgetSessionsNotification)) { _ in
             timeStore.reconcileExternalSessions(context: context)
+        }
+        .onChange(of: timeStore.selectedMainTab) { _, tab in
+            timeStore.greetTab(tab)
         }
         .onReceive(NotificationCenter.default.publisher(for: .sessionDestinationReached)) { _ in
             timeStore.commuteArrived(context: context)
@@ -92,8 +96,12 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 timeStore.reconcileExternalSessions(context: context)
-                timeStore.refreshCalendarSuggestions()
                 updateCalibrationAndWidget()
+                Task {
+                    await timeStore.refreshCalendarSuggestions()
+                    // Says hi again only if you've been away a while.
+                    timeStore.greet()
+                }
                 // Roll the notification fallback forward so the next two days are always covered.
                 TempoAlarmScheduler.shared.sync(timeStore.alarms)
             } else if newPhase == .background {

@@ -106,10 +106,10 @@ struct AlarmsInstrumentView: View {
             }
             .frame(height: 200)
 
+            MascotSpeechBubble(text: store.mascotVoiceMessage)
+                .padding(.horizontal, 12)
             NextAlarmCaption()
-            Text("Tap the mascot to hear the bells")
-                .font(.caption)
-                .foregroundStyle(Color.tempoMuted.opacity(0.8))
+                .padding(.top, 2)
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 6)

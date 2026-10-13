@@ -103,4 +103,8 @@ The market is currently fractured into **3 disconnected silos**—nobody unifies
 
 **Settings that do what they say.** Default Duration sets the first timer. Smart Routine Suggestions and Notifications switch routine reminders off, but alarms always ring. The watch switch really stops syncing. Switches with nothing behind them and the old Clean Chat History are gone. Reset All Data also clears the timer and stopwatch.
 
+**The mascot talks.** One chat bubble follows you across every tab. Tempo says hi when you open the app (it knows the time of day, what's running, your next meeting and how much you logged today), greets you on each tab, and answers every tap with a short line like "Let's go!" or "Let me check your day…". New lines appear after a quick typing beat, like a message. Tap the mascot itself and it chats back.
+
+**Your history drives the timer.** Type a task you've done before without a time, like "Design review", and Tempo sets the timer to your real average and tells you so. Guess too short and it warns you. Finish a block and it tells you your updated average. This is the original idea of the app, now front and center.
+
 **Next up:** the commute alarm that adjusts itself from real prep time, and a pause state for the Live Activity.

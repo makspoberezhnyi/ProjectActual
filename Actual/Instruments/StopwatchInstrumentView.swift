@@ -21,11 +21,14 @@ struct StopwatchInstrumentView: View {
                     TempoAura()
                     mascot
                 }
-                .frame(height: 245)
-                .padding(.top, 16)
+                .frame(height: 220)
+                .padding(.top, 8)
+
+                MascotSpeechBubble(text: store.mascotVoiceMessage)
+                    .padding(.horizontal, 28)
 
                 readout
-                    .padding(.top, 4)
+                    .padding(.top, 6)
 
                 controls
                     .padding(.top, 20)
@@ -57,13 +60,14 @@ struct StopwatchInstrumentView: View {
             TextField("Task name", text: $saveTitle)
             Button("Save") {
                 let total = store.chronoTotalElapsed()
+                // Reset first so the mascot's last word is the "saved" line.
+                store.pressChronoLeftEar()
                 store.claimChronoAsCalibratedTask(
                     title: saveTitle.isEmpty ? "Stopwatch run" : saveTitle,
                     estimatedMinutes: max(1, Int((total / 60).rounded())),
                     actualSeconds: total,
                     context: modelContext
                 )
-                store.pressChronoLeftEar()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -73,10 +77,11 @@ struct StopwatchInstrumentView: View {
 
     private var mascot: some View {
         TempoInteractiveMascotView(
-            size: 210,
+            size: 195,
             providesMinuteAngle: true,
             onLeftEarTap: { store.pressChronoLeftEar() },
             onRightEarTap: { store.toggleChronoStartStop() },
+            onBodyTap: { store.say(TempoVoice.stopwatchTab(isRunning: store.chronoIsRunning, elapsed: store.chronoTotalElapsed())) },
             live: { now in
                 let total = store.chronoTotalElapsed(at: now)
                 let regime: TempoMascotRegime = store.chronoIsRunning ? .chronoRunning

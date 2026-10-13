@@ -77,6 +77,9 @@ struct FocusInstrumentView: View {
             .animation(.spring(duration: 0.35, bounce: 0.15), value: store.latestTravelResult)
             .animation(.spring(duration: 0.4, bounce: 0.12), value: inputFocused)
         }
+        .onChange(of: inputFocused) { _, focused in
+            if focused && draft.isEmpty { store.say(TempoVoice.typingPrompt) }
+        }
         // 6. Chat composer docked at the bottom, it rides up with the keyboard.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             taskInputBar
@@ -231,14 +234,8 @@ struct FocusInstrumentView: View {
                     .accessibilityLabel("Open in Maps")
                 }
             } else {
-                Text(store.mascotVoiceMessage)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.tempoInk.opacity(0.85))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(4)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .id(store.mascotVoiceMessage)
-                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                MascotSpeechText(text: store.mascotVoiceMessage)
+                    .frame(maxWidth: .infinity)
             }
         }
         .padding(.horizontal, 16)
@@ -250,7 +247,6 @@ struct FocusInstrumentView: View {
                 .fill(TempoSurface.card(colorScheme))
                 .overlay(SpeechBubbleShape().stroke(TempoSurface.border(colorScheme), lineWidth: 1))
         )
-        .animation(.spring(duration: 0.35, bounce: 0.2), value: store.mascotVoiceMessage)
     }
 
     // MARK: - 3. Mascot (reads live state per frame, the page does not re-render)
@@ -261,6 +257,7 @@ struct FocusInstrumentView: View {
             size: 215,
             onLeftEarTap: { store.resetTimer() },
             onRightEarTap: { store.toggleTimerPauseResume() },
+            onBodyTap: { store.pokeMascot() },
             live: { now in
                 let rem = store.timerRemaining(at: now)
                 let target = max(1, Double(store.timerTargetSeconds))
@@ -371,33 +368,6 @@ struct FocusInstrumentView: View {
             .opacity(isIdle ? 0 : 1)
             .scaleEffect(isIdle ? 0.6 : 1)
             .allowsHitTesting(!isIdle)
-    }
-}
-
-/// Rounded bubble with a small tail pointing up at the mascot.
-struct SpeechBubbleShape: Shape {
-    static let tailHeight: CGFloat = 8
-    private let radius: CGFloat = 18
-    private let tailWidth: CGFloat = 18
-
-    func path(in rect: CGRect) -> Path {
-        let body = CGRect(x: rect.minX, y: rect.minY + Self.tailHeight, width: rect.width, height: rect.height - Self.tailHeight)
-        let r = min(radius, body.height / 2, body.width / 2)
-        var p = Path()
-        p.move(to: CGPoint(x: body.minX + r, y: body.minY))
-        p.addLine(to: CGPoint(x: rect.midX - tailWidth / 2, y: body.minY))
-        p.addQuadCurve(to: CGPoint(x: rect.midX, y: rect.minY), control: CGPoint(x: rect.midX - 3, y: body.minY))
-        p.addQuadCurve(to: CGPoint(x: rect.midX + tailWidth / 2, y: body.minY), control: CGPoint(x: rect.midX + 3, y: body.minY))
-        p.addLine(to: CGPoint(x: body.maxX - r, y: body.minY))
-        p.addArc(tangent1End: CGPoint(x: body.maxX, y: body.minY), tangent2End: CGPoint(x: body.maxX, y: body.minY + r), radius: r)
-        p.addLine(to: CGPoint(x: body.maxX, y: body.maxY - r))
-        p.addArc(tangent1End: CGPoint(x: body.maxX, y: body.maxY), tangent2End: CGPoint(x: body.maxX - r, y: body.maxY), radius: r)
-        p.addLine(to: CGPoint(x: body.minX + r, y: body.maxY))
-        p.addArc(tangent1End: CGPoint(x: body.minX, y: body.maxY), tangent2End: CGPoint(x: body.minX, y: body.maxY - r), radius: r)
-        p.addLine(to: CGPoint(x: body.minX, y: body.minY + r))
-        p.addArc(tangent1End: CGPoint(x: body.minX, y: body.minY), tangent2End: CGPoint(x: body.minX + r, y: body.minY), radius: r)
-        p.closeSubpath()
-        return p
     }
 }
 
