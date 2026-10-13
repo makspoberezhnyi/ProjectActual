@@ -13,7 +13,7 @@ struct LogbookInstrumentView: View {
     }
 
     @State private var section: Section = .insights
-    @State private var showMascotStudio = false
+    @Environment(\.dismiss) private var dismiss
 
     init(sessions: [Session] = [], calibrationScore: Double = 0.78) {
         self.sessions = sessions
@@ -33,16 +33,6 @@ struct LogbookInstrumentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                MascotChatHeader(
-                    regime: calibrationScore >= 0.85 ? .calibBullseyeJump : .calibEstimating,
-                    text: store.mascotVoiceMessage,
-                    onTap: { store.greetTab(4) }
-                )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 4)
-                .background(SharedBackground().opacity(0.96))
-            }
             .background(SharedBackground())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -54,16 +44,8 @@ struct LogbookInstrumentView: View {
                     .frame(maxWidth: 260)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Mascot studio", systemImage: "face.smiling") { showMascotStudio = true }
+                    Button("Close", systemImage: "xmark") { dismiss() }
                         .tint(Color.tempoAccent)
-                }
-            }
-            .sheet(isPresented: $showMascotStudio) {
-                NavigationStack {
-                    MascotRegimeStudioView(store: store)
-                        .background(SharedBackground())
-                        .navigationTitle("Mascot Studio")
-                        .navigationBarTitleDisplayMode(.inline)
                 }
             }
         }

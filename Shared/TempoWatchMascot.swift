@@ -666,7 +666,9 @@ private struct MascotCanvasBody: View {
         Canvas { ctx, canvasSize in
             let scale = min(canvasSize.width / 248.0, canvasSize.height / 268.0)
             ctx.scaleBy(x: scale, y: scale)
-            ctx.translateBy(x: 4.0, y: 16.0)
+            // The body is centered on x 120 of a 248 wide drawing; shift by 14 so it sits in the
+            // middle of the 268 wide frame instead of 10 units left of it.
+            ctx.translateBy(x: 14.0, y: 16.0)
             
             let pX = config.turnX * 1.15
             let pY = config.turnY * 1.05
