@@ -23,8 +23,9 @@ enum TempoTimerEndNotice {
         guard remaining > 1 else { return }
         guard UserDefaults.standard.object(forKey: "integration_notifications_enabled") as? Bool ?? true else { return }
         let content = UNMutableNotificationContent()
-        content.title = "Time's up · \(snapshot.activeTaskTitle ?? "Focus")"
-        content.body = "Your \(minutes)m block is done. Log it, or give yourself 5 more minutes."
+        content.title = "Time's up!"
+        content.body = "\(snapshot.activeTaskTitle ?? "Your block") is done, \(minutes)m on the dot. Log it, or take 5 more minutes?"
+        content.threadIdentifier = "tempo.timer"
         content.sound = UNNotificationSound(named: UNNotificationSoundName("tempo_chime.wav"))
         content.categoryIdentifier = category
         content.interruptionLevel = .timeSensitive

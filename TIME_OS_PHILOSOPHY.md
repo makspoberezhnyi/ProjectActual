@@ -109,4 +109,10 @@ The market is currently fractured into **3 disconnected silos**—nobody unifies
 
 **A clock on a desk.** The mascot no longer floats. It stands on two little feet on a zoomed-in oak desk (walnut in dark mode), with a contact shadow under it. Every squash, tilt and hop pivots on its feet, and held poses stand tall or slump instead of hovering. Only quick moves leave the desk: a hop when you tap it, rattling while it rings, a landing squash. When idle it fidgets now and then with a glance, a rock on its feet, a tiny hop or a double blink. On Focus, Stopwatch and the ringing screen the table's front edge and legs show under the controls; the Alarms tab ends its hero with the desk's front edge.
 
+**Outside the app, same desk clock.**
+- *Live Activity and Dynamic Island:* the clock sits in the island (on a tiny strip of desk when expanded). The countdown keeps counting up as honest overtime after zero, and +5 and Done work right there. The lock screen banner shows the clock standing on its desk next to the countdown.
+- *Widgets:* Focus shows the clock on the desk with your three most-run tasks and their real averages as one-tap starts, or the running block with +5 and Done. Next Alarm shows the twin-bell clock and when it rings. Stack the two and swipe between them. Lock screen widgets show the running timer or the next alarm.
+- *Notifications:* a new app icon (the clock standing on its desk) and a little picture of the mascot in the right mood on alarms, snoozes, timers and routine reminders, with text in the mascot's voice.
+- *Apple Watch:* rebuilt as four pages you scroll with the crown. Focus (your quick tasks, or the running block), Stopwatch (black and orange buttons like the ears), Alarms (next alarm and the list from your iPhone) and World (each city with a tiny clock showing its hour). Every page has the clock standing on a walnut desk.
+
 **Next up:** the commute alarm that adjusts itself from real prep time, and a pause state for the Live Activity.

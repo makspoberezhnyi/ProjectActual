@@ -115,7 +115,9 @@ final class TempoAlarmScheduler {
         }
         #endif
         let content = alarmContent(for: alarm, followUp: false)
-        content.title = "Tempo · Snooze over"
+        content.title = "Snooze is over"
+        content.body = "Up you get! \(alarm.label), \(alarm.formattedTime)."
+        if let art = TempoNotificationArt.attachment(.alarmRinging) { content.attachments = [art] }
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
         let request = UNNotificationRequest(
@@ -156,11 +158,13 @@ final class TempoAlarmScheduler {
         guard UserDefaults.standard.object(forKey: "integration_notifications_enabled") as? Bool ?? true else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "Time's up · \(title)"
-        content.body = "Your \(targetMinutes)m block is done. Log it, or give yourself 5 more minutes."
+        content.title = "Time's up!"
+        content.body = "\(title) is done, \(targetMinutes)m on the dot. Log it, or take 5 more minutes?"
         content.sound = UNNotificationSound(named: UNNotificationSoundName(TempoSoundEngine.chimeFileName))
         content.categoryIdentifier = Self.timerCategory
         content.interruptionLevel = .timeSensitive
+        content.threadIdentifier = "tempo.timer"
+        if let art = TempoNotificationArt.attachment(.timerComplete) { content.attachments = [art] }
 
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
         center.add(UNNotificationRequest(identifier: Self.timerIdentifier, content: content, trigger: trigger))
@@ -177,14 +181,21 @@ final class TempoAlarmScheduler {
     private func alarmContent(for alarm: TempoAlarm, followUp: Bool) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         if followUp {
-            content.title = "Still ringing · \(alarm.label)"
+            content.title = "Still ringing! \(alarm.label)"
+            content.body = "Snooze or wake up? I'll keep going until you pick one."
+        } else if alarm.isBedtimeWindDown {
+            content.title = "Time to wind down"
+            content.body = "\(alarm.label), \(alarm.formattedTime). Phone down, lights low. Sleep well."
+        } else if let chain = alarm.chainedTaskTitle, let mins = alarm.chainedTaskMinutes {
+            content.title = alarm.label
+            content.body = "Rise and shine! Tap Wake up and I'll start \(chain) (\(mins)m)."
         } else {
-            content.title = alarm.isBedtimeWindDown ? "Tempo · Wind down" : "Tempo · \(alarm.label)"
+            content.title = alarm.label
+            content.body = "Rise and shine! It's \(alarm.formattedTime)."
         }
-        if let chain = alarm.chainedTaskTitle, let mins = alarm.chainedTaskMinutes {
-            content.body = "\(alarm.formattedTime). Tap Wake up to start your \(mins)m \(chain) block."
-        } else {
-            content.body = alarm.formattedTime
+        content.threadIdentifier = "tempo.alarms"
+        if let art = TempoNotificationArt.attachment(alarm.isBedtimeWindDown ? .alarmBedtimeMoody : .alarmRinging) {
+            content.attachments = [art]
         }
         content.sound = UNNotificationSound(named: UNNotificationSoundName(TempoSoundEngine.chimeFileName))
         content.categoryIdentifier = Self.alarmCategory

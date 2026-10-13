@@ -89,6 +89,16 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         sendPayloadToWatch(payload)
     }
     
+    /// Quick tasks, alarms and world cities for the watch pages.
+    func syncLibrary(_ payload: [String: Any]) {
+        sendPayloadToWatch(payload)
+    }
+    
+    /// Everything the watch should know when it next wakes up. Payloads are merged into it,
+    /// because application context keeps only the latest dictionary and a stats update
+    /// used to wipe the running timer.
+    private var mergedContext: [String: Any] = [:]
+    
     private func sendPayloadToWatch(_ payload: [String: Any]) {
         guard TempoFocusBridge.watchSyncEnabled else { return }
         guard let s = session, s.activationState == .activated else { return }
@@ -103,9 +113,14 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
             }
         }
         
-        // 3. Application context for persistent sync
+        // 3. Application context for persistent sync (merged, minus one-shot actions)
+        mergedContext.merge(payload) { _, new in new }
+        mergedContext["action"] = nil
+        if payload["isRunning"] as? Bool == false {
+            for key in ["taskTitle", "estimatedMinutes", "startDate"] { mergedContext[key] = nil }
+        }
         do {
-            try s.updateApplicationContext(payload)
+            try s.updateApplicationContext(mergedContext)
             self.lastSyncedAt = Date()
         } catch {
             print("[WatchConnectivity] updateApplicationContext fallback error: \(error.localizedDescription)")

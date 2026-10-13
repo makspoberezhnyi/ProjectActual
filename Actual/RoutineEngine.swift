@@ -279,8 +279,10 @@ final class RoutineEngine {
         let patterns = minePatterns(from: sessions)
         for pattern in patterns.prefix(5) {
             let content = UNMutableNotificationContent()
-            content.title = "Tempo Routine"
-            content.body = "Ready for your \(pattern.taskTitle) (\(pattern.typicalMinutes)m)?"
+            content.title = "Ready for \(pattern.taskTitle)?"
+            content.body = "It usually takes you \(pattern.typicalMinutes)m around now. Tap and I'll start the clock."
+            content.threadIdentifier = "tempo.routines"
+            if let art = TempoNotificationArt.attachment(.calibEstimating) { content.attachments = [art] }
             content.sound = .default
             
             var dateComponents = DateComponents()

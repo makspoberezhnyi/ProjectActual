@@ -135,5 +135,6 @@ struct ContentView: View {
         }
         
         RoutineEngine.shared.scheduleRoutineNotifications(sessions: sessions)
+        timeStore.publishLibrary()
     }
 }

@@ -7,405 +7,45 @@ import AppIntents
 struct ActualWidgetBundle: WidgetBundle {
     var body: some Widget {
         TempoFocusWidget()
+        TempoAlarmWidget()
         TempoLockScreenWidget()
         TempoLiveActivity()
     }
 }
 
-// MARK: - THEME COLORS FOR WIDGETS
-struct WidgetTheme {
-    static let blue = Color(red: 0.05, green: 0.52, blue: 1.0)
-    static let indigo = Color(red: 0.35, green: 0.40, blue: 0.95)
-    static let coral = Color(red: 1.0, green: 0.45, blue: 0.40)
-    static let success = Color(red: 0.2, green: 0.78, blue: 0.35)
-    
-    static func primaryText(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color(red: 0.05, green: 0.07, blue: 0.12) : .white
+// MARK: - Shared look
+
+/// The clock lives on a desk everywhere: same oak, same ink, same orange as the app.
+private enum Look {
+    static let orange = TempoMascotPalette.orange
+    static let ink = DeskPalette.ink
+    static let muted = DeskPalette.muted
+
+    static func title(_ size: CGFloat) -> Font { .system(size: size, weight: .semibold, design: .rounded) }
+    static func numerals(_ size: CGFloat) -> Font { .system(size: size, weight: .light, design: .rounded).monospacedDigit() }
+    static func caption(_ size: CGFloat = 10) -> Font { .system(size: size, weight: .bold, design: .rounded) }
+}
+
+private extension WidgetSnapshotData {
+    var activeEnd: Date? {
+        guard isRunning, let start = activeTaskStartedAt else { return nil }
+        return start.addingTimeInterval(TimeInterval(max(1, activeTaskEstimatedMinutes ?? 25) * 60))
     }
-    
-    static func secondaryText(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color(red: 0.26, green: 0.30, blue: 0.40) : Color.white.opacity(0.60)
+
+    func remainingFraction(at date: Date) -> Double {
+        guard let start = activeTaskStartedAt, let end = activeEnd else { return 0 }
+        let total = end.timeIntervalSince(start)
+        return min(1, max(0, end.timeIntervalSince(date) / max(1, total)))
     }
-    
-    static func tertiaryText(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color(red: 0.40, green: 0.44, blue: 0.54) : Color.white.opacity(0.45)
-    }
-    
-    static func cardBackground(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color.white.opacity(0.85) : Color(red: 0.06, green: 0.09, blue: 0.165).opacity(0.85)
-    }
-    
-    static func actionButtonBackground(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color.white.opacity(0.92) : Color(red: 0.09, green: 0.13, blue: 0.22).opacity(0.88)
-    }
-    
-    static func glassStroke(for scheme: ColorScheme) -> LinearGradient {
-        if scheme == .light {
-            return LinearGradient(
-                colors: [Color.white.opacity(0.95), Color.blue.opacity(0.25), Color.white.opacity(0.50)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        } else {
-            return LinearGradient(
-                colors: [Color.white.opacity(0.26), Color.cyan.opacity(0.20), Color.white.opacity(0.06)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-    }
-    
-    @ViewBuilder
-    static func widgetBackground(for scheme: ColorScheme) -> some View {
-        ZStack {
-            if scheme == .light {
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.97, green: 0.98, blue: 1.0),
-                        Color(red: 0.92, green: 0.94, blue: 0.98)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                RadialGradient(
-                    colors: [Color.blue.opacity(0.12), Color.clear],
-                    center: .topTrailing,
-                    startRadius: 8,
-                    endRadius: 130
-                )
-            } else {
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.08, green: 0.10, blue: 0.16),
-                        Color(red: 0.04, green: 0.06, blue: 0.10)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                RadialGradient(
-                    colors: [Color.cyan.opacity(0.14), Color.clear],
-                    center: .topTrailing,
-                    startRadius: 8,
-                    endRadius: 130
-                )
-            }
-        }
-        .ignoresSafeArea()
+
+    var todayLine: String {
+        let h = todayMinutes / 60, m = todayMinutes % 60
+        let time = h > 0 ? "\(h)h \(m)m" : "\(m)m"
+        return todayMinutes > 0 ? "\(time) logged today" : "Nothing logged yet"
     }
 }
 
-// MARK: - LIVE ACTIVITY & DYNAMIC ISLAND
-struct TempoLiveActivity: Widget {
-    var body: some WidgetConfiguration {
-        ActivityConfiguration(for: TempoActivityAttributes.self) { context in
-            // Lock Screen Banner
-            TempoLiveActivityLockScreenBanner(context: context)
-        } dynamicIsland: { context in
-            let isComplete = !context.state.isRunning || context.state.statusMessage?.contains("Complete") == true || context.state.statusMessage?.contains("Done") == true
-            
-            return DynamicIsland {
-                // Expanded Island Leading
-                DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 6) {
-                        TempoWatchMascotView(
-                            regime: isComplete ? .calibBullseyeJump : .timerActiveCountdown,
-                            size: 28,
-                            animated: false
-                        )
-                        
-                        Text(context.attributes.taskTitle)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .padding(.leading, 6)
-                }
-                
-                // Expanded Island Trailing
-                DynamicIslandExpandedRegion(.trailing) {
-                    HStack(spacing: 4) {
-                        if isComplete {
-                            Text("Done ✓")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(WidgetTheme.success)
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 4)
-                                .background(WidgetTheme.success.opacity(0.18), in: Capsule())
-                                .overlay(Capsule().strokeBorder(WidgetTheme.success.opacity(0.35), lineWidth: 0.8))
-                        } else {
-                            Text("\(context.state.estimatedMinutes)m")
-                                .font(.system(size: 12, weight: .semibold))
-                                .monospacedDigit()
-                                .foregroundStyle(WidgetTheme.blue)
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 4)
-                                .background(WidgetTheme.blue.opacity(0.18), in: Capsule())
-                                .overlay(Capsule().strokeBorder(WidgetTheme.blue.opacity(0.35), lineWidth: 0.8))
-                        }
-                    }
-                    .padding(.trailing, 6)
-                }
-                
-                // Expanded Island Center / Bottom
-                DynamicIslandExpandedRegion(.bottom) {
-                    if isComplete {
-                        HStack(spacing: 6) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(WidgetTheme.success)
-                            Text("Session Completed & Logged")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white)
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(WidgetTheme.success)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(WidgetTheme.success.opacity(0.22), in: Capsule())
-                        .overlay(Capsule().strokeBorder(WidgetTheme.success.opacity(0.4), lineWidth: 1))
-                        .padding(.horizontal, 6)
-                        .padding(.top, 4)
-                        .transition(.scale.combined(with: .opacity))
-                    } else {
-                        VStack(spacing: 8) {
-                            HStack(alignment: .center) {
-                                // Live Elapsed Timer
-                                HStack(spacing: 6) {
-                                    Circle()
-                                        .fill(WidgetTheme.blue)
-                                        .frame(width: 6, height: 6)
-                                    
-                                    Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                                        .font(.system(size: 24, weight: .semibold))
-                                        .monospacedDigit()
-                                        .foregroundStyle(.white)
-                                }
-                                
-                                Spacer()
-                                
-                                // Interactive Done Action Button
-                                Button(intent: StopFocusIntent(activityId: context.activityID)) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 12, weight: .bold))
-                                        Text("Done")
-                                            .font(.system(size: 13, weight: .semibold))
-                                    }
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 7)
-                                    .background(WidgetTheme.blue, in: Capsule())
-                                    .shadow(color: WidgetTheme.blue.opacity(0.35), radius: 4, x: 0, y: 2)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal, 6)
-                            
-                            // Live Progress Bar towards Target Duration
-                            ProgressView(
-                                timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.state.estimatedMinutes) * 60)),
-                                countsDown: false,
-                                label: { EmptyView() },
-                                currentValueLabel: { EmptyView() }
-                            )
-                            .tint(WidgetTheme.blue)
-                            .padding(.horizontal, 6)
-                            .padding(.bottom, 2)
-                        }
-                        .padding(.top, 4)
-                    }
-                }
-            } compactLeading: {
-                HStack(spacing: 3) {
-                    Image(systemName: isComplete ? "checkmark.circle.fill" : "timer")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(isComplete ? WidgetTheme.success : WidgetTheme.blue)
-                        .symbolEffect(.bounce, value: isComplete)
-                }
-                .padding(.leading, 3)
-            } compactTrailing: {
-                if isComplete {
-                    Text("Done")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(WidgetTheme.success)
-                        .frame(width: 34, alignment: .trailing)
-                } else {
-                    Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 12, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.blue)
-                        .multilineTextAlignment(.trailing)
-                        .lineLimit(1)
-                        .frame(width: 34, alignment: .trailing)
-                }
-            } minimal: {
-                Image(systemName: isComplete ? "checkmark.circle.fill" : "timer")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(isComplete ? WidgetTheme.success : WidgetTheme.blue)
-                    .symbolEffect(.bounce, value: isComplete)
-            }
-        }
-    }
-}
-
-// Lock Screen Live Activity Banner View
-struct TempoLiveActivityLockScreenBanner: View {
-    @Environment(\.colorScheme) var colorScheme
-    var context: ActivityViewContext<TempoActivityAttributes>
-    
-    private var isComplete: Bool {
-        !context.state.isRunning || context.state.statusMessage?.contains("Complete") == true || context.state.statusMessage?.contains("Done") == true
-    }
-    
-    private var bannerBackground: Color {
-        colorScheme == .light
-            ? Color(red: 0.96, green: 0.97, blue: 0.99).opacity(0.96)
-            : Color(red: 0.08, green: 0.10, blue: 0.14).opacity(0.96)
-    }
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                // Glass Icon Orb
-                ZStack {
-                    Circle()
-                        .fill(isComplete ? WidgetTheme.success.opacity(colorScheme == .light ? 0.18 : 0.32) : WidgetTheme.blue.opacity(colorScheme == .light ? 0.14 : 0.28))
-                        .frame(width: 38, height: 38)
-                    
-                    Image(systemName: isComplete ? "checkmark.circle.fill" : "timer")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(isComplete ? WidgetTheme.success : WidgetTheme.blue)
-                        .symbolEffect(.bounce, value: isComplete)
-                }
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(context.attributes.taskTitle)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                        .lineLimit(1)
-                    
-                    HStack(spacing: 6) {
-                        if isComplete {
-                            Text("✓ Session Completed & Logged")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(WidgetTheme.success)
-                        } else {
-                            Text("Target: \(context.state.estimatedMinutes)m Focus")
-                                .font(.system(size: 11, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
-                            
-                            if let status = context.state.statusMessage {
-                                Text("• \(status)")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(WidgetTheme.blue)
-                            } else if context.attributes.isLinkedToCalendar == true {
-                                Text("• Calendar")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(WidgetTheme.blue)
-                            } else if context.attributes.isLinkedToReminders == true {
-                                Text("• Reminders")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(WidgetTheme.blue)
-                            }
-                        }
-                    }
-                }
-                
-                Spacer()
-                
-                // Live Timer or Completed Badge Display
-                if isComplete {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 11))
-                        Text("DONE")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundStyle(WidgetTheme.success)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(WidgetTheme.success.opacity(0.18), in: Capsule())
-                    .overlay(Capsule().strokeBorder(WidgetTheme.success.opacity(0.35), lineWidth: 0.8))
-                } else {
-                    VStack(alignment: .trailing, spacing: 1) {
-                        Text(timerInterval: context.attributes.startDate...Date.distantFuture, countsDown: false)
-                            .font(.system(size: 21, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                        
-                        Text("ELAPSED")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(WidgetTheme.blue)
-                    }
-                }
-            }
-            
-            if !isComplete {
-                // Progress Bar & Action Row
-                HStack(spacing: 12) {
-                    ProgressView(
-                        timerInterval: context.attributes.startDate...context.attributes.startDate.addingTimeInterval(Double(max(1, context.state.estimatedMinutes) * 60)),
-                        countsDown: false,
-                        label: { EmptyView() },
-                        currentValueLabel: { EmptyView() }
-                    )
-                    .tint(WidgetTheme.blue)
-                    
-                    Button(intent: StopFocusIntent(activityId: context.activityID)) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .heavy))
-                            Text("Done")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 7)
-                        .background(WidgetTheme.blue, in: Capsule())
-                        .shadow(color: WidgetTheme.blue.opacity(0.3), radius: 4, x: 0, y: 2)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(bannerBackground)
-        )
-        .activityBackgroundTint(bannerBackground)
-        .activitySystemActionForegroundColor(WidgetTheme.primaryText(for: colorScheme))
-    }
-}
-
-// MARK: - HOME SCREEN WIDGET (Small & Medium)
-struct TempoFocusWidget: Widget {
-    let kind: String = "TempoFocusWidget"
-    
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: TempoWidgetProvider()) { entry in
-            TempoWidgetEntryView(entry: entry)
-                .containerBackground(for: .widget) {
-                    TempoWidgetBackground()
-                }
-        }
-        .configurationDisplayName("Tempo Focus")
-        .description("Track your focus sessions and launch quick timers directly from your Home Screen.")
-        .supportedFamilies([.systemSmall, .systemMedium])
-        .contentMarginsDisabled()
-    }
-}
-
-struct TempoWidgetBackground: View {
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        WidgetTheme.widgetBackground(for: colorScheme)
-    }
-}
+// MARK: - Timeline
 
 struct TempoWidgetEntry: TimelineEntry {
     let date: Date
@@ -415,478 +55,360 @@ struct TempoWidgetEntry: TimelineEntry {
 
 struct TempoWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> TempoWidgetEntry {
-        TempoWidgetEntry(date: Date(), snapshot: WidgetSnapshotData(todayMinutes: 45, todayCompletedCount: 2, calibrationScore: 0.85), isCelebration: false)
+        TempoWidgetEntry(
+            date: Date(),
+            snapshot: WidgetSnapshotData(
+                todayMinutes: 85,
+                todayCompletedCount: 3,
+                calibrationScore: 0.82,
+                nextAlarmLabel: "Wake up",
+                nextAlarmDate: Calendar.current.date(bySettingHour: 7, minute: 0, second: 0, of: Date().addingTimeInterval(86_400))
+            )
+        )
     }
-    
+
     func getSnapshot(in context: Context, completion: @escaping (TempoWidgetEntry) -> Void) {
         let snapshot = WidgetDataStore.shared.loadSnapshot()
         let now = Date()
-        let isCelebration = snapshot.lastCompletedAt.map { now.timeIntervalSince($0) < 6 } ?? false
-        completion(TempoWidgetEntry(date: now, snapshot: snapshot, isCelebration: isCelebration))
+        let celebrating = snapshot.lastCompletedAt.map { now.timeIntervalSince($0) < 6 } ?? false
+        completion(TempoWidgetEntry(date: now, snapshot: snapshot, isCelebration: celebrating))
     }
-    
+
     func getTimeline(in context: Context, completion: @escaping (Timeline<TempoWidgetEntry>) -> Void) {
         let snapshot = WidgetDataStore.shared.loadSnapshot()
         let now = Date()
-        
         var entries: [TempoWidgetEntry] = []
-        if let completedAt = snapshot.lastCompletedAt, now.timeIntervalSince(completedAt) < 6 {
-            // 1. Immediately show full-size completed celebration screen
-            let celebrationEntry = TempoWidgetEntry(date: now, snapshot: snapshot, isCelebration: true)
-            // 2. Schedule automatic transition back to functional widget view after 3.2 seconds
-            let returnDate = now.addingTimeInterval(3.2)
-            let functionalEntry = TempoWidgetEntry(date: returnDate, snapshot: snapshot, isCelebration: false)
-            entries = [celebrationEntry, functionalEntry]
+
+        if let done = snapshot.lastCompletedAt, now.timeIntervalSince(done) < 6 {
+            // A quick "done!" moment, then back to normal.
+            entries.append(TempoWidgetEntry(date: now, snapshot: snapshot, isCelebration: true))
+            entries.append(TempoWidgetEntry(date: now.addingTimeInterval(3.2), snapshot: snapshot))
+        } else if let end = snapshot.activeEnd, end > now {
+            // The bezel drains every few minutes, and the mascot switches to overtime at the end.
+            var t = now
+            while t < end && entries.count < 30 {
+                entries.append(TempoWidgetEntry(date: t, snapshot: snapshot))
+                t = t.addingTimeInterval(120)
+            }
+            entries.append(TempoWidgetEntry(date: end, snapshot: snapshot))
         } else {
-            let entry = TempoWidgetEntry(date: now, snapshot: snapshot, isCelebration: false)
-            entries = [entry]
+            entries.append(TempoWidgetEntry(date: now, snapshot: snapshot))
         }
-        
-        let timeline = Timeline(entries: entries, policy: .atEnd)
-        completion(timeline)
+
+        // Refresh after the next alarm rings so it moves on to the one after.
+        let refresh = snapshot.nextAlarmDate.map { max($0.addingTimeInterval(60), now.addingTimeInterval(900)) }
+            ?? now.addingTimeInterval(3600)
+        completion(Timeline(entries: entries, policy: .after(refresh)))
     }
 }
 
-struct TempoWidgetEntryView: View {
-    @Environment(\.widgetFamily) var family
-    @Environment(\.colorScheme) var colorScheme
-    var entry: TempoWidgetEntry
-    
+// MARK: - HOME SCREEN: FOCUS (clock on the desk + your quick tasks)
+
+struct TempoFocusWidget: Widget {
+    let kind: String = "TempoFocusWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: TempoWidgetProvider()) { entry in
+            FocusWidgetView(entry: entry)
+                .containerBackground(for: .widget) { DeskBackdrop(horizon: 0.64) }
+        }
+        .configurationDisplayName("Focus")
+        .description("Your clock on its desk. Start a task you do often, or see the one that's running.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+        .contentMarginsDisabled()
+    }
+}
+
+struct FocusWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: TempoWidgetEntry
+
+    private var snap: WidgetSnapshotData { entry.snapshot }
+
+    private var regime: TempoMascotRegime {
+        if entry.isCelebration { return .calibBullseyeJump }
+        guard let end = snap.activeEnd else { return .timerDialing }
+        return entry.date >= end ? .calibOvertime : .timerActiveCountdown
+    }
+
     var body: some View {
-        Group {
-            if entry.isCelebration {
-                switch family {
-                case .systemSmall:
-                    smallCelebrationView
-                case .systemMedium:
-                    mediumCelebrationView
-                default:
-                    smallCelebrationView
-                }
-            } else {
-                switch family {
-                case .systemSmall:
-                    smallWidgetView
-                case .systemMedium:
-                    mediumWidgetView
-                default:
-                    smallWidgetView
-                }
-            }
-        }
-        .unredacted()
-        .animation(.snappy(duration: 0.3), value: entry.isCelebration)
-    }
-    
-    // Full-Size Completed Screen for Small Widget
-    private var smallCelebrationView: some View {
-        VStack(spacing: 6) {
-            Spacer(minLength: 0)
-            
-            ZStack {
-                Circle()
-                    .fill(WidgetTheme.success.opacity(colorScheme == .light ? 0.16 : 0.28))
-                    .frame(width: 44, height: 44)
-                
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(WidgetTheme.success)
-                    .symbolEffect(.bounce, value: true)
-            }
-            
-            VStack(spacing: 2) {
-                Text("Completed!")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                
-                if let mins = entry.snapshot.lastCompletedMinutes {
-                    Text("+\(mins)m Focused")
-                        .font(.system(size: 11, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.success)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(WidgetTheme.success.opacity(0.16), in: Capsule())
-                } else {
-                    Text("\(entry.snapshot.todayCompletedCount) Done Today")
-                        .font(.system(size: 11, weight: .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
-                }
-            }
-            
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(12)
-        .widgetURL(URL(string: "tempo://today"))
-    }
-    
-    // Full-Size Completed Screen for Medium Widget
-    private var mediumCelebrationView: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(WidgetTheme.success.opacity(colorScheme == .light ? 0.16 : 0.28))
-                    .frame(width: 56, height: 56)
-                
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundStyle(WidgetTheme.success)
-                    .symbolEffect(.bounce, value: true)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text("Session Completed!")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                    
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(WidgetTheme.success)
-                }
-                
-                if let title = entry.snapshot.lastCompletedTitle {
-                    Text(title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
-                        .lineLimit(1)
-                }
-                
-                HStack(spacing: 6) {
-                    if let mins = entry.snapshot.lastCompletedMinutes {
-                        Text("+\(mins)m Logged")
-                            .font(.system(size: 11, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(WidgetTheme.success)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(WidgetTheme.success.opacity(0.16), in: Capsule())
-                    }
-                    
-                    Text("• \(entry.snapshot.todayCompletedCount) done today (\(entry.snapshot.todayMinutes)m total)")
-                        .font(.system(size: 11, weight: .regular))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
-                }
-                .padding(.top, 2)
-            }
-            
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(14)
-        .widgetURL(URL(string: "tempo://today"))
-    }
-    
-    // Small Widget
-    private var smallWidgetView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header Row
-            HStack(alignment: .center) {
-                HStack(spacing: 4) {
-                    Image(systemName: "timer")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(WidgetTheme.blue)
-                    Text("TEMPO")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
-                }
-                Spacer()
-                
-                let score = Int(entry.snapshot.calibrationScore * 100)
-                HStack(spacing: 2) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 8))
-                    Text("\(score)%")
-                        .font(.system(size: 10, weight: .semibold))
-                        .monospacedDigit()
-                }
-                .foregroundStyle(WidgetTheme.blue)
-            }
-            
-            Spacer(minLength: 4)
-            
-            // Content Area
-            if entry.snapshot.isRunning {
-                let title = entry.snapshot.activeTaskTitle ?? "Focus Session"
-                let start = entry.snapshot.activeTaskStartedAt ?? Date()
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                        .lineLimit(1)
-                    
-                    Text(timerInterval: start...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 20, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.blue)
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("\(entry.snapshot.todayMinutes)m")
-                        .font(.system(size: 24, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                    
-                    Text("Focused Today")
-                        .font(.system(size: 10, weight: .regular))
-                        .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
-                }
-            }
-            
-            Spacer(minLength: 4)
-            
-            // Action Button
-            if entry.snapshot.isRunning {
-                Button(intent: StopFocusIntent()) {
-                    HStack {
-                        Spacer()
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 10))
-                        Text("Done")
-                            .font(.system(size: 11, weight: .semibold))
-                        Spacer()
-                    }
-                    .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                    .frame(height: 28)
-                    .background(WidgetTheme.actionButtonBackground(for: colorScheme), in: Capsule())
-                    .overlay(Capsule().strokeBorder(WidgetTheme.glassStroke(for: colorScheme), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            } else {
-                Button(intent: StartFocusIntent(taskTitle: "Deep Work", minutes: 25)) {
-                    HStack(spacing: 4) {
-                        Spacer()
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 8))
-                        Text("25m Focus")
-                            .font(.system(size: 11, weight: .semibold))
-                            .monospacedDigit()
-                        Spacer()
-                    }
-                    .foregroundStyle(.white)
-                    .frame(height: 28)
-                    .background(WidgetTheme.blue, in: Capsule())
-                    .shadow(color: WidgetTheme.blue.opacity(0.3), radius: 4, x: 0, y: 2)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(14)
-        .widgetURL(URL(string: "tempo://today"))
-    }
-    
-    // Medium Widget with Interactive Shortcut Buttons
-    private var mediumWidgetView: some View {
-        VStack(spacing: 9) {
-            HStack(alignment: .center, spacing: 8) {
-                ZStack {
-                    Circle()
-                        .fill(WidgetTheme.blue.opacity(colorScheme == .light ? 0.14 : 0.28))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: "timer")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(WidgetTheme.blue)
-                }
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    if entry.snapshot.isRunning {
-                        let title = entry.snapshot.activeTaskTitle ?? "Focus Session"
-                        let est = entry.snapshot.activeTaskEstimatedMinutes ?? 25
-                        Text(title)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        
-                        Text("Focus Session • \(est)m")
-                            .font(.system(size: 10, weight: .medium))
-                            .monospacedDigit()
-                            .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
-                    } else {
-                        Text("TEMPO FOCUS")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(WidgetTheme.tertiaryText(for: colorScheme))
-                        
-                        Text("\(entry.snapshot.todayMinutes)m Total Today")
-                            .font(.system(size: 14, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                    }
-                }
-                
-                Spacer()
-                
-                if entry.snapshot.isRunning {
-                    let start = entry.snapshot.activeTaskStartedAt ?? Date()
-                    Text(timerInterval: start...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 20, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.blue)
-                } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 10))
-                        Text("\(Int(entry.snapshot.calibrationScore * 100))% Calibrated")
-                            .font(.system(size: 10, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(WidgetTheme.blue.opacity(colorScheme == .light ? 0.12 : 0.18), in: Capsule())
-                    .overlay(Capsule().strokeBorder(WidgetTheme.blue.opacity(colorScheme == .light ? 0.25 : 0.35), lineWidth: 0.8))
-                }
-            }
-            
-            // Interactive Shortcut Buttons or Active View
-            if entry.snapshot.isRunning {
-                let start = entry.snapshot.activeTaskStartedAt ?? Date()
-                let est = entry.snapshot.activeTaskEstimatedMinutes ?? 25
-                VStack(spacing: 8) {
-                    ProgressView(
-                        timerInterval: start...start.addingTimeInterval(Double(max(1, est) * 60)),
-                        countsDown: false,
-                        label: { EmptyView() },
-                        currentValueLabel: { EmptyView() }
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            ZStack(alignment: .topLeading) {
+                if family == .systemMedium {
+                    MascotStanding(
+                        regime: regime,
+                        size: h * 0.7,
+                        x: w * 0.2,
+                        feetY: h * 0.88,
+                        bezelProgress: snap.isRunning ? snap.remainingFraction(at: entry.date) : nil
                     )
-                    .tint(WidgetTheme.blue)
-                    
+                    mediumContent
+                        .frame(width: w * 0.6, alignment: .leading)
+                        .padding(.vertical, 14)
+                        .offset(x: w * 0.38)
+                } else {
+                    MascotStanding(
+                        regime: regime,
+                        size: h * 0.5,
+                        x: w * 0.27,
+                        feetY: h * 0.9,
+                        bezelProgress: snap.isRunning ? snap.remainingFraction(at: entry.date) : nil
+                    )
+                    smallContent
+                        .padding(14)
+                        .frame(width: w, height: h, alignment: .topLeading)
+                }
+            }
+        }
+        .widgetURL(URL(string: "tempo://focus"))
+    }
+
+    // Small: what's happening on top, one big button bottom right.
+    private var smallContent: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if entry.isCelebration {
+                Text("DONE!").font(Look.caption()).foregroundStyle(Look.orange)
+                Text("+\(snap.lastCompletedMinutes ?? 0)m").font(Look.numerals(28)).foregroundStyle(Look.ink)
+            } else if let end = snap.activeEnd {
+                Text((snap.activeTaskTitle ?? "Focus").uppercased())
+                    .font(Look.caption()).foregroundStyle(Look.orange).lineLimit(1)
+                Text(end, style: .timer)
+                    .font(Look.numerals(28)).foregroundStyle(Look.ink)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            } else {
+                Text("WHAT'S NEXT?").font(Look.caption()).foregroundStyle(Look.orange)
+                Text(snap.todayLine).font(Look.title(12)).foregroundStyle(Look.muted).lineLimit(2)
+            }
+            Spacer(minLength: 0)
+            HStack {
+                Spacer()
+                if snap.isRunning {
                     Button(intent: StopFocusIntent()) {
-                        HStack(spacing: 6) {
-                            Spacer()
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 12, weight: .bold))
-                            Text("Complete Session")
-                                .font(.system(size: 13, weight: .semibold))
-                            Spacer()
+                        roundIcon("checkmark", filled: true)
+                    }
+                    .buttonStyle(.plain)
+                } else if let task = snap.effectiveQuickTasks.first {
+                    Button(intent: StartFocusIntent(taskTitle: task.title, minutes: task.minutes)) {
+                        VStack(spacing: 2) {
+                            roundIcon("play.fill", filled: true)
+                            Text("\(task.minutes)m").font(Look.caption(9)).foregroundStyle(Look.ink)
                         }
-                        .foregroundStyle(.white)
-                        .padding(.vertical, 8)
-                        .background(WidgetTheme.blue, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: WidgetTheme.blue.opacity(0.35), radius: 4, x: 0, y: 2)
                     }
                     .buttonStyle(.plain)
                 }
-            } else {
-                HStack(spacing: 8) {
-                    shortcutButton(icon: "bolt.fill", title: "15m", task: "Quick Focus", mins: 15)
-                    shortcutButton(icon: "target", title: "25m", task: "Deep Work", mins: 25)
-                    shortcutButton(icon: "chevron.left.forwardslash.chevron.right", title: "45m", task: "Programming", mins: 45)
-                }
             }
         }
-        .padding(14)
-        .widgetURL(URL(string: "tempo://today"))
     }
-    
+
+    // Medium: the clock on the left, the work on the right.
     @ViewBuilder
-    private func shortcutButton(icon: String, title: String, task: String, mins: Int) -> some View {
-        Button(intent: StartFocusIntent(taskTitle: task, minutes: mins)) {
-            VStack(spacing: 3) {
-                HStack(spacing: 3) {
-                    Image(systemName: icon)
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(WidgetTheme.blue)
-                    Text("\(mins)m")
-                        .font(.system(size: 13, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.primaryText(for: colorScheme))
-                }
-                Text(task)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(WidgetTheme.secondaryText(for: colorScheme))
-                    .lineLimit(1)
+    private var mediumContent: some View {
+        if entry.isCelebration {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("LOGGED!").font(Look.caption()).foregroundStyle(Look.orange)
+                Text(snap.lastCompletedTitle ?? "Nice work").font(Look.title(16)).foregroundStyle(Look.ink).lineLimit(1)
+                Text("+\(snap.lastCompletedMinutes ?? 0)m · \(snap.todayLine)").font(Look.title(11)).foregroundStyle(Look.muted)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(WidgetTheme.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(WidgetTheme.glassStroke(for: colorScheme), lineWidth: 1))
+        } else if let end = snap.activeEnd, let start = snap.activeTaskStartedAt {
+            VStack(alignment: .leading, spacing: 4) {
+                Text((snap.activeTaskTitle ?? "Focus").uppercased())
+                    .font(Look.caption()).foregroundStyle(Look.orange).lineLimit(1)
+                Text(end, style: .timer)
+                    .font(Look.numerals(34)).foregroundStyle(Look.ink).lineLimit(1)
+                ProgressView(timerInterval: start...end, countsDown: false, label: { EmptyView() }, currentValueLabel: { EmptyView() })
+                    .tint(Look.orange)
+                HStack(spacing: 8) {
+                    Button(intent: ExtendFocusIntent(minutesToAdd: 5)) {
+                        pill("+5 min", filled: false)
+                    }
+                    .buttonStyle(.plain)
+                    Button(intent: StopFocusIntent()) {
+                        pill("Done", filled: true)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 2)
+            }
+            .padding(.trailing, 14)
+        } else {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text("QUICK START").font(Look.caption()).foregroundStyle(Look.orange)
+                    Spacer()
+                    Text("\(Int(snap.calibrationScore * 100))% on target")
+                        .font(Look.caption(9)).foregroundStyle(Look.muted)
+                }
+                .padding(.trailing, 14)
+                ForEach(snap.effectiveQuickTasks.prefix(3), id: \.self) { task in
+                    Button(intent: StartFocusIntent(taskTitle: task.title, minutes: task.minutes)) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "play.fill").font(.system(size: 9, weight: .bold)).foregroundStyle(Look.orange)
+                            Text(task.title).font(Look.title(13)).foregroundStyle(Look.ink).lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text("\(task.minutes)m").font(Look.title(12)).monospacedDigit().foregroundStyle(Look.muted)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 30)
+                        .background(Capsule().fill(Color.white.opacity(0.55)))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.trailing, 14)
+            }
         }
-        .buttonStyle(.plain)
+    }
+
+    private func roundIcon(_ symbol: String, filled: Bool) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(filled ? Color.white : Look.ink)
+            .frame(width: 40, height: 40)
+            .background(Circle().fill(filled ? Look.orange : Color.white.opacity(0.6)))
+    }
+
+    private func pill(_ text: String, filled: Bool) -> some View {
+        Text(text)
+            .font(Look.title(12))
+            .foregroundStyle(filled ? Color.white : Look.ink)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(Capsule().fill(filled ? Look.orange : Color.white.opacity(0.6)))
     }
 }
 
-// MARK: - LOCK SCREEN ACCESSORY WIDGETS
+// MARK: - HOME SCREEN: ALARM (stack it with Focus and swipe between them)
+
+struct TempoAlarmWidget: Widget {
+    let kind: String = "TempoAlarmWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: TempoWidgetProvider()) { entry in
+            AlarmWidgetView(entry: entry)
+                .containerBackground(for: .widget) { DeskBackdrop(horizon: 0.64) }
+        }
+        .configurationDisplayName("Next Alarm")
+        .description("The twin-bell clock with your next alarm. Stack it on top of Focus and swipe.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+        .contentMarginsDisabled()
+    }
+}
+
+struct AlarmWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: TempoWidgetEntry
+
+    private var date: Date? { entry.snapshot.nextAlarmDate.flatMap { $0 > entry.date ? $0 : nil } }
+    private var regime: TempoMascotRegime {
+        guard date != nil else { return .alarmBedtimeMoody }
+        return entry.snapshot.nextAlarmIsBedtime == true ? .alarmBedtimeMoody : .alarmArmed
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            let medium = family == .systemMedium
+            ZStack(alignment: .topLeading) {
+                MascotStanding(
+                    regime: regime,
+                    size: medium ? h * 0.7 : h * 0.5,
+                    x: medium ? w * 0.2 : w * 0.72,
+                    feetY: h * (medium ? 0.88 : 0.9)
+                )
+                VStack(alignment: .leading, spacing: 2) {
+                    if let date {
+                        Text((entry.snapshot.nextAlarmLabel ?? "Alarm").uppercased())
+                            .font(Look.caption()).foregroundStyle(Look.orange).lineLimit(1)
+                        Text(date, style: .time)
+                            .font(Look.numerals(medium ? 40 : 30)).foregroundStyle(Look.ink)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                        Text(date, style: .relative)
+                            .font(Look.title(11)).foregroundStyle(Look.muted)
+                    } else {
+                        Text("ALARMS").font(Look.caption()).foregroundStyle(Look.orange)
+                        Text("None set").font(Look.title(16)).foregroundStyle(Look.ink)
+                        Text("Tap to set one").font(Look.title(11)).foregroundStyle(Look.muted)
+                    }
+                }
+                .padding(14)
+                .frame(width: medium ? w * 0.6 : w, alignment: .leading)
+                .offset(x: medium ? w * 0.38 : 0)
+            }
+        }
+        .widgetURL(URL(string: "tempo://alarms"))
+    }
+}
+
+// MARK: - LOCK SCREEN
+
 struct TempoLockScreenWidget: Widget {
     let kind: String = "TempoLockScreenWidget"
-    
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: TempoWidgetProvider()) { entry in
             AccessoryView(entry: entry)
+                .containerBackground(for: .widget) { Color.clear }
         }
-        .configurationDisplayName("Tempo Lock Screen")
-        .description("View focus status and calibration on your Lock Screen.")
+        .configurationDisplayName("Tempo")
+        .description("The running timer, or your next alarm and today's time.")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
 
 struct AccessoryView: View {
-    @Environment(\.widgetFamily) var family
-    @Environment(\.colorScheme) var colorScheme
-    var entry: TempoWidgetEntry
-    
+    @Environment(\.widgetFamily) private var family
+    let entry: TempoWidgetEntry
+    private var snap: WidgetSnapshotData { entry.snapshot }
+
     var body: some View {
         switch family {
         case .accessoryCircular:
             ZStack {
                 AccessoryWidgetBackground()
-                VStack(spacing: 1) {
-                    Image(systemName: entry.isCelebration || (entry.snapshot.todayCompletedCount > 0 && !entry.snapshot.isRunning) ? "checkmark.circle.fill" : (entry.snapshot.isRunning ? "timer" : "timer"))
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(entry.isCelebration ? WidgetTheme.success : (entry.snapshot.isRunning ? WidgetTheme.blue : (entry.snapshot.todayCompletedCount > 0 ? WidgetTheme.success : WidgetTheme.blue)))
-                        .symbolEffect(.bounce, value: entry.isCelebration)
-                    
-                    if entry.isCelebration {
-                        Text("DONE")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.primary)
-                    } else {
-                        Text("\(entry.snapshot.todayMinutes)m")
-                            .font(.system(size: 11, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(.primary)
-                    }
+                if let end = snap.activeEnd, let start = snap.activeTaskStartedAt {
+                    ProgressView(timerInterval: start...end, countsDown: true, label: { EmptyView() }, currentValueLabel: { EmptyView() })
+                        .progressViewStyle(.circular)
+                        .widgetAccentable()
+                    Text(end, style: .timer)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .multilineTextAlignment(.center)
+                        .frame(width: 40)
+                } else {
+                    TempoWatchMascotView(regime: snap.nextAlarmDate != nil ? .alarmArmed : .timerDialing, size: 44, animated: false)
+                        .widgetAccentable()
                 }
             }
         case .accessoryRectangular:
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Image(systemName: entry.isCelebration ? "checkmark.circle.fill" : (entry.snapshot.isRunning ? "timer" : "checkmark.circle.fill"))
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(entry.isCelebration ? WidgetTheme.success : (entry.snapshot.isRunning ? WidgetTheme.blue : WidgetTheme.success))
-                        .symbolEffect(.bounce, value: entry.isCelebration)
-                    Text(entry.isCelebration ? "COMPLETED ✓" : "TEMPO FOCUS")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.primary)
-                }
-                
-                if entry.isCelebration {
-                    Text("+\(entry.snapshot.lastCompletedMinutes ?? 0)m logged • \(entry.snapshot.todayCompletedCount) done")
-                        .font(.system(size: 12, weight: .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                } else if entry.snapshot.isRunning, let start = entry.snapshot.activeTaskStartedAt {
-                    Text(timerInterval: start...Date.distantFuture, countsDown: false)
-                        .font(.system(size: 16, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 1) {
+                if let end = snap.activeEnd, let start = snap.activeTaskStartedAt {
+                    Text(snap.activeTaskTitle ?? "Focus").font(.headline).lineLimit(1).widgetAccentable()
+                    Text(end, style: .timer).font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
+                    ProgressView(timerInterval: start...end, countsDown: false, label: { EmptyView() }, currentValueLabel: { EmptyView() })
+                } else if let alarm = snap.nextAlarmDate, alarm > entry.date {
+                    Label {
+                        Text(alarm, style: .time)
+                    } icon: {
+                        Image(systemName: "alarm.fill")
+                    }
+                    .font(.headline)
+                    .widgetAccentable()
+                    Text(snap.nextAlarmLabel ?? "Alarm").font(.caption).lineLimit(1)
+                    Text(snap.todayLine).font(.caption2).foregroundStyle(.secondary)
                 } else {
-                    Text("\(entry.snapshot.todayMinutes)m today • \(entry.snapshot.todayCompletedCount) done")
-                        .font(.system(size: 12, weight: .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                    Text("Tempo").font(.headline).widgetAccentable()
+                    Text(snap.todayLine).font(.caption)
+                    Text("\(Int(snap.calibrationScore * 100))% on target").font(.caption2).foregroundStyle(.secondary)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .accessoryInline:
-            if entry.isCelebration {
-                Text("Tempo: Session Completed ✓")
-            } else if entry.snapshot.isRunning, let title = entry.snapshot.activeTaskTitle {
-                Text("Tempo: \(title)")
+            if let end = snap.activeEnd {
+                Text(Image(systemName: "timer")) + Text(" \(snap.activeTaskTitle ?? "Focus") ") + Text(end, style: .timer)
+            } else if let alarm = snap.nextAlarmDate, alarm > entry.date {
+                Text(Image(systemName: "alarm")) + Text(" ") + Text(alarm, style: .time) + Text(" \(snap.nextAlarmLabel ?? "")")
             } else {
-                Text("Tempo: \(entry.snapshot.todayCompletedCount) done (\(entry.snapshot.todayMinutes)m)")
+                Text("Tempo · \(snap.todayLine)")
             }
         default:
             EmptyView()
@@ -894,3 +416,189 @@ struct AccessoryView: View {
     }
 }
 
+// MARK: - LIVE ACTIVITY & DYNAMIC ISLAND
+
+private extension ActivityViewContext where Attributes == TempoActivityAttributes {
+    var isComplete: Bool {
+        !state.isRunning
+            || state.statusMessage?.contains("Complete") == true
+            || state.statusMessage?.contains("Done") == true
+    }
+
+    var end: Date {
+        attributes.startDate.addingTimeInterval(TimeInterval(max(1, state.estimatedMinutes) * 60))
+    }
+}
+
+struct TempoLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: TempoActivityAttributes.self) { context in
+            LiveActivityBanner(context: context)
+                .activityBackgroundTint(DeskPalette.wall)
+                .activitySystemActionForegroundColor(Look.ink)
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    // The clock on a little strip of desk, even in the island.
+                    ZStack(alignment: .bottom) {
+                        Capsule()
+                            .fill(DeskPalette.surface)
+                            .frame(width: 58, height: 7)
+                        TempoWatchMascotView(
+                            regime: context.isComplete ? .calibBullseyeJump : .timerActiveCountdown,
+                            size: 54,
+                            animated: false
+                        )
+                        .padding(.bottom, 1)
+                    }
+                    .frame(width: 62, height: 60)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        if context.isComplete {
+                            Text("Logged").font(Look.title(16)).foregroundStyle(Look.orange)
+                            Text("\(context.state.actualMinutes)m").font(Look.numerals(24)).foregroundStyle(.white)
+                        } else {
+                            Text(context.end, style: .timer)
+                                .font(Look.numerals(30))
+                                .foregroundStyle(Look.orange)
+                                .multilineTextAlignment(.trailing)
+                                .frame(maxWidth: 110, alignment: .trailing)
+                            Text("ends \(context.end, style: .time)")
+                                .font(Look.title(11)).foregroundStyle(.white.opacity(0.6))
+                        }
+                    }
+                }
+                DynamicIslandExpandedRegion(.center) {
+                    Text(context.attributes.taskTitle)
+                        .font(Look.title(15))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    if context.isComplete {
+                        Text("Nice! That's in your logbook now.")
+                            .font(Look.title(13))
+                            .foregroundStyle(.white.opacity(0.8))
+                    } else {
+                        HStack(spacing: 10) {
+                            ProgressView(
+                                timerInterval: context.attributes.startDate...context.end,
+                                countsDown: false,
+                                label: { EmptyView() },
+                                currentValueLabel: { EmptyView() }
+                            )
+                            .tint(Look.orange)
+                            Button(intent: ExtendFocusIntent(minutesToAdd: 5)) {
+                                Text("+5").font(Look.title(13)).foregroundStyle(.white)
+                                    .frame(width: 44, height: 30)
+                                    .background(Capsule().fill(Color.white.opacity(0.16)))
+                            }
+                            .buttonStyle(.plain)
+                            Button(intent: StopFocusIntent(activityId: context.activityID)) {
+                                Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+                                    .frame(width: 44, height: 30)
+                                    .background(Capsule().fill(Look.orange))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.top, 2)
+                    }
+                }
+            } compactLeading: {
+                TempoWatchMascotView(
+                    regime: context.isComplete ? .calibBullseyeJump : .timerActiveCountdown,
+                    size: 24,
+                    animated: false
+                )
+            } compactTrailing: {
+                if context.isComplete {
+                    Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Look.orange)
+                } else {
+                    Text(context.end, style: .timer)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(Look.orange)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 46, alignment: .trailing)
+                }
+            } minimal: {
+                TempoWatchMascotView(regime: .timerActiveCountdown, size: 22, animated: false)
+            }
+            .keylineTint(Look.orange)
+            .widgetURL(URL(string: "tempo://focus"))
+        }
+    }
+}
+
+/// Lock screen banner: the clock standing on its desk, the countdown, and two buttons.
+struct LiveActivityBanner: View {
+    let context: ActivityViewContext<TempoActivityAttributes>
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                DeskBackdrop(horizon: 0.6)
+                MascotStanding(
+                    regime: context.isComplete ? .calibBullseyeJump : .timerActiveCountdown,
+                    size: 66,
+                    x: 39,
+                    feetY: 76
+                )
+            }
+            .frame(width: 78, height: 86)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(context.attributes.taskTitle)
+                    .font(Look.title(16))
+                    .foregroundStyle(Look.ink)
+                    .lineLimit(1)
+                if context.isComplete {
+                    Text("Logged \(context.state.actualMinutes)m. Nice work!")
+                        .font(Look.title(12))
+                        .foregroundStyle(Look.orange)
+                } else {
+                    Text("Ends at \(context.end, style: .time)")
+                        .font(Look.title(12))
+                        .foregroundStyle(Look.muted)
+                    ProgressView(
+                        timerInterval: context.attributes.startDate...context.end,
+                        countsDown: false,
+                        label: { EmptyView() },
+                        currentValueLabel: { EmptyView() }
+                    )
+                    .tint(Look.orange)
+                }
+            }
+
+            Spacer(minLength: 4)
+
+            if !context.isComplete {
+                VStack(alignment: .trailing, spacing: 8) {
+                    // Counts down, then keeps counting up as honest overtime.
+                    Text(context.end, style: .timer)
+                        .font(Look.numerals(28))
+                        .foregroundStyle(Look.ink)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 96, alignment: .trailing)
+                    HStack(spacing: 6) {
+                        Button(intent: ExtendFocusIntent(minutesToAdd: 5)) {
+                            Text("+5").font(Look.title(12)).foregroundStyle(Look.ink)
+                                .frame(width: 38, height: 30)
+                                .background(Capsule().fill(Look.ink.opacity(0.08)))
+                        }
+                        .buttonStyle(.plain)
+                        Button(intent: StopFocusIntent(activityId: context.activityID)) {
+                            Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                                .frame(width: 38, height: 30)
+                                .background(Capsule().fill(Look.orange))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(14)
+    }
+}

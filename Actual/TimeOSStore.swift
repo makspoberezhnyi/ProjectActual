@@ -286,6 +286,37 @@ public final class TimeOSStore {
             .reduce(0) { $0 + ($1.actualMinutes ?? 0) }
     }
     
+    /// Your three most-run tasks with their real average, for widgets and the watch.
+    public func topQuickTasks() -> [QuickTaskData]? {
+        // Before the logbook is attached we don't know yet; keep whatever was published last.
+        guard modelContext != nil else { return nil }
+        var groups: [String: (title: String, total: Int, runs: Int, last: Date)] = [:]
+        for session in loggedSessions() {
+            let title = RoutineEngine.normalizeTaskTitle(session.rawText)
+            let key = title.lowercased()
+            let when = session.endedAt ?? .distantPast
+            var g = groups[key] ?? (title: title, total: 0, runs: 0, last: .distantPast)
+            g.total += session.actualMinutes ?? 0
+            g.runs += 1
+            if when > g.last { g.last = when; g.title = title }
+            groups[key] = g
+        }
+        return groups.values
+            .sorted { $0.runs != $1.runs ? $0.runs > $1.runs : $0.last > $1.last }
+            .prefix(3)
+            .map { QuickTaskData(title: $0.title, minutes: max(1, Int((Double($0.total) / Double($0.runs)).rounded())), runs: $0.runs) }
+    }
+    
+    /// Sends quick tasks, the next alarm, alarms and cities to widgets and the watch.
+    public func publishLibrary() {
+        TempoFocusBridge.publishLibrary(
+            quickTasks: topQuickTasks(),
+            alarms: alarms,
+            cities: worldCities,
+            nextAlarm: nextAlarmFire().map { (alarm: $0.alarm, date: $0.date) }
+        )
+    }
+    
     /// Average real duration of a task you've logged before, matched by its cleaned-up title.
     public func history(for title: String) -> (average: Int, runs: Int)? {
         let key = RoutineEngine.normalizeTaskTitle(title).lowercased()
@@ -413,6 +444,7 @@ public final class TimeOSStore {
             defaults.set(data, forKey: alarmsKey)
         }
         TempoAlarmScheduler.shared.sync(alarms)
+        publishLibrary()
     }
     
     /// Timer and stopwatch survive the app being closed or killed.
@@ -488,6 +520,7 @@ public final class TimeOSStore {
         if let data = try? JSONEncoder().encode(worldCities) {
             defaults.set(data, forKey: citiesKey)
         }
+        publishLibrary()
     }
     
     // MARK: - 1. Alarms & Sleep Logic
@@ -1155,6 +1188,7 @@ public final class TimeOSStore {
         }
         resetTimer(publish: false)
         TempoFocusBridge.publishStopped(completedTitle: title, completedMinutes: actualMins)
+        publishLibrary()
         TactileFeedback.success()
     }
     

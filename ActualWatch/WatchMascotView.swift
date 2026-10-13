@@ -635,8 +635,26 @@ public struct TempoWatchMascotView: View {
             let target = config
             MascotStage(size: size, autoSweep: !hasLiveMinute, dynamics: dynamics, goal: { _ in target })
         } else {
-            MascotCanvasBody(config: config, size: size)
+            MascotCanvasBody(config: config.grounded(), size: size)
         }
+    }
+}
+
+extension TempoMascotConfig {
+    /// Static poses follow the same rule as animated ones: a clock on a table never hovers.
+    /// A raised pose stands tall on its feet, a lowered one slumps.
+    func grounded() -> TempoMascotConfig {
+        var c = self
+        let held = Double(jumpY)
+        if held < 0 {
+            c.scaleY *= CGFloat(1 + (-held) * 0.004)
+            c.scaleX *= CGFloat(1 - (-held) * 0.002)
+        } else if held > 0 {
+            c.scaleY *= CGFloat(1 - held * 0.005)
+            c.scaleX *= CGFloat(1 + held * 0.004)
+        }
+        c.jumpY = 0
+        return c
     }
 }
 
@@ -870,10 +888,6 @@ private struct MascotCanvasBody: View {
     // MARK: - Sub-Drawers
     
     private func drawTwinBells(ctx: inout GraphicsContext) {
-        // Feet
-        strokeLine(&ctx, from: CGPoint(x: 88, y: 214), to: CGPoint(x: 74, y: 234), color: TempoMascotPalette.carbon, width: 10)
-        strokeLine(&ctx, from: CGPoint(x: 152, y: 214), to: CGPoint(x: 166, y: 234), color: TempoMascotPalette.carbon, width: 10)
-        
         // Left Bell (Black)
         ctx.drawLayer { lCtx in
             lCtx.translateBy(x: 58, y: 44)

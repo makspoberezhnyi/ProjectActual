@@ -58,6 +58,46 @@ enum TempoFocusBridge {
         }
     }
 
+    /// Everything that isn't the running timer: quick tasks, the next alarm, alarms and cities for the watch.
+    static func publishLibrary(
+        quickTasks: [QuickTaskData]?,
+        alarms: [TempoAlarm],
+        cities: [TempoWorldCity],
+        nextAlarm: (alarm: TempoAlarm, date: Date)?
+    ) {
+        var snapshot = WidgetDataStore.shared.loadSnapshot()
+        if let quickTasks { snapshot.quickTasks = quickTasks }
+        snapshot.nextAlarmLabel = nextAlarm?.alarm.label
+        snapshot.nextAlarmDate = nextAlarm?.date
+        snapshot.nextAlarmIsBedtime = nextAlarm?.alarm.isBedtimeWindDown
+        WidgetDataStore.shared.saveSnapshot(snapshot)
+        reloadWidgets()
+
+        guard watchSyncEnabled else { return }
+        var payload: [String: Any] = [
+            "action": "library",
+            "quickTasks": snapshot.effectiveQuickTasks.map { ["title": $0.title, "minutes": $0.minutes] },
+            "alarms": alarms.map {
+                [
+                    "id": $0.id.uuidString,
+                    "label": $0.label,
+                    "time": $0.formattedTime,
+                    "repeat": $0.repeatSummary,
+                    "enabled": $0.isEnabled,
+                    "bedtime": $0.isBedtimeWindDown
+                ] as [String: Any]
+            },
+            "cities": cities.map { ["name": $0.cityName, "tz": $0.timeZoneIdentifier] },
+            "timestamp": Date().timeIntervalSince1970
+        ]
+        if let nextAlarm {
+            payload["nextAlarmLabel"] = nextAlarm.alarm.label
+            payload["nextAlarmDate"] = nextAlarm.date.timeIntervalSince1970
+            payload["nextAlarmBedtime"] = nextAlarm.alarm.isBedtimeWindDown
+        }
+        WatchConnectivityManager.shared.syncLibrary(payload)
+    }
+
     // MARK: - Live Activity
 
     private static func upsertLiveActivity(title: String, targetMinutes: Int, effectiveStart: Date) {

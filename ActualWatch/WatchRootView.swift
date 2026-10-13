@@ -1,65 +1,58 @@
 import SwiftUI
 import WatchKit
 
+// Tempo on the wrist: the same desk clock as the phone, one page per mode.
+// Scroll the Digital Crown (or swipe up) to move between Focus, Stopwatch, Alarms and World.
+
+private enum WatchLook {
+    static let orange = TempoMascotPalette.orange
+    static let wall = Color(red: 0.067, green: 0.094, blue: 0.169)          // #11182B, like the phone in dark mode
+    static let desk = Color(red: 0.227, green: 0.184, blue: 0.153)          // walnut #3A2F27
+    static let deskFar = Color(red: 0.173, green: 0.141, blue: 0.118)       // #2C241E
+    static let deskEdge = Color(red: 0.118, green: 0.094, blue: 0.078)      // #1E1814
+    static let deskLip = Color(red: 0.318, green: 0.267, blue: 0.227)       // #51443A
+    static let muted = Color(red: 0.62, green: 0.68, blue: 0.79)
+
+    static func numerals(_ size: CGFloat) -> Font { .system(size: size, weight: .light, design: .rounded).monospacedDigit() }
+    static func title(_ size: CGFloat) -> Font { .system(size: size, weight: .semibold, design: .rounded) }
+}
+
 struct WatchRootView: View {
     @State private var store = WatchSessionStore.shared
-    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
-    
-    @State private var showCustomSheet: Bool = false
-    @State private var countdownTarget: (title: String, minutes: Int)? = nil
-    
+    @State private var page = 0
+    @State private var showCustomSheet = false
+    @State private var countdownTitle: String?
+    @State private var countdownMinutes = 25
+
     var body: some View {
         NavigationStack {
             ZStack {
-                if !isLuminanceReduced {
-                    TempoWatchMeshBackground()
-                        .ignoresSafeArea()
-                } else {
-                    Color.black
-                        .ignoresSafeArea()
-                }
-                
-                if let target = countdownTarget {
+                if let title = countdownTitle {
                     FitnessCountdownView(
-                        title: target.title,
-                        minutes: target.minutes,
+                        title: title,
+                        minutes: countdownMinutes,
                         onComplete: {
-                            let title = target.title
-                            let mins = target.minutes
-                            countdownTarget = nil
+                            let mins = countdownMinutes
+                            countdownTitle = nil
                             store.startSession(title: title, minutes: mins)
                         },
-                        onCancel: {
-                            countdownTarget = nil
-                        }
+                        onCancel: { countdownTitle = nil }
                     )
                     .transition(.opacity)
                 } else {
-                    ScrollView {
-                        VStack(spacing: 10) {
-                            if store.isRunning {
-                                CompactRunningFocusView(store: store)
-                            } else {
-                                CompactIdleHomeView(
-                                    store: store,
-                                    onSelectPreset: { title, minutes in
-                                        startWithCountdown(title: title, minutes: minutes)
-                                    },
-                                    onOpenCustom: {
-                                        showCustomSheet = true
-                                    }
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.top, 2)
-                        .padding(.bottom, 10)
+                    TabView(selection: $page) {
+                        WatchFocusPage(store: store, onStart: startWithCountdown, onCustom: { showCustomSheet = true })
+                            .tag(0)
+                        WatchStopwatchPage(store: store)
+                            .tag(1)
+                        WatchAlarmsPage(store: store)
+                            .tag(2)
+                        WatchWorldPage(store: store)
+                            .tag(3)
                     }
-                    .scrollIndicators(.hidden)
+                    .tabViewStyle(.verticalPage)
                 }
             }
-            .navigationTitle(isLuminanceReduced ? "" : "Tempo")
-            .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showCustomSheet) {
                 CustomFocusSheet { title, minutes in
                     showCustomSheet = false
@@ -67,105 +60,369 @@ struct WatchRootView: View {
                 }
             }
         }
-        .onAppear {
-            store.activate()
-        }
+        .onAppear { store.activate() }
     }
-    
+
     private func startWithCountdown(title: String, minutes: Int) {
         withAnimation(.easeInOut(duration: 0.25)) {
-            countdownTarget = (title: title, minutes: minutes)
+            countdownMinutes = minutes
+            countdownTitle = title
         }
     }
 }
 
-// MARK: - Ambient Watch Background
-struct TempoWatchMeshBackground: View {
+// MARK: - The desk
+
+/// The clock standing on a strip of walnut desk with a rounded front edge.
+struct WatchClockOnDesk: View {
+    let regime: TempoMascotRegime
+    var size: CGFloat = 76
+    var bezel: Double? = nil
+    var minuteAngle: Double? = nil
+    @Environment(\.isLuminanceReduced) private var dimmed
+
     var body: some View {
-        ZStack {
-            Color(red: 0.03, green: 0.04, blue: 0.09)
-            
-            RadialGradient(
-                colors: [
-                    Color(red: 0.08, green: 0.24, blue: 0.48).opacity(0.70),
-                    Color.clear
-                ],
-                center: .topLeading,
-                startRadius: 5,
-                endRadius: 140
+        let footFromTop = size * 254.0 / 268.0
+        let deskTop = footFromTop - size * 0.22
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                LinearGradient(colors: [WatchLook.deskFar, WatchLook.desk], startPoint: .top, endPoint: .bottom)
+                    .frame(height: size + 10 - deskTop)
+                Rectangle().fill(WatchLook.deskLip).frame(height: 1.5)
+                Rectangle().fill(WatchLook.deskEdge).frame(height: 7)
+            }
+            .offset(y: deskTop)
+            .opacity(dimmed ? 0.35 : 1)
+
+            TempoWatchMascotView(
+                regime: regime,
+                size: size,
+                animated: !dimmed,
+                overrideMinuteAngle: minuteAngle,
+                overrideBezelProgress: bezel
             )
-            
-            RadialGradient(
-                colors: [
-                    Color(red: 0.24, green: 0.10, blue: 0.40).opacity(0.55),
-                    Color.clear
-                ],
-                center: .bottomTrailing,
-                startRadius: 10,
-                endRadius: 130
-            )
-            
-            RadialGradient(
-                colors: [
-                    Color(red: 0.05, green: 0.38, blue: 0.55).opacity(0.40),
-                    Color.clear
-                ],
-                center: .center,
-                startRadius: 1,
-                endRadius: 100
-            )
+        }
+        .frame(height: size + 18.5, alignment: .top)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct WatchPageBackground: View {
+    @Environment(\.isLuminanceReduced) private var dimmed
+
+    var body: some View {
+        (dimmed ? Color.black : WatchLook.wall).ignoresSafeArea()
+    }
+}
+
+private struct WatchPageTitle: View {
+    let text: String
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .tracking(1.5)
+            .foregroundStyle(WatchLook.orange)
+    }
+}
+
+// MARK: - 1. Focus
+
+struct WatchFocusPage: View {
+    var store: WatchSessionStore
+    let onStart: (String, Int) -> Void
+    let onCustom: () -> Void
+    @Environment(\.isLuminanceReduced) private var dimmed
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                if let end = store.timerEnd, let start = store.startDate {
+                    running(start: start, end: end)
+                } else {
+                    idle
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.bottom, 8)
+        }
+        .containerBackground(for: .tabView) { WatchPageBackground() }
+        .navigationTitle("Focus")
+    }
+
+    private func running(start: Date, end: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 10)) { context in
+            let total = max(1, end.timeIntervalSince(start))
+            let left = end.timeIntervalSince(context.date)
+            VStack(spacing: 6) {
+                WatchClockOnDesk(
+                    regime: left < 0 ? .calibOvertime : .timerActiveCountdown,
+                    bezel: left < 0 ? 1 : max(0.04, left / total)
+                )
+                Text(store.taskTitle)
+                    .font(WatchLook.title(13))
+                    .foregroundStyle(dimmed ? .secondary : .primary)
+                    .lineLimit(1)
+                // Counts down, then up: honest overtime.
+                Text(end, style: .timer)
+                    .font(WatchLook.numerals(34))
+                    .foregroundStyle(left < 0 ? WatchLook.orange : .white)
+                if !dimmed {
+                    HStack(spacing: 8) {
+                        Button("+5") { store.extendSession(by: 5) }
+                            .tint(.gray)
+                        Button {
+                            store.stopSession()
+                        } label: {
+                            Image(systemName: "checkmark")
+                        }
+                        .tint(WatchLook.orange)
+                    }
+                    .font(WatchLook.title(15))
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+    }
+
+    private var idle: some View {
+        VStack(spacing: 6) {
+            WatchClockOnDesk(regime: .timerDialing)
+            WatchPageTitle(text: "What's next?")
+            if store.todayMinutes > 0 {
+                Text("\(store.todayMinutes)m logged today")
+                    .font(.footnote)
+                    .foregroundStyle(WatchLook.muted)
+            }
+            ForEach(store.quickTasks, id: \.self) { task in
+                Button {
+                    onStart(task.title, task.minutes)
+                } label: {
+                    HStack {
+                        Image(systemName: "play.fill").font(.system(size: 10, weight: .bold)).foregroundStyle(WatchLook.orange)
+                        Text(task.title).font(WatchLook.title(14)).lineLimit(1)
+                        Spacer(minLength: 2)
+                        Text("\(task.minutes)m").font(WatchLook.title(13)).foregroundStyle(WatchLook.muted)
+                    }
+                }
+            }
+            Button(action: onCustom) {
+                Label("Something else", systemImage: "plus")
+                    .font(WatchLook.title(14))
+            }
+            .tint(WatchLook.orange)
         }
     }
 }
 
-// MARK: - 3-2-1 Fitness Style Countdown View
+// MARK: - 2. Stopwatch
+
+struct WatchStopwatchPage: View {
+    var store: WatchSessionStore
+    @Environment(\.isLuminanceReduced) private var dimmed
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: dimmed || !store.chronoRunning ? 1 : 0.05)) { context in
+            let elapsed = store.chronoElapsed(at: context.date)
+            VStack(spacing: 6) {
+                WatchClockOnDesk(
+                    regime: store.chronoRunning ? .chronoRunning : (elapsed > 0 ? .chronoPaused : .chronoZeroed),
+                    size: 70,
+                    minuteAngle: elapsed.truncatingRemainder(dividingBy: 60) * 6
+                )
+                Text(format(elapsed))
+                    .font(WatchLook.numerals(30))
+                    .foregroundStyle(.white)
+                if !dimmed {
+                    // Same layout as the mascot's ears: black on the left, orange on the right.
+                    HStack(spacing: 8) {
+                        Button {
+                            store.lapOrResetChrono()
+                        } label: {
+                            Image(systemName: store.chronoRunning ? "flag.fill" : "arrow.counterclockwise")
+                        }
+                        .tint(.gray)
+                        .disabled(!store.chronoRunning && elapsed == 0)
+                        Button {
+                            store.toggleChrono()
+                        } label: {
+                            Image(systemName: store.chronoRunning ? "pause.fill" : "play.fill")
+                        }
+                        .tint(WatchLook.orange)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                if let last = store.chronoLaps.first {
+                    Text("Lap \(store.chronoLaps.count) · \(format(last))")
+                        .font(.footnote)
+                        .foregroundStyle(WatchLook.muted)
+                }
+            }
+            .padding(.horizontal, 6)
+        }
+        .containerBackground(for: .tabView) { WatchPageBackground() }
+        .navigationTitle("Stopwatch")
+    }
+
+    private func format(_ t: TimeInterval) -> String {
+        let m = Int(t) / 60, s = Int(t) % 60, c = Int((t - floor(t)) * 100)
+        return String(format: "%02d:%02d.%02d", m, s, c)
+    }
+}
+
+// MARK: - 3. Alarms
+
+struct WatchAlarmsPage: View {
+    var store: WatchSessionStore
+
+    private var regime: TempoMascotRegime {
+        guard store.nextAlarmDate != nil else { return .alarmBedtimeMoody }
+        return store.nextAlarmBedtime ? .alarmBedtimeMoody : .alarmArmed
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 6) {
+                WatchClockOnDesk(regime: regime)
+                if let date = store.nextAlarmDate, date > Date() {
+                    WatchPageTitle(text: store.nextAlarmLabel ?? "Next alarm")
+                    Text(date, style: .time)
+                        .font(WatchLook.numerals(34))
+                        .foregroundStyle(.white)
+                    Text(date, style: .relative)
+                        .font(.footnote)
+                        .foregroundStyle(WatchLook.muted)
+                } else {
+                    WatchPageTitle(text: "Alarms")
+                    Text("No alarms on")
+                        .font(WatchLook.title(15))
+                }
+                ForEach(store.alarms) { alarm in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(alarm.time).font(WatchLook.numerals(20))
+                            Text("\(alarm.label) · \(alarm.repeatText)")
+                                .font(.caption2)
+                                .foregroundStyle(WatchLook.muted)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 2)
+                        if alarm.bedtime {
+                            Image(systemName: "moon.fill").foregroundStyle(WatchLook.muted)
+                        }
+                        Circle()
+                            .fill(alarm.enabled ? WatchLook.orange : Color.gray.opacity(0.4))
+                            .frame(width: 8, height: 8)
+                    }
+                    .opacity(alarm.enabled ? 1 : 0.55)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.08)))
+                }
+                if !store.alarms.isEmpty {
+                    Text("Edit alarms on your iPhone")
+                        .font(.caption2)
+                        .foregroundStyle(WatchLook.muted)
+                        .padding(.top, 2)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.bottom, 8)
+        }
+        .containerBackground(for: .tabView) { WatchPageBackground() }
+        .navigationTitle("Alarms")
+    }
+}
+
+// MARK: - 4. World
+
+struct WatchWorldPage: View {
+    var store: WatchSessionStore
+
+    var body: some View {
+        ScrollView {
+            TimelineView(.everyMinute) { context in
+                VStack(spacing: 6) {
+                    WatchClockOnDesk(regime: .worldDualGMT)
+                    WatchPageTitle(text: "World")
+                    if store.cities.isEmpty {
+                        Text("Add cities on your iPhone")
+                            .font(.footnote)
+                            .foregroundStyle(WatchLook.muted)
+                    }
+                    ForEach(store.cities) { city in
+                        cityRow(city, at: context.date)
+                    }
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.bottom, 8)
+        }
+        .containerBackground(for: .tabView) { WatchPageBackground() }
+        .navigationTitle("World")
+    }
+
+    private func cityRow(_ city: WatchCity, at now: Date) -> some View {
+        var cal = Calendar.current
+        cal.timeZone = city.timeZone
+        let c = cal.dateComponents([.hour, .minute], from: now)
+        let h = Double(c.hour ?? 0), m = Double(c.minute ?? 0)
+        let night = (c.hour ?? 12) >= 22 || (c.hour ?? 12) < 6
+        return HStack(spacing: 8) {
+            // A tiny clock showing that city's hour, sleepy at night.
+            TempoWatchMascotView(
+                regime: night ? .worldRemoteNight : .worldLocalDay,
+                size: 30,
+                animated: false,
+                overrideMinuteAngle: m * 6,
+                overrideHourAngle: h.truncatingRemainder(dividingBy: 12) * 30 + m * 0.5
+            )
+            Text(city.name).font(WatchLook.title(14)).lineLimit(1)
+            Spacer(minLength: 2)
+            Text(now, format: Date.FormatStyle(date: .omitted, time: .shortened, timeZone: city.timeZone))
+                .font(WatchLook.numerals(16))
+        }
+        .padding(.vertical, 3)
+        .padding(.horizontal, 8)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.08)))
+    }
+}
+
+// MARK: - 3-2-1 countdown before a block
+
 struct FitnessCountdownView: View {
     let title: String
     let minutes: Int
     let onComplete: () -> Void
     let onCancel: () -> Void
-    
-    @State private var count: Int = 3
+
+    @State private var count = 3
     @State private var scale: CGFloat = 0.6
-    @State private var ringTrim: CGFloat = 0.0
-    
+    @State private var ringTrim: CGFloat = 0
+
     var body: some View {
         ZStack {
-            Color.black.opacity(0.85)
-                .ignoresSafeArea()
-            
+            WatchLook.wall.ignoresSafeArea()
             VStack(spacing: 8) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(WatchLook.title(13))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .padding(.horizontal, 8)
-                
                 ZStack {
                     Circle()
-                        .stroke(Color.cyan.opacity(0.2), lineWidth: 7)
-                        .frame(width: 96, height: 96)
-                    
+                        .stroke(WatchLook.orange.opacity(0.2), lineWidth: 7)
                     Circle()
                         .trim(from: 0, to: ringTrim)
-                        .stroke(
-                            LinearGradient(
-                                colors: [.cyan, Color(red: 0.2, green: 0.5, blue: 1.0)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            style: StrokeStyle(lineWidth: 7, lineCap: .round)
-                        )
+                        .stroke(WatchLook.orange, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                        .frame(width: 96, height: 96)
-                    
                     Text("\(count)")
                         .font(.system(size: 46, weight: .bold, design: .rounded))
-                        .foregroundColor(.cyan)
+                        .foregroundStyle(WatchLook.orange)
                         .scaleEffect(scale)
                 }
+                .frame(width: 96, height: 96)
                 .padding(.vertical, 4)
-                
                 Text("Tap to skip")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -176,438 +433,74 @@ struct FitnessCountdownView: View {
             WKInterfaceDevice.current().play(.start)
             onComplete()
         }
-        .onAppear {
-            triggerCountAnimation()
-        }
+        .task { await runCountdown() }
     }
-    
-    private func triggerCountAnimation() {
-        WKInterfaceDevice.current().play(.click)
-        withAnimation(.easeOut(duration: 0.3)) {
-            scale = 1.1
-            ringTrim = 0.33
-        }
-        withAnimation(.easeInOut(duration: 0.7)) {
-            scale = 1.0
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            count = 2
+
+    private func runCountdown() async {
+        for step in 0..<3 {
+            count = 3 - step
             scale = 0.6
             WKInterfaceDevice.current().play(.click)
             withAnimation(.easeOut(duration: 0.3)) {
                 scale = 1.1
-                ringTrim = 0.66
+                ringTrim = CGFloat(step + 1) / 3
             }
-            withAnimation(.easeInOut(duration: 0.7)) {
-                scale = 1.0
-            }
+            withAnimation(.easeInOut(duration: 0.7).delay(0.3)) { scale = 1.0 }
+            try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled { return }
         }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            count = 1
-            scale = 0.6
-            WKInterfaceDevice.current().play(.click)
-            withAnimation(.easeOut(duration: 0.3)) {
-                scale = 1.1
-                ringTrim = 1.0
-            }
-            withAnimation(.easeInOut(duration: 0.7)) {
-                scale = 1.0
-            }
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-            WKInterfaceDevice.current().play(.start)
-            onComplete()
-        }
+        WKInterfaceDevice.current().play(.start)
+        onComplete()
     }
 }
 
-// MARK: - Custom Focus Creation Sheet
+// MARK: - Custom block
+
 struct CustomFocusSheet: View {
-    @Environment(\.dismiss) private var dismiss
     let onStart: (String, Int) -> Void
-    
-    @State private var taskTitle: String = ""
-    @State private var minutes: Int = 25
-    
+
+    @State private var taskTitle = ""
+    @State private var minutes = 25
+
     private let presetDurations = [15, 25, 30, 45, 60, 90]
-    private let columns = [
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6)
-    ]
-    
+    private let columns = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)]
+
     var body: some View {
         ScrollView {
             VStack(spacing: 8) {
-                // Compact Task Name Field
-                HStack(spacing: 6) {
-                    Image(systemName: "mic.fill")
-                        .foregroundColor(.cyan)
-                        .font(.system(size: 11, weight: .semibold))
-                    
-                    TextField("Task name...", text: $taskTitle)
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color.white.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                
-                // Duration Selection Label + Grid of Big Buttons
-                VStack(spacing: 5) {
-                    HStack {
-                        Text("Duration")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("\(minutes) min")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundColor(.cyan)
-                    }
-                    .padding(.horizontal, 2)
-                    
-                    LazyVGrid(columns: columns, spacing: 6) {
-                        ForEach(presetDurations, id: \.self) { duration in
-                            Button {
-                                WKInterfaceDevice.current().play(.click)
-                                minutes = duration
-                            } label: {
-                                Text("\(duration)m")
-                                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                                    .foregroundColor(minutes == duration ? .black : .white)
-                                    .frame(maxWidth: .infinity, minHeight: 32)
-                                    .background(
-                                        minutes == duration
-                                            ? AnyShapeStyle(Color.cyan)
-                                            : AnyShapeStyle(Color.white.opacity(0.14))
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .strokeBorder(
-                                                minutes == duration ? Color.cyan.opacity(0.8) : Color.white.opacity(0.08),
-                                                lineWidth: 1
-                                            )
-                                    )
-                            }
-                            .buttonStyle(.plain)
+                TextField("What is it?", text: $taskTitle)
+                    .font(WatchLook.title(13))
+
+                LazyVGrid(columns: columns, spacing: 6) {
+                    ForEach(presetDurations, id: \.self) { duration in
+                        Button {
+                            WKInterfaceDevice.current().play(.click)
+                            minutes = duration
+                        } label: {
+                            Text("\(duration)m")
+                                .font(WatchLook.title(13))
+                                .foregroundStyle(minutes == duration ? Color.white : Color.primary)
+                                .frame(maxWidth: .infinity, minHeight: 32)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(minutes == duration ? WatchLook.orange : Color.white.opacity(0.12))
+                                )
                         }
+                        .buttonStyle(.plain)
                     }
                 }
-                .padding(6)
-                .background(Color.white.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                
-                // Start Button
+
                 Button {
-                    let title = taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Focus Session" : taskTitle
-                    onStart(title, minutes)
+                    let clean = taskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                    onStart(clean.isEmpty ? "Focus" : clean, minutes)
                 } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 10, weight: .bold))
-                        Text("Start (\(minutes)m)")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                    }
-                    .foregroundColor(.black)
-                    .frame(maxWidth: .infinity, minHeight: 36)
-                    .background(
-                        LinearGradient(
-                            colors: [.cyan, Color(red: 0.2, green: 0.7, blue: 1.0)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(Capsule())
+                    Label("Start \(minutes)m", systemImage: "play.fill")
+                        .font(WatchLook.title(14))
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 2)
+                .buttonStyle(.borderedProminent)
+                .tint(WatchLook.orange)
             }
             .padding(.horizontal, 4)
-            .padding(.bottom, 6)
-        }
-    }
-}
-
-// MARK: - Compact Running Focus View with Always-On Display (AOD) Support
-struct CompactRunningFocusView: View {
-    var store: WatchSessionStore
-    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
-    
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 1.0)) { context in
-            let now = context.date
-            let startDate = store.startDate ?? now
-            let totalSeconds = Double(store.estimatedMinutes * 60)
-            let elapsedSeconds = max(0, now.timeIntervalSince(startDate))
-            let progress = min(1.0, elapsedSeconds / max(1.0, totalSeconds))
-            let remainingSeconds = max(0, totalSeconds - elapsedSeconds)
-            let isOvertime = elapsedSeconds > totalSeconds
-            let overtimeSeconds = max(0, elapsedSeconds - totalSeconds)
-            
-            VStack(spacing: isLuminanceReduced ? 6 : 8) {
-                // Focus Ring
-                FocusRingMetricView(
-                    progress: progress,
-                    isOvertime: isOvertime,
-                    displaySeconds: isOvertime ? overtimeSeconds : remainingSeconds,
-                    isLuminanceReduced: isLuminanceReduced
-                )
-                .padding(.top, 2)
-                
-                // Task Title
-                Text(store.taskTitle)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(isLuminanceReduced ? .secondary : .primary)
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 4)
-                
-                // Interactive Buttons (Hidden in AOD to match Apple Workout)
-                if !isLuminanceReduced {
-                    RunningControlButtons(store: store)
-                }
-            }
-        }
-    }
-}
-
-struct FocusRingMetricView: View {
-    let progress: Double
-    let isOvertime: Bool
-    let displaySeconds: Double
-    let isLuminanceReduced: Bool
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            TempoWatchMascotView(
-                regime: isOvertime ? .calibOvertime : .timerActiveCountdown,
-                size: 56,
-                animated: !isLuminanceReduced,
-                overrideBezelProgress: isOvertime ? 1.0 : max(0.05, 1.0 - progress)
-            )
-            
-            VStack(alignment: .leading, spacing: 1) {
-                Text(formatTime(displaySeconds))
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundColor(isLuminanceReduced ? TempoMascotPalette.orange.opacity(0.9) : (isOvertime ? .orange : .white))
-                
-                Text(isOvertime ? "Overtime" : "Remaining")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(isLuminanceReduced ? Color.secondary.opacity(0.6) : Color.secondary)
-                    .textCase(.uppercase)
-            }
-        }
-    }
-    
-    private func formatTime(_ seconds: Double) -> String {
-        let total = Int(seconds)
-        let mins = total / 60
-        let secs = total % 60
-        return String(format: "%02d:%02d", mins, secs)
-    }
-}
-
-struct RunningControlButtons: View {
-    var store: WatchSessionStore
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Button(action: {
-                    store.extendSession(by: 5)
-                }) {
-                    Text("+5m")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundColor(.cyan)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 28)
-                }
-                .buttonStyle(.plain)
-                .background(Color.white.opacity(0.12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(Color.cyan.opacity(0.35), lineWidth: 0.8)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                
-                Button(action: {
-                    store.extendSession(by: 15)
-                }) {
-                    Text("+15m")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundColor(.cyan)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 28)
-                }
-                .buttonStyle(.plain)
-                .background(Color.white.opacity(0.12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(Color.cyan.opacity(0.35), lineWidth: 0.8)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-            }
-            .padding(.horizontal, 2)
-            
-            Button(action: {
-                store.stopSession()
-            }) {
-                HStack(spacing: 5) {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 10, weight: .bold))
-                    Text("End Focus")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 32)
-            }
-            .buttonStyle(.plain)
-            .background(
-                LinearGradient(
-                    colors: [Color.red.opacity(0.85), Color(red: 0.8, green: 0.15, blue: 0.25)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 0.8)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .padding(.top, 2)
-        }
-    }
-}
-
-// MARK: - Compact Idle Home View with Custom Focus Force Button
-struct CompactIdleHomeView: View {
-    var store: WatchSessionStore
-    let onSelectPreset: (String, Int) -> Void
-    let onOpenCustom: () -> Void
-    
-    private let presets: [(title: String, icon: String, minutes: Int, color: Color)] = [
-        ("Quick Sprint", "bolt.fill", 15, .cyan),
-        ("Pomodoro", "timer", 25, .orange),
-        ("Deep Focus", "brain.head.profile", 45, .purple),
-        ("Flow State", "waveform.path.ecg", 60, .blue)
-    ]
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            Button(action: {
-                onOpenCustom()
-            }) {
-                HStack(spacing: 10) {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.cyan.opacity(0.35), Color.blue.opacity(0.25)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 30, height: 30)
-                            .overlay(Circle().strokeBorder(Color.cyan.opacity(0.5), lineWidth: 1))
-                        
-                        Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.cyan)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Custom Focus")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                        
-                        Text("Voice name & time")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.cyan.opacity(0.85))
-                    }
-                    
-                    Spacer()
-                    
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.cyan.opacity(0.9))
-                }
-                .padding(.horizontal, 10)
-                .frame(height: 44)
-                .background(
-                    LinearGradient(
-                        colors: [Color.cyan.opacity(0.18), Color.blue.opacity(0.10)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(Color.cyan.opacity(0.4), lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-            }
-            .buttonStyle(.plain)
-            
-            HStack(spacing: 5) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.secondary)
-                
-                Text("Quick Presets")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 2)
-            .padding(.top, 4)
-            
-            ForEach(presets, id: \.title) { preset in
-                Button(action: {
-                    onSelectPreset(preset.title, preset.minutes)
-                }) {
-                    HStack(spacing: 8) {
-                        ZStack {
-                            Circle()
-                                .fill(preset.color.opacity(0.22))
-                                .frame(width: 24, height: 24)
-                            
-                            Image(systemName: preset.icon)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(preset.color)
-                        }
-                        
-                        Text(preset.title)
-                            .font(.system(size: 12.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                        
-                        Spacer()
-                        
-                        Text("\(preset.minutes)m")
-                            .font(.system(size: 11.5, weight: .bold, design: .rounded))
-                            .foregroundColor(.white.opacity(0.65))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.white.opacity(0.08))
-                            .clipShape(Capsule())
-                    }
-                    .padding(.horizontal, 8)
-                    .frame(height: 38)
-                    .background(Color.white.opacity(0.09))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-            }
         }
     }
 }

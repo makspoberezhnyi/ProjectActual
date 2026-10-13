@@ -28,6 +28,10 @@ enum DeskPalette {
     static let leg = dynamic(light: 0xBF9D70, dark: 0x2A211B)
     static let legShade = dynamic(light: 0xA98760, dark: 0x1C1612)
     static let under = dynamic(light: 0xE6E2DA, dark: 0x0C1220)
+    /// The wall behind the desk: the app's own background color.
+    static let wall = dynamic(light: 0xF6F4F0, dark: 0x11182B)
+    static let ink = dynamic(light: 0x1A1A1A, dark: 0xF6F4F0)
+    static let muted = dynamic(light: 0x6E6A61, dark: 0x9FADC9)
 }
 
 /// Where the clock's feet touch the surface, as a share of the mascot's frame height.
@@ -129,6 +133,39 @@ private struct DeskLegShape: Shape {
         p.addLine(to: CGPoint(x: rect.minX + taper, y: rect.maxY))
         p.closeSubpath()
         return p
+    }
+}
+
+// MARK: - Small rooms (widgets, Live Activity)
+
+/// A whole little scene for small surfaces: wall on top, desk from `horizon` (share of the height) down.
+struct DeskBackdrop: View {
+    var horizon: CGFloat = 0.62
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .top) {
+                DeskPalette.wall
+                DeskSurface()
+                    .frame(height: geo.size.height * (1 - horizon))
+                    .offset(y: geo.size.height * horizon)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// Places a static mascot of `size` so its feet stand at `feetY`, horizontally centered on `x`.
+struct MascotStanding: View {
+    let regime: TempoMascotRegime
+    let size: CGFloat
+    let x: CGFloat
+    let feetY: CGFloat
+    var bezelProgress: Double? = nil
+
+    var body: some View {
+        TempoWatchMascotView(regime: regime, size: size, animated: false, overrideBezelProgress: bezelProgress)
+            .position(x: x, y: feetY - size * mascotFootFraction + size / 2)
     }
 }
 
