@@ -80,18 +80,6 @@ struct RealRemindersAppIcon: View {
     }
 }
 
-struct RealUnifiedIntegrationIcon: View {
-    var size: CGFloat = 24
-    
-    var body: some View {
-        HStack(spacing: -size * 0.28) {
-            RealCalendarAppIcon(size: size * 0.88)
-            RealRemindersAppIcon(size: size * 0.88)
-        }
-    }
-}
-
 extension Notification.Name {
-    static let checkScheduleNotification = Notification.Name("checkScheduleNotification")
     static let syncWidgetSessionsNotification = Notification.Name("syncWidgetSessionsNotification")
 }

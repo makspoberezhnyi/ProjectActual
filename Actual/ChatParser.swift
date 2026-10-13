@@ -378,7 +378,8 @@ final class ChatParser {
         
         // 5. Standard Task Entry
         let minutes = extractMinutes(from: text)
-        let isRetro = text.contains("did") || text.contains("just") || text.contains("completed")
+        // Whole words only, so "adjust layout" or "candidate call" don't count as already done.
+        let isRetro = text.range(of: #"\b(did|just|completed|finished)\b"#, options: .regularExpression) != nil
         return ParsedIntent(
             text: input,
             estimatedMinutes: minutes,

@@ -2,6 +2,36 @@ import AppIntents
 import Foundation
 import WidgetKit
 import ActivityKit
+import UserNotifications
+
+/// Keeps the "time's up" chime in step when the Live Activity or a widget changes the timer
+/// while the app is closed. Identifiers match TempoAlarmScheduler in the app target.
+enum TempoTimerEndNotice {
+    static let identifier = "tempo.timer.end"
+    static let category = "TEMPO_TIMER_CATEGORY"
+
+    static func cancel() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
+
+    static func reschedule(from snapshot: WidgetSnapshotData) {
+        cancel()
+        guard snapshot.isRunning,
+              let start = snapshot.activeTaskStartedAt,
+              let minutes = snapshot.activeTaskEstimatedMinutes else { return }
+        let remaining = start.addingTimeInterval(TimeInterval(minutes * 60)).timeIntervalSinceNow
+        guard remaining > 1 else { return }
+        guard UserDefaults.standard.object(forKey: "integration_notifications_enabled") as? Bool ?? true else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Time's up · \(snapshot.activeTaskTitle ?? "Focus")"
+        content.body = "Your \(minutes)m block is done. Log it, or give yourself 5 more minutes."
+        content.sound = UNNotificationSound(named: UNNotificationSoundName("tempo_chime.wav"))
+        content.categoryIdentifier = category
+        content.interruptionLevel = .timeSensitive
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: remaining, repeats: false)
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+    }
+}
 
 public struct StartFocusIntent: LiveActivityIntent, AppIntent {
     public static let title: LocalizedStringResource = "Start Focus Session"
@@ -26,6 +56,7 @@ public struct StartFocusIntent: LiveActivityIntent, AppIntent {
         
         // 1. Persist to AppGroup WidgetDataStore immediately
         WidgetDataStore.shared.startSession(title: taskTitle, minutes: minutes, startDate: now)
+        TempoTimerEndNotice.reschedule(from: WidgetDataStore.shared.loadSnapshot())
         
         // 2. Start Live Activity asynchronously
         let existingIds = Set(Activity<TempoActivityAttributes>.activities.map(\.id))
@@ -92,6 +123,7 @@ public struct ExtendFocusIntent: LiveActivityIntent, AppIntent {
     public func perform() async throws -> some IntentResult {
         WidgetDataStore.shared.extendActiveSession(by: minutesToAdd)
         let updatedSnapshot = WidgetDataStore.shared.loadSnapshot()
+        TempoTimerEndNotice.reschedule(from: updatedSnapshot)
         let newEstimate = updatedSnapshot.activeTaskEstimatedMinutes ?? 30
         
         for activity in Activity<TempoActivityAttributes>.activities {
@@ -130,6 +162,7 @@ public struct StopFocusIntent: LiveActivityIntent, AppIntent {
     public func perform() async throws -> some IntentResult {
         // 1. Instantly stop the session and persist completion state
         WidgetDataStore.shared.stopActiveSession()
+        TempoTimerEndNotice.cancel()
         
         let completionState = TempoActivityAttributes.ContentState(
             estimatedMinutes: 0,

@@ -1041,7 +1041,6 @@ struct ProfileTabView: View {
     @AppStorage("tempo_default_duration") private var defaultDuration: Int = 25
     @AppStorage("tempo_smart_routines_enabled") private var smartRoutinesEnabled: Bool = true
     
-    @State private var showClearChatAlert = false
     @State private var showResetAllAlert = false
     @State private var exportURL: URL? = nil
     @State private var showShareSheet = false
@@ -1436,36 +1435,6 @@ struct ProfileTabView: View {
                 Divider().opacity(0.12)
                 
                 Button {
-                    showClearChatAlert = true
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Theme.brandSlate)
-                            .frame(width: 28)
-                        
-                        Text("Clean Chat History")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.primary)
-                        
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                }
-                .buttonStyle(.plain)
-                .alert("Clean Chat History?", isPresented: $showClearChatAlert) {
-                    Button("Cancel", role: .cancel) {}
-                    Button("Clean Chat", role: .destructive) {
-                        cleanChatHistory()
-                    }
-                } message: {
-                    Text("This removes conversational and schedule query bubbles from the Log stream while preserving all focus metrics.")
-                }
-                
-                Divider().opacity(0.12)
-                
-                Button {
                     showResetAllAlert = true
                 } label: {
                     HStack(spacing: 12) {
@@ -1580,23 +1549,17 @@ struct ProfileTabView: View {
         }
     }
     
-    private func cleanChatHistory() {
-        for session in sessions {
-            if session.isScheduleQuery == true || session.startedAt == nil {
-                context.delete(session)
-            }
-        }
-        try? context.save()
-        WidgetDataStore.shared.clearPendingSessions()
-        LiveActivityManager.shared.cancelAllLiveActivities()
-    }
-    
     private func resetAllData() {
         for session in sessions {
             context.delete(session)
         }
         try? context.save()
         WidgetDataStore.shared.clearPendingSessions()
+        // Clear the live timer and stopwatch too, otherwise a running block would log itself again.
+        let store = TimeOSStore.shared
+        store.resetTimer()
+        if store.chronoIsRunning { store.toggleChronoStartStop() }
+        store.pressChronoLeftEar()
         LiveActivityManager.shared.cancelAllLiveActivities()
         WidgetDataStore.shared.saveSnapshot(WidgetSnapshotData())
         WidgetCenter.shared.reloadAllTimelines()
@@ -1655,9 +1618,6 @@ struct IntegrationsView: View {
     var remindersAuthStatus: String = "Connected"
     
     @AppStorage("integration_watch_enabled") private var watchEnabled: Bool = true
-    @AppStorage("integration_watch_haptics_enabled") private var watchHapticsEnabled: Bool = true
-    @AppStorage("integration_watch_smart_stack_enabled") private var watchSmartStackEnabled: Bool = true
-    @AppStorage("integration_watch_health_sync_enabled") private var watchHealthSyncEnabled: Bool = true
     
     @AppStorage("integration_calendar_enabled") private var calendarEnabled: Bool = true
     @AppStorage("integration_reminders_enabled") private var remindersEnabled: Bool = true
@@ -1700,20 +1660,21 @@ struct IntegrationsView: View {
                                             .font(.system(size: 15, weight: .semibold))
                                             .foregroundStyle(.primary)
                                         
+                                        let live = watchEnabled && watchManager.isPaired && watchManager.isWatchAppInstalled
                                         HStack(spacing: 4) {
                                             Circle()
-                                                .fill(Theme.brandMint)
+                                                .fill(live ? Theme.brandMint : Theme.brandSlate)
                                                 .frame(width: 6, height: 6)
-                                            Text("Active")
+                                            Text(live ? "Active" : (watchEnabled ? "No watch" : "Off"))
                                                 .font(.system(size: 10, weight: .semibold))
-                                                .foregroundStyle(Theme.brandMint)
+                                                .foregroundStyle(live ? Theme.brandMint : Theme.brandSlate)
                                         }
                                         .padding(.horizontal, 7)
                                         .padding(.vertical, 2)
-                                        .background(Theme.brandMint.opacity(0.12), in: Capsule())
+                                        .background((live ? Theme.brandMint : Theme.brandSlate).opacity(0.12), in: Capsule())
                                     }
                                     
-                                    Text("Bidirectional live timer syncing, wrist haptics & Smart Stack")
+                                    Text("Your Focus timer shows on the watch, and starts or stops from either side")
                                         .font(.system(size: 11, weight: .regular))
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)
@@ -1727,41 +1688,12 @@ struct IntegrationsView: View {
                             
                             integrationToggleRow(
                                 title: "Watch Companion",
-                                subtitle: "Sync live focus sessions and timer controls with Apple Watch",
+                                subtitle: "Mirror the Focus timer and today's stats to Apple Watch",
                                 icon: "applewatch",
                                 iconColor: Theme.brandCyan,
                                 isOn: $watchEnabled
                             )
                             
-                            Divider().opacity(0.15)
-                            
-                            integrationToggleRow(
-                                title: "Haptic Wrist Prompts",
-                                subtitle: "Gentle wrist taps when entering focus, halfway marks, and completion",
-                                icon: "waveform",
-                                iconColor: Theme.brandMint,
-                                isOn: $watchHapticsEnabled
-                            )
-                            
-                            Divider().opacity(0.15)
-                            
-                            integrationToggleRow(
-                                title: "Smart Stack & Complications",
-                                subtitle: "Auto-surface running focus timers in watchOS Smart Stack",
-                                icon: "square.stack.3d.up.fill",
-                                iconColor: Theme.brandIndigo,
-                                isOn: $watchSmartStackEnabled
-                            )
-                            
-                            Divider().opacity(0.15)
-                            
-                            integrationToggleRow(
-                                title: "Mindful Focus (Apple Health)",
-                                subtitle: "Automatically record logged focus sessions as Mindful Minutes",
-                                icon: "heart.fill",
-                                iconColor: Color(red: 1.0, green: 0.32, blue: 0.45),
-                                isOn: $watchHealthSyncEnabled
-                            )
                         }
                         .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .overlay(
@@ -1777,7 +1709,7 @@ struct IntegrationsView: View {
                         VStack(spacing: 0) {
                             integrationCustomIconToggleRow(
                                 title: "Apple Calendar",
-                                subtitle: "Read meetings, focus events, and auto-detect schedules",
+                                subtitle: "Show today's events as one-tap timers and find your next meeting",
                                 isOn: $calendarEnabled
                             ) {
                                 RealCalendarAppIcon(size: 28)
@@ -1795,7 +1727,7 @@ struct IntegrationsView: View {
                             
                             integrationCustomIconToggleRow(
                                 title: "Apple Reminders",
-                                subtitle: "Sync due tasks, checklists, and complete on focus finish",
+                                subtitle: "Show today's reminders as one-tap timers in Focus",
                                 isOn: $remindersEnabled
                             ) {
                                 RealRemindersAppIcon(size: 28)
@@ -1826,7 +1758,7 @@ struct IntegrationsView: View {
                             
                             integrationToggleRow(
                                 title: "Notifications & Timer Alerts",
-                                subtitle: "Alerts when estimated focus or workout finishes, and routine reminders",
+                                subtitle: "Chime when a timer ends, plus routine reminders. Alarms always ring.",
                                 icon: "bell.badge.fill",
                                 iconColor: Color.red,
                                 isOn: $notificationsEnabled

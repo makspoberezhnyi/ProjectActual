@@ -82,6 +82,13 @@ final class RoutineEngine {
         // Remove trailing or leading duration words
         clean = clean.replacingOccurrences(of: #"(?i)\bfor\s+[0-9]+\s*(m|min|mins|minutes|h|hr|hours)?\b"#, with: "", options: .regularExpression)
         
+        // Remove bare durations like "30m", "1.5h", "45 min" so the title is just the task
+        clean = clean.replacingOccurrences(of: #"(?i)\s*\b[0-9]+(\.[0-9]+)?\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)\b"#, with: "", options: .regularExpression)
+        
+        // Remove "I just did", "just finished" style lead-ins used for logging past work
+        clean = clean.replacingOccurrences(of: #"(?i)^\s*(i\s+)?(just\s+)?(did|finished|completed)\s+"#, with: "", options: .regularExpression)
+        clean = clean.replacingOccurrences(of: #"(?i)^\s*(i\s+)?just\s+"#, with: "", options: .regularExpression)
+
         clean = clean.trimmingCharacters(in: .whitespacesAndNewlines)
         if clean.isEmpty { return raw }
         
@@ -254,22 +261,20 @@ final class RoutineEngine {
     }
     
     // MARK: - Notifications
-    func requestNotificationAccessAndSync(sessions: [Session]) {
-        Task {
-            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-            guard granted else { return }
-            self.scheduleRoutineNotifications(sessions: sessions)
-        }
-    }
     
     func scheduleRoutineNotifications(sessions: [Session]) {
         let center = UNUserNotificationCenter.current()
+        let defaults = UserDefaults.standard
+        let routinesOn = defaults.object(forKey: "tempo_smart_routines_enabled") as? Bool ?? true
+        let notificationsOn = defaults.object(forKey: "integration_notifications_enabled") as? Bool ?? true
+        let enabled = routinesOn && notificationsOn
         // Only clear routine reminders. Alarms and the running timer live in the same queue.
-        let liveIDs = Set(minePatterns(from: sessions).prefix(5).map { "routine_\($0.id)" })
+        let liveIDs: Set<String> = enabled ? Set(minePatterns(from: sessions).prefix(5).map { "routine_\($0.id)" }) : []
         center.getPendingNotificationRequests { requests in
             let stale = requests.map(\.identifier).filter { $0.hasPrefix("routine_") && !liveIDs.contains($0) }
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: stale)
         }
+        guard enabled else { return }
         
         let patterns = minePatterns(from: sessions)
         for pattern in patterns.prefix(5) {

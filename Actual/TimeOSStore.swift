@@ -216,31 +216,9 @@ public struct TempoWorldCity: Identifiable, Codable, Equatable {
 public final class TimeOSStore {
     public static let shared = TimeOSStore()
     
-    // Active Time OS Sub-Regime inside the Time Hub
-    public enum ActiveService: String, CaseIterable, Identifiable {
-        case alarms = "Alarms"
-        case chrono = "Chrono"
-        case timers = "Timers"
-        case world = "World"
-        case mascotStudio = "24 Mascots"
-        
-        public var id: String { rawValue }
-        
-        public var icon: String {
-            switch self {
-            case .alarms: return "bell.badge.fill"
-            case .chrono: return "stopwatch.fill"
-            case .timers: return "timer"
-            case .world: return "globe"
-            case .mascotStudio: return "sparkles"
-            }
-        }
-    }
-    
-    public var activeService: ActiveService = .timers
     /// Top-level Tab Bar index: 0 = Focus, 1 = Alarms, 2 = Stopwatch, 3 = World, 4 = Logbook
     public var selectedMainTab: Int = 0
-    /// Single-line Mascot Voice Pill replacing the legacy scrolling chat log
+    /// What the mascot says in its speech bubble on the Focus screen.
     public var mascotVoiceMessage: String = "Hi, I'm Tempo. Tell me what you're working on, like \"Design review 30m\", or drag the numbers to set a timer."
     
     // --- 1. ALARMS STATE ---
@@ -290,6 +268,8 @@ public final class TimeOSStore {
     @ObservationIgnored private var heartbeatTask: Task<Void, Never>?
     @ObservationIgnored private var timerZeroHandled = false
     @ObservationIgnored private var recentlyHandledAlarms: [UUID: Date] = [:]
+    /// Set while a commute timer waits for the phone to reach its destination.
+    @ObservationIgnored private var commuteArrivalTitle: String?
     
     private let defaults = UserDefaults.standard
     private let alarmsKey = "tempo.timeos.alarms.v2"
@@ -404,7 +384,12 @@ public final class TimeOSStore {
             }
         }
         guard let data = defaults.data(forKey: runtimeKey),
-              let snap = try? JSONDecoder().decode(RuntimeSnapshot.self, from: data) else { return }
+              let snap = try? JSONDecoder().decode(RuntimeSnapshot.self, from: data) else {
+            // First launch: "Default Duration" from Settings sets the bezel.
+            let preferred = defaults.integer(forKey: "tempo_default_duration")
+            if preferred > 0 { timerTargetSeconds = preferred * 60 }
+            return
+        }
         timerTargetSeconds = snap.timerTargetSeconds
         timerLinkedTaskTitle = snap.timerLinkedTaskTitle
         timerIsRunning = snap.timerIsRunning
@@ -529,19 +514,9 @@ public final class TimeOSStore {
         
         // Start linked bezel timer
         startTimer(title: taskTitle, seconds: estMins * 60, isRest: false, isKitchen: false)
-        activeService = .timers
         selectedMainTab = 0
         mascotVoiceMessage = "Good morning. \(estMins)m on the clock for \"\(taskTitle)\"."
-        
-        // Also log an active Session in SwiftData so Task Calibration tracks it automatically
-        let session = Session(
-            rawText: taskTitle,
-            estimatedMinutes: estMins,
-            startedAt: Date(),
-            tempoResponse: "Chained from \(alarm.formattedTime) Twin-Bell Alarm — calibrating \(estMins)m block."
-        )
-        context.insert(session)
-        try? context.save()
+        // The block is logged when the timer finishes, like any other timer.
         TactileFeedback.success()
     }
     
@@ -781,12 +756,50 @@ public final class TimeOSStore {
         silenceTimerAlert()
         scheduleTimerEndNotification()
         persistRuntimeState()
+        publishFocus()
         mascotVoiceMessage = "On it. \(TempoFormat.minutes(timerTargetSeconds)) for \"\(title)\"."
         TactileFeedback.medium()
     }
     
     public var latestTravelResult: TravelAssessmentResult? = nil
     public var isCalculatingTravel: Bool = false
+    /// Today's calendar events and reminders, offered as one-tap chips above the keyboard.
+    public var calendarSuggestions: [String] = []
+    
+    /// Starts a commute timer from a travel answer. If the place has coordinates, arriving there stops it.
+    public func startCommute(_ travel: TravelAssessmentResult) {
+        let title = "Commute to \(travel.destinationTitle)"
+        startTimer(title: title, seconds: max(1, travel.travelDurationMinutes) * 60)
+        latestTravelResult = nil
+        if let lat = travel.latitude, let lon = travel.longitude {
+            LocationTravelManager.shared.startMonitoringArrival(
+                sessionId: "commute",
+                title: travel.destinationTitle,
+                latitude: lat,
+                longitude: lon
+            )
+            commuteArrivalTitle = travel.destinationTitle
+            mascotVoiceMessage = "Go. I'll stop the clock when you reach \(travel.destinationTitle)."
+        }
+    }
+    
+    /// Called when location tracking sees the phone arrive at the commute destination.
+    public func commuteArrived(context: ModelContext) {
+        guard let place = commuteArrivalTitle, timerIsRunning else { return }
+        commuteArrivalTitle = nil
+        completeAndCalibrateTimer(context: context)
+        mascotVoiceMessage = "You made it to \(place). Logged the real travel time."
+    }
+    
+    /// Pulls today's events and reminders for the suggestion chips, only if access was already given.
+    public func refreshCalendarSuggestions() {
+        Task { @MainActor in
+            // Never pop a permission prompt just for chips.
+            guard let target = EventKitManager.alreadyAuthorizedTarget else { return }
+            let items = await EventKitManager.shared.fetchItems(for: target)
+            self.calendarSuggestions = items.prefix(5).map { "\($0.title) \($0.estimatedMinutes)m" }
+        }
+    }
     
     /// Natural-Language Quick Input ("Design review 30m", "Ride to Airport", "Stop", "+5m", or conversational)
     func parseAndStartQuickInput(_ rawInput: String, sessions: [Session], context: ModelContext? = nil) {
@@ -816,37 +829,96 @@ public final class TimeOSStore {
             return
         }
         
-        // 3. Travel / Commute ETA query ("Ride to Airport", "Drive to Berlin")
+        // 3. Travel / Commute ETA query ("Ride to Airport", "Drive to Berlin", "How long to my next meeting")
         if intent.isTravelQuery {
-            let dest = intent.destinationQuery ?? "Destination"
             let mode = intent.travelTransportMode ?? .driving
             isCalculatingTravel = true
-            mascotVoiceMessage = "Checking live \(mode.actionTitle.lowercased()) route to \(dest)…"
-            Task { @MainActor in
-                let result = await LocationTravelManager.shared.calculateTravel(to: dest, mode: mode)
-                self.isCalculatingTravel = false
-                if let result {
-                    self.latestTravelResult = result
-                    self.mascotVoiceMessage = "\(result.destinationTitle): \(result.formattedDuration) (\(result.distanceString)) via \(result.transportTypeName)."
-                } else {
-                    self.mascotVoiceMessage = "Couldn't find route to \"\(dest)\"."
+            if let dest = intent.destinationQuery, !intent.isNextMeetingTravel {
+                mascotVoiceMessage = "Checking the \(mode.actionTitle.lowercased()) route to \(dest)…"
+                Task { @MainActor in
+                    let result = await LocationTravelManager.shared.calculateTravel(to: dest, mode: mode)
+                    self.isCalculatingTravel = false
+                    if let result {
+                        self.latestTravelResult = result
+                        self.mascotVoiceMessage = "\(result.destinationTitle): \(result.formattedDuration) by \(result.transportTypeName.lowercased())."
+                    } else {
+                        self.mascotVoiceMessage = "I couldn't find a route to \"\(dest)\". Try a fuller address."
+                    }
+                }
+            } else {
+                mascotVoiceMessage = "Looking for your next meeting with a place…"
+                Task { @MainActor in
+                    let next = await EventKitManager.shared.nextUpcomingItemWithLocation(mode: mode)
+                    self.isCalculatingTravel = false
+                    if let next {
+                        let (item, result) = next
+                        self.latestTravelResult = result
+                        let when = item.timeString.map { " at \($0)" } ?? ""
+                        self.mascotVoiceMessage = "\(item.title)\(when). Getting there takes \(result.formattedDuration)."
+                    } else {
+                        self.mascotVoiceMessage = "I don't see a meeting with a place today. Try \"Ride to\" plus an address."
+                    }
                 }
             }
             return
         }
         
-        // 4. Conversational / Status ("How am I doing?", "Hey", "Motivate me")
+        // 4. Calendar and reminders ("What's on my calendar", "my tasks")
+        if intent.isScheduleCheck {
+            mascotVoiceMessage = "Checking your day…"
+            let target = intent.integrationTarget ?? .both
+            Task { @MainActor in
+                let items = await EventKitManager.shared.fetchItems(for: target)
+                if items.isEmpty {
+                    self.mascotVoiceMessage = "Nothing on your calendar or reminders for today. Turn them on in Logbook, Settings, if you haven't."
+                } else {
+                    let lines = items.prefix(3).map { item in
+                        item.timeString.map { "\($0) \(item.title)" } ?? item.title
+                    }
+                    let more = items.count > 3 ? " and \(items.count - 3) more" : ""
+                    self.mascotVoiceMessage = "Today: " + lines.joined(separator: ", ") + more + ". Tap the chat box to time one."
+                    self.calendarSuggestions = items.prefix(5).map { "\($0.title) \($0.estimatedMinutes)m" }
+                }
+            }
+            return
+        }
+        
+        // 5. Conversational / Status ("How am I doing?", "Hey", "Motivate me")
         if intent.isConversational, let reply = intent.conversationalReply {
-            // Strip markdown asterisks for clean single-line pill
-            mascotVoiceMessage = reply.replacingOccurrences(of: "**", with: "")
+            // The speech bubble is plain text: drop markdown and line breaks.
+            mascotVoiceMessage = reply
+                .replacingOccurrences(of: "*", with: "")
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "  ", with: " ")
+                .trimmingCharacters(in: .whitespaces)
             TactileFeedback.light()
             return
         }
         
-        // 5. Standard Task Timer ("Design review 30m" or "Code refactor")
         latestTravelResult = nil
         let parsedMins = intent.estimatedMinutes ?? ChatParser.extractMinutes(from: trimmed)
         let cleanTitle = RoutineEngine.normalizeTaskTitle(trimmed)
+        
+        // 6. Something already done ("I just did email 20m"): log it, don't start a timer.
+        if intent.isRetroactive, let mins = parsedMins, let context {
+            let now = Date()
+            let session = Session(
+                rawText: cleanTitle,
+                estimatedMinutes: mins,
+                startedAt: now.addingTimeInterval(-Double(mins * 60)),
+                tempoResponse: "Logged after the fact.",
+                isRetroactive: true
+            )
+            session.endedAt = now
+            session.actualMinutes = mins
+            context.insert(session)
+            try? context.save()
+            mascotVoiceMessage = "Logged \(mins)m of \"\(cleanTitle)\". Nice."
+            TactileFeedback.success()
+            return
+        }
+        
+        // 7. Standard Task Timer ("Design review 30m" or "Code refactor")
         let patterns = RoutineEngine.shared.minePatterns(from: sessions)
         let matchedPattern = patterns.first {
             $0.taskTitle.localizedCaseInsensitiveContains(cleanTitle) ||
@@ -888,6 +960,7 @@ public final class TimeOSStore {
             TactileFeedback.medium()
         }
         persistRuntimeState()
+        publishFocus()
     }
     
     public func extendTimer(bySeconds delta: Int) {
@@ -896,13 +969,16 @@ public final class TimeOSStore {
             timerZeroHandled = false
             silenceTimerAlert()
         }
-        if timerIsRunning { scheduleTimerEndNotification() }
+        if timerIsRunning {
+            scheduleTimerEndNotification()
+            publishFocus()
+        }
         persistRuntimeState()
         mascotVoiceMessage = "+\(max(1, delta / 60))m. New target \(TempoFormat.minutes(timerTargetSeconds))."
         TactileFeedback.light()
     }
     
-    public func resetTimer() {
+    public func resetTimer(publish: Bool = true) {
         timerIsRunning = false
         timerStartedAt = nil
         timerAccumulatedSeconds = 0
@@ -910,7 +986,14 @@ public final class TimeOSStore {
         silenceTimerAlert()
         TempoAlarmScheduler.shared.cancelTimerEnd()
         persistRuntimeState()
-        TactileFeedback.light()
+        if publish {
+            if commuteArrivalTitle != nil {
+                LocationTravelManager.shared.stopMonitoringArrival()
+                commuteArrivalTitle = nil
+            }
+            publishFocus()
+            TactileFeedback.light()
+        }
     }
     
     /// Countdown hit 00:00 with the app open: ring, and keep counting honest overtime.
@@ -947,37 +1030,150 @@ public final class TimeOSStore {
     }
     
     /// Finishes the active timer and saves the Predicted vs. Actual duration into SwiftData for Task Calibration!
-    public func completeAndCalibrateTimer(context: ModelContext) {
-        let elapsed = timerElapsed()
+    /// Finishes the active timer and saves the Predicted vs. Actual duration into SwiftData for Task Calibration.
+    /// `endedAt` lets a stop that happened elsewhere (watch, Live Activity) log the true end time.
+    public func completeAndCalibrateTimer(context: ModelContext, endedAt: Date = Date()) {
+        let elapsed = timerElapsed(at: endedAt)
+        guard elapsed >= 1 else {
+            resetTimer()
+            return
+        }
         let actualMins = max(1, Int((elapsed / 60.0).rounded()))
         let estMins = max(1, Int((Double(timerTargetSeconds) / 60.0).rounded()))
-        let now = Date()
+        let title = timerLinkedTaskTitle
         
         let session = Session(
-            rawText: timerLinkedTaskTitle,
+            rawText: title,
             estimatedMinutes: estMins,
-            startedAt: now.addingTimeInterval(-max(60, elapsed)),
+            startedAt: endedAt.addingTimeInterval(-elapsed),
             tempoResponse: "Started from Bezel Timer (\(estMins)m target).",
             tempoEndResponse: actualMins <= estMins
                 ? "Spot-on calibration! Finished in \(actualMins)m vs \(estMins)m target."
                 : "Honest overtime logged: \(actualMins)m actual vs \(estMins)m target."
         )
-        session.endedAt = now
+        session.endedAt = endedAt
         session.actualMinutes = actualMins
         context.insert(session)
         try? context.save()
         
         let diff = actualMins - estMins
         if abs(diff) <= 2 {
-            mascotVoiceMessage = "Spot-on calibration! \"\(timerLinkedTaskTitle)\" took \(actualMins)m vs \(estMins)m est."
+            mascotVoiceMessage = "Bullseye. \"\(title)\" took \(actualMins)m, you guessed \(estMins)m."
         } else if diff > 0 {
-            mascotVoiceMessage = "Honest overtime logged: \"\(timerLinkedTaskTitle)\" took \(actualMins)m (+\(diff)m over \(estMins)m est)."
+            mascotVoiceMessage = "Logged. \"\(title)\" took \(actualMins)m, \(diff)m more than you guessed. Next guess will be sharper."
         } else {
-            mascotVoiceMessage = "Finished early! \"\(timerLinkedTaskTitle)\" took \(actualMins)m (\(abs(diff))m under \(estMins)m est)."
+            mascotVoiceMessage = "Done early. \"\(title)\" took \(actualMins)m, \(abs(diff))m under your \(estMins)m guess."
         }
         
-        resetTimer()
+        if commuteArrivalTitle != nil {
+            LocationTravelManager.shared.stopMonitoringArrival()
+            commuteArrivalTitle = nil
+        }
+        resetTimer(publish: false)
+        TempoFocusBridge.publishStopped(completedTitle: title, completedMinutes: actualMins)
         TactileFeedback.success()
+    }
+    
+    // MARK: - Sync with widgets, Siri, Live Activity and Apple Watch
+    
+    /// Where the timer would have started had it never been paused.
+    private var timerEffectiveStart: Date? {
+        guard timerIsRunning, let start = timerStartedAt else { return nil }
+        return start.addingTimeInterval(-timerAccumulatedSeconds)
+    }
+    
+    private func publishFocus() {
+        if let start = timerEffectiveStart {
+            TempoFocusBridge.publishRunning(
+                title: timerLinkedTaskTitle,
+                targetMinutes: max(1, Int((Double(timerTargetSeconds) / 60).rounded())),
+                effectiveStart: start
+            )
+        } else {
+            TempoFocusBridge.publishStopped()
+        }
+    }
+    
+    /// Reads back what happened outside the app: a widget or Siri start, a stop or +5 min from the
+    /// Live Activity, or a session run on the watch. Finished ones go straight into the logbook,
+    /// a running one becomes the Focus timer.
+    public func reconcileExternalSessions(context: ModelContext) {
+        let snapshot = WidgetDataStore.shared.loadSnapshot()
+        
+        // 1. Our own timer was stopped or extended from the Live Activity or the watch.
+        if let start = timerEffectiveStart {
+            if !snapshot.isRunning, let stoppedAt = snapshot.lastCompletedAt, stoppedAt > start {
+                completeAndCalibrateTimer(context: context, endedAt: min(stoppedAt, Date()))
+            } else if snapshot.isRunning,
+                      let shared = snapshot.activeTaskStartedAt, abs(shared.timeIntervalSince(start)) < 3,
+                      let est = snapshot.activeTaskEstimatedMinutes, est * 60 > timerTargetSeconds {
+                extendTimer(bySeconds: est * 60 - timerTargetSeconds)
+            }
+        }
+        
+        // 2. Sessions started or finished from a widget, Siri, or the watch.
+        let pending = WidgetDataStore.shared.loadPendingSessions().sorted { $0.startedAt < $1.startedAt }
+        guard !pending.isEmpty else { return }
+        WidgetDataStore.shared.clearPendingSessions()
+        
+        let existingStarts = ((try? context.fetch(FetchDescriptor<Session>())) ?? []).compactMap(\.startedAt)
+        func alreadyLogged(_ date: Date) -> Bool {
+            existingStarts.contains { abs($0.timeIntervalSince(date)) < 5 }
+        }
+        
+        for item in pending {
+            if let ended = item.endedAt {
+                guard !alreadyLogged(item.startedAt) else { continue }
+                if let start = timerEffectiveStart, abs(start.timeIntervalSince(item.startedAt)) < 3 { continue }
+                let session = Session(
+                    rawText: item.rawText,
+                    estimatedMinutes: item.estimatedMinutes,
+                    startedAt: item.startedAt,
+                    tempoResponse: "Started outside the app (widget, Siri or Apple Watch).",
+                    linkedEventIdentifier: item.linkedEventIdentifier,
+                    isLinkedToCalendar: item.isLinkedToCalendar,
+                    isLinkedToReminders: item.isLinkedToReminders
+                )
+                session.endedAt = ended
+                session.actualMinutes = item.actualMinutes ?? max(1, Int(ended.timeIntervalSince(item.startedAt) / 60))
+                context.insert(session)
+            } else {
+                // Already ours? Nothing to do.
+                if let start = timerEffectiveStart, abs(start.timeIntervalSince(item.startedAt)) < 3 { continue }
+                // A newer block started elsewhere replaces whatever the timer was doing.
+                if timerIsRunning || timerAccumulatedSeconds > 0 {
+                    completeAndCalibrateTimer(context: context, endedAt: max(item.startedAt, timerStartedAt ?? item.startedAt))
+                }
+                adoptExternalSession(title: item.rawText, minutes: item.estimatedMinutes, startedAt: item.startedAt)
+            }
+        }
+        try? context.save()
+    }
+    
+    private func adoptExternalSession(title: String, minutes: Int, startedAt: Date) {
+        timerLinkedTaskTitle = title
+        timerTargetSeconds = max(60, minutes * 60)
+        timerAccumulatedSeconds = 0
+        timerStartedAt = startedAt
+        timerIsRunning = true
+        timerIsRestMode = false
+        timerIsKitchenUtility = false
+        timerZeroHandled = timerRemaining() <= 0
+        scheduleTimerEndNotification()
+        persistRuntimeState()
+        publishFocus()
+        mascotVoiceMessage = "Picked up \"\(title)\" from your widget or watch. \(TempoFormat.minutes(timerTargetSeconds)) on the clock."
+    }
+    
+    /// Old builds could leave a Session open forever (alarm chain). Close those so the logbook stays honest.
+    public func closeOrphanedSessions(context: ModelContext) {
+        let open = ((try? context.fetch(FetchDescriptor<Session>())) ?? []).filter { $0.isRunning }
+        guard !open.isEmpty else { return }
+        for session in open {
+            let start = session.startedAt ?? Date()
+            session.endedAt = start.addingTimeInterval(TimeInterval((session.estimatedMinutes ?? 25) * 60))
+        }
+        try? context.save()
     }
     
     // MARK: - 4. World Clock & Overlap Timer Logic
@@ -1007,7 +1203,6 @@ public final class TimeOSStore {
             isRest: false,
             isKitchen: false
         )
-        activeService = .timers
         selectedMainTab = 0
         mascotVoiceMessage = "Started overlap sync timer for \(city.cityName) (\(countdownSeconds / 60)m)."
     }

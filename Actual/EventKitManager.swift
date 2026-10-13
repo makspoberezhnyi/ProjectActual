@@ -48,6 +48,20 @@ class EventKitManager {
     
     init() {}
     
+    /// Which stores Tempo can already read without asking, or nil when neither.
+    static var alreadyAuthorizedTarget: IntegrationTarget? {
+        let calendar = EKEventStore.authorizationStatus(for: .event) == .fullAccess
+            && (UserDefaults.standard.object(forKey: "integration_calendar_enabled") as? Bool ?? true)
+        let reminders = EKEventStore.authorizationStatus(for: .reminder) == .fullAccess
+            && (UserDefaults.standard.object(forKey: "integration_reminders_enabled") as? Bool ?? true)
+        switch (calendar, reminders) {
+        case (true, true): return .both
+        case (true, false): return .calendar
+        case (false, true): return .reminders
+        case (false, false): return nil
+        }
+    }
+    
     func requestAccessAndFetch() {
         Task {
             let items = await fetchItems(for: .both)

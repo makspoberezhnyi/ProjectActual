@@ -95,4 +95,12 @@ The market is currently fractured into **3 disconnected silos**—nobody unifies
 
 **Bug fixed:** routine reminders used to wipe every pending notification, alarms included, each time the app opened.
 
-**Next up:** a Live Activity for the bezel timer, and the commute alarm that adjusts itself from real prep time.
+**One timer everywhere.** The Focus timer is now the single source of truth. It shows on the widgets, the Live Activity and the Apple Watch. A block started from a widget, Siri or the watch turns into the Focus timer when you open the app, and a block finished there lands in the logbook. Stop and +5 min on the lock screen now move the real timer and its chime.
+
+**Focus chat understands more.** "What's on my calendar" lists your day, and today's events show up as one-tap chips. "Ride to my next meeting" finds the meeting. "I just did email 20m" logs the block instead of starting a timer. Timer titles drop the duration, so "Design review 30m" becomes "Design review".
+
+**Commute timers stop themselves.** Start a commute from a route answer and Tempo stops the clock when you arrive, so the real travel time gets logged.
+
+**Settings that do what they say.** Default Duration sets the first timer. Smart Routine Suggestions and Notifications switch routine reminders off, but alarms always ring. The watch switch really stops syncing. Switches with nothing behind them and the old Clean Chat History are gone. Reset All Data also clears the timer and stopwatch.
+
+**Next up:** the commute alarm that adjusts itself from real prep time, and a pause state for the Live Activity.

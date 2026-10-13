@@ -267,29 +267,6 @@ public extension View {
 }
 
 // MARK: - Staggered Typing Dots using PhaseAnimator (iOS 17+ swiftui-animation)
-public struct TypingDotsView: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    
-    public init() {}
-    
-    public var body: some View {
-        HStack(spacing: 5) {
-            ForEach(0..<3, id: \.self) { index in
-                PhaseAnimator([0.0, 1.0, 0.0]) { phase in
-                    Circle()
-                        .frame(width: 6, height: 6)
-                        .scaleEffect(reduceMotion ? 1.0 : (1.0 + phase * 0.35))
-                        .opacity(reduceMotion ? 0.8 : (0.4 + phase * 0.5))
-                } animation: { _ in
-                    .easeInOut(duration: 0.5).delay(Double(index) * 0.16)
-                }
-            }
-        }
-        .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.7) : Color.black.opacity(0.5))
-    }
-}
-
 // MARK: - Performance Formatters (swiftui-performance)
 public enum TempoFormatters {
     public static let dayHeaderFormatter: DateFormatter = {

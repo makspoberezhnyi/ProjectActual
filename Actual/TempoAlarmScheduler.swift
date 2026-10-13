@@ -152,6 +152,8 @@ final class TempoAlarmScheduler {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [Self.timerIdentifier])
         guard seconds > 0.5 else { return }
+        // "Notifications & Timer Alerts" in Settings. Alarms ignore it on purpose.
+        guard UserDefaults.standard.object(forKey: "integration_notifications_enabled") as? Bool ?? true else { return }
 
         let content = UNMutableNotificationContent()
         content.title = "Time's up · \(title)"

@@ -224,6 +224,9 @@ public final class LocationTravelManager: NSObject, @preconcurrency CLLocationMa
         
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.distanceFilter = 10.0
+        // Commutes happen with the phone in a pocket; UIBackgroundModes already lists location.
+        locationManager.allowsBackgroundLocationUpdates = true
+        locationManager.showsBackgroundLocationIndicator = true
         locationManager.startUpdatingLocation()
         
         let destLoc = CLLocation(latitude: latitude, longitude: longitude)
@@ -236,6 +239,7 @@ public final class LocationTravelManager: NSObject, @preconcurrency CLLocationMa
         self.remainingDistanceMeters = nil
         locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         locationManager.distanceFilter = kCLDistanceFilterNone
+        locationManager.allowsBackgroundLocationUpdates = false
         locationManager.stopUpdatingLocation()
     }
     

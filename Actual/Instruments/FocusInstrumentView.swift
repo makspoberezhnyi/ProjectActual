@@ -172,7 +172,8 @@ struct FocusInstrumentView: View {
         if store.timerIsRunning {
             return ["+5m", "+15m", "Done", "How am I doing?"]
         }
-        return ["Deep work 45m", "Email 15m", "Coffee 4m", "Ride to the airport", "How am I doing?"]
+        let fromCalendar = store.calendarSuggestions.prefix(3)
+        return Array(fromCalendar) + ["Deep work 45m", "Email 15m", "What's on my calendar?", "How am I doing?"]
     }
 
     private func submitInput() {
@@ -206,11 +207,7 @@ struct FocusInstrumentView: View {
                     Spacer(minLength: 4)
 
                     Button {
-                        store.startTimer(
-                            title: "Commute to \(travel.destinationTitle)",
-                            seconds: max(1, travel.travelDurationMinutes) * 60
-                        )
-                        store.latestTravelResult = nil
+                        store.startCommute(travel)
                     } label: {
                         Image(systemName: "play.fill")
                             .font(.system(size: 12, weight: .bold))
@@ -238,7 +235,7 @@ struct FocusInstrumentView: View {
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(Color.tempoInk.opacity(0.85))
                     .multilineTextAlignment(.center)
-                    .lineLimit(3)
+                    .lineLimit(4)
                     .fixedSize(horizontal: false, vertical: true)
                     .id(store.mascotVoiceMessage)
                     .transition(.opacity.combined(with: .scale(scale: 0.97)))

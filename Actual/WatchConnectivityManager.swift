@@ -90,6 +90,7 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     }
     
     private func sendPayloadToWatch(_ payload: [String: Any]) {
+        guard TempoFocusBridge.watchSyncEnabled else { return }
         guard let s = session, s.activationState == .activated else { return }
         
         // 1. Always transferUserInfo for guaranteed background delivery
@@ -256,8 +257,8 @@ extension WatchConnectivityManager: WCSessionDelegate {
         case "extendFocus":
             let extra = additionalMinutes ?? 5
             WidgetDataStore.shared.extendActiveSession(by: extra)
-            let snapshot = WidgetDataStore.shared.loadSnapshot()
-            let newEst = (snapshot.activeTaskEstimatedMinutes ?? 25) + extra
+            // extendActiveSession already added the minutes; adding them again doubled the extension.
+            let newEst = WidgetDataStore.shared.loadSnapshot().activeTaskEstimatedMinutes ?? 25
             LiveActivityManager.shared.updateLiveActivity(estimatedMinutes: newEst, statusMessage: "+\(extra)m Extended")
             WidgetCenter.shared.reloadAllTimelines()
             WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")
