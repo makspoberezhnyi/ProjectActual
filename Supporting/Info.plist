@@ -39,10 +39,6 @@
     <string>Tempo uses your location to calculate real-time driving and commute travel times for your destinations, meetings, and calendar events.</string>
     <key>LSApplicationQueriesSchemes</key>
     <array>
-        <string>fitnessapp</string>
-        <string>fitness</string>
-        <string>activity</string>
-        <string>x-apple-health</string>
         <string>maps</string>
     </array>
 </dict>
