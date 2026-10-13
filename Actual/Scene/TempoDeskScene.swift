@@ -7,6 +7,16 @@ enum DeskMode: Int, CaseIterable, Identifiable {
 
     var id: Int { rawValue }
 
+    var symbol: String {
+        switch self {
+        case .focus: return "timer"
+        case .alarms: return "alarm.fill"
+        case .stopwatch: return "stopwatch.fill"
+        case .world: return "globe.europe.africa.fill"
+        case .logbook: return "book.closed.fill"
+        }
+    }
+
     var title: String {
         switch self {
         case .focus: return "Focus"
@@ -18,25 +28,50 @@ enum DeskMode: Int, CaseIterable, Identifiable {
     }
 }
 
-/// One fixed room for the whole app. Wall, desk, clock, wall display and speech bubble never move;
-/// only the objects on the desk slide when you change mode, and the clock morphs into its new job.
+/// One fixed room for the whole app. Wall, desk, clock, wall display and speech bubble never move
+/// sideways; only the objects on the desk slide when you change mode, and the clock morphs into its new job.
+///
+/// `camera` is how high we look from: 0 is near eye level (big clock, thin steep desk, legs showing),
+/// 1 is a bit higher (smaller clock, more desk for cards). Each mode picks its own height, and the whole
+/// room glides between them, which gives the parallax when you switch.
 struct DeskLayout {
     let width: CGFloat
     let height: CGFloat
     let insets: UIEdgeInsets
+    var camera: CGFloat = 0
 
-    var clockSize: CGFloat { min(196, width * 0.5) }
-    var displayTop: CGFloat { insets.top + 4 }
-    var displayHeight: CGFloat { 96 }
-    var clockTop: CGFloat { displayTop + displayHeight }
-    var feetY: CGFloat { clockTop + clockSize * mascotFootFraction }
-    var horizonY: CGFloat { feetY - clockSize * 0.30 }
-    var bubbleCenterY: CGFloat { clockTop + clockSize + 32 }
+    private func lerp(_ low: CGFloat, _ high: CGFloat) -> CGFloat { low + (high - low) * camera }
+
+    var dialTop: CGFloat { insets.top + 2 }
+    var dialHeight: CGFloat { 44 }
+    var displayTop: CGFloat { dialTop + dialHeight }
+    var displayHeight: CGFloat { lerp(80, 84) }
+    var clockTop: CGFloat { displayTop + displayHeight + lerp(0, 4) }
     var composerHeight: CGFloat { 52 }
-    var bandHeight: CGFloat { 30 }
-    var frontEdgeY: CGFloat { height - insets.bottom - composerHeight - 18 - bandHeight }
-    var propsTop: CGFloat { bubbleCenterY + 40 }
-    var propsHeight: CGFloat { max(150, frontEdgeY - 6 - propsTop) }
+    var bandHeight: CGFloat { lerp(30, 24) }
+    /// From low down you see more of the legs under the desk.
+    var legsShown: CGFloat { lerp(34, 6) }
+    var frontEdgeY: CGFloat { height - insets.bottom - composerHeight - 14 - legsShown - bandHeight }
+
+    /// Largest the clock can be while the desk keys still fit (small iPhones get a smaller clock).
+    /// Measured at the lowest camera and kept fixed, so the clock glides instead of jumping when the
+    /// camera moves (it is scaled toward this size, never re-drawn at a new one).
+    var maxClockSize: CGFloat {
+        let roomForKeys: CGFloat = 180
+        let lowFrontEdge = height - insets.bottom - composerHeight - 14 - 34 - 30
+        let lowClockTop = displayTop + 80
+        let fit = (lowFrontEdge - 6 - lowClockTop - 76 - roomForKeys) / mascotFootFraction
+        return max(130, min(272, width * 0.66, fit))
+    }
+    var clockSize: CGFloat { lerp(maxClockSize, min(196, width * 0.5, maxClockSize)) }
+    var feetY: CGFloat { clockTop + clockSize * mascotFootFraction }
+    /// Low camera: the desk's back edge sits just behind the feet. Higher: more desk shows behind it.
+    var horizonY: CGFloat { feetY - clockSize * lerp(0.08, 0.30) }
+    var bubbleCenterY: CGFloat { feetY + 38 }
+    var propsTop: CGFloat { bubbleCenterY + 38 }
+    var propsHeight: CGFloat { max(120, frontEdgeY - 6 - propsTop) }
+    /// How far above the desk the grain lines meet: close means a steep, low-angle desk.
+    var vanishingLift: CGFloat { lerp(0.15, 1.6) }
 }
 
 struct TempoDeskScene: View {
@@ -48,6 +83,7 @@ struct TempoDeskScene: View {
     @State private var draft = ""
     @FocusState private var typing: Bool
     @State private var dialRemainder: CGFloat = 0
+    @State private var camera: CGFloat = 0
 
     private var mode: DeskMode { DeskMode(rawValue: store.selectedMainTab) ?? .focus }
     private var isRinging: Bool { store.activeRingingAlarmID != nil || store.timerAlertActive }
@@ -55,7 +91,7 @@ struct TempoDeskScene: View {
     var body: some View {
         ZStack {
             GeometryReader { geo in
-                let layout = DeskLayout(width: geo.size.width, height: geo.size.height, insets: DeviceInsets.current)
+                let layout = DeskLayout(width: geo.size.width, height: geo.size.height, insets: DeviceInsets.current, camera: camera)
                 room(layout)
             }
             .ignoresSafeArea()
@@ -63,6 +99,10 @@ struct TempoDeskScene: View {
             composerLayer
         }
         .onTapGesture { typing = false }
+        .onAppear { camera = cameraTarget }
+        .onChange(of: cameraTarget) { _, target in
+            withAnimation(.spring(duration: 0.7, bounce: 0.12)) { camera = target }
+        }
         .onChange(of: typing) { _, isTyping in
             if isTyping && draft.isEmpty { store.say(TempoVoice.typingPrompt) }
         }
@@ -84,7 +124,7 @@ struct TempoDeskScene: View {
                 .allowsHitTesting(showsWindow)
 
             // Desk top, from its back edge behind the clock to the front edge.
-            DeskSurface()
+            DeskSurface(vanishingLift: L.vanishingLift)
                 .frame(width: L.width, height: L.frontEdgeY - L.horizonY)
                 .offset(y: L.horizonY)
 
@@ -93,9 +133,11 @@ struct TempoDeskScene: View {
                 .frame(width: L.width, height: L.height - L.frontEdgeY)
                 .offset(y: L.frontEdgeY)
 
-            modeStrip(L)
-                .frame(width: L.width, height: L.bandHeight)
-                .offset(y: L.frontEdgeY)
+            ModeDial(selected: mode, select: select, step: step)
+                .frame(width: L.width, height: L.dialHeight)
+                .offset(y: L.dialTop)
+                .disabled(isRinging)
+                .opacity(isRinging ? 0.3 : 1)
 
             WallDisplay(mode: mode, store: store, isRinging: isRinging, calibrationScore: calibrationScore)
                 .frame(width: L.width, height: L.displayHeight)
@@ -123,8 +165,9 @@ struct TempoDeskScene: View {
                 .position(x: L.width / 2, y: L.bubbleCenterY)
 
             clock(L)
-                .frame(width: L.clockSize, height: L.clockSize)
-                .position(x: L.width / 2, y: L.clockTop + L.clockSize / 2)
+                .frame(width: L.maxClockSize, height: L.maxClockSize)
+                .scaleEffect(L.clockSize / L.maxClockSize, anchor: .bottom)
+                .position(x: L.width / 2, y: L.clockTop + L.clockSize - L.maxClockSize / 2)
         }
         .frame(width: L.width, height: L.height)
         .animation(.spring(duration: 0.4, bounce: 0.15), value: isRinging)
@@ -133,11 +176,23 @@ struct TempoDeskScene: View {
 
     private var showsWindow: Bool { mode == .world && !isRinging }
 
+    /// How high the camera sits for each mode. Low for the clock-first modes, higher where cards need desk.
+    private var cameraTarget: CGFloat {
+        if isRinging { return 0 }
+        switch mode {
+        case .focus: return 0
+        case .stopwatch: return 0.1
+        case .world: return 0.45
+        case .logbook: return 0.6
+        case .alarms: return 0.9
+        }
+    }
+
     // MARK: - Clock (the same clock in every mode, morphing between jobs)
 
     private func clock(_ L: DeskLayout) -> some View {
         TempoInteractiveMascotView(
-            size: L.clockSize,
+            size: L.maxClockSize,
             providesMinuteAngle: mode == .stopwatch || mode == .world,
             onLeftEarTap: leftEar,
             onRightEarTap: rightEar,
@@ -277,30 +332,10 @@ struct TempoDeskScene: View {
         TactileFeedback.selection()
     }
 
-    // MARK: - Mode names engraved on the desk's front edge
-
-    private func modeStrip(_ L: DeskLayout) -> some View {
-        HStack(spacing: 0) {
-            ForEach(DeskMode.allCases) { item in
-                Button {
-                    withAnimation(.spring(duration: 0.45, bounce: 0.1)) { store.selectedMainTab = item.rawValue }
-                    TactileFeedback.selection()
-                } label: {
-                    Text(item.title.uppercased())
-                        .font(.system(size: 10.5, weight: .heavy, design: .rounded))
-                        .tracking(1.1)
-                        .foregroundStyle(item == mode ? TempoMascotPalette.orange : DeskPalette.lip.opacity(0.9))
-                        .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 1)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(item == mode ? .isSelected : [])
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.top, 2)
-        .disabled(isRinging)
+    private func select(_ item: DeskMode) {
+        guard item != mode else { return }
+        withAnimation(.spring(duration: 0.45, bounce: 0.1)) { store.selectedMainTab = item.rawValue }
+        TactileFeedback.selection()
     }
 
     // MARK: - Drag the wall display up or down to set the timer
@@ -457,5 +492,72 @@ struct WallDisplay: View {
         case .logbook:
             return ("Estimates on target", "\(Int((calibrationScore * 100).rounded()))%")
         }
+    }
+}
+
+// MARK: - Mode dial: like the camera app's mode switcher, under the Dynamic Island
+
+/// Five icons on a strip that slides so the current mode sits in the middle, its name showing
+/// in an orange capsule. Tap an icon or swipe the strip.
+struct ModeDial: View {
+    let selected: DeskMode
+    let select: (DeskMode) -> Void
+    let step: (Int) -> Void
+
+    private let itemWidth: CGFloat = 58
+    private let selectedWidth: CGFloat = 132
+
+    var body: some View {
+        GeometryReader { geo in
+            let index = CGFloat(selected.rawValue)
+            let centerOffset = index * itemWidth + selectedWidth / 2
+            HStack(spacing: 0) {
+                ForEach(DeskMode.allCases) { item in
+                    let on = item == selected
+                    Button { select(item) } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: item.symbol)
+                                .font(.system(size: on ? 15 : 18, weight: .semibold))
+                            if on {
+                                Text(item.title)
+                                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                                    .fixedSize()
+                                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                            }
+                        }
+                        .foregroundStyle(on ? Color.white : Color.tempoMuted)
+                        .padding(.horizontal, on ? 14 : 0)
+                        .frame(height: 34)
+                        .background(Capsule().fill(on ? TempoMascotPalette.orange : Color.clear))
+                        .frame(width: on ? selectedWidth : itemWidth, height: geo.size.height)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(item.title)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            .offset(x: geo.size.width / 2 - centerOffset)
+            .animation(.spring(duration: 0.45, bounce: 0.15), value: selected)
+        }
+        // Icons fade out toward the screen edges, like the camera dial.
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: 0.18),
+                    .init(color: .black, location: 0.82),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 16).onEnded { value in
+                if value.translation.width < -30 { step(1) } else if value.translation.width > 30 { step(-1) }
+            }
+        )
     }
 }

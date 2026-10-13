@@ -42,6 +42,10 @@ let mascotFootFraction: CGFloat = 254.0 / 268.0
 
 /// Table top from its back edge down. Faint grain lines run toward a vanishing point for depth.
 struct DeskSurface: View {
+    /// How far above the back edge the grain lines meet, as a share of the desk's height.
+    /// Small values look like a low, steep view across the desk.
+    var vanishingLift: CGFloat = 1.6
+
     var body: some View {
         ZStack(alignment: .top) {
             LinearGradient(
@@ -49,7 +53,7 @@ struct DeskSurface: View {
                 startPoint: .top,
                 endPoint: UnitPoint(x: 0.5, y: 0.22)
             )
-            DeskGrain()
+            DeskGrain(vanishingLift: vanishingLift)
                 .stroke(DeskPalette.grain.opacity(0.45), lineWidth: 1)
             // Where the desk meets the wall: a crisp line and a soft contact shade.
             LinearGradient(colors: [Color.black.opacity(0.10), .clear], startPoint: .top, endPoint: .bottom)
@@ -64,9 +68,16 @@ struct DeskSurface: View {
 }
 
 private struct DeskGrain: Shape {
+    var vanishingLift: CGFloat
+
+    var animatableData: CGFloat {
+        get { vanishingLift }
+        set { vanishingLift = newValue }
+    }
+
     func path(in rect: CGRect) -> Path {
         var p = Path()
-        let vanishing = CGPoint(x: rect.midX, y: rect.minY - rect.height * 1.6)
+        let vanishing = CGPoint(x: rect.midX, y: rect.minY - rect.height * vanishingLift)
         let count = 14
         for i in 0...count {
             let x = rect.minX - rect.width * 0.4 + rect.width * 1.8 * CGFloat(i) / CGFloat(count)
