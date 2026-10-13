@@ -272,6 +272,12 @@ final class TempoAlarmScheduler {
         }
 
         // Any leftover notification rings from the fallback would double up with AlarmKit.
+        removeNotificationAlarms()
+    }
+
+    /// Kept out of the async function above: the callback API is what keeps the request objects
+    /// off the main actor, and Xcode only suggests the async version inside async code.
+    private func removeNotificationAlarms() {
         let alarmPrefix = Self.alarmPrefix
         UNUserNotificationCenter.current().getPendingNotificationRequests { pending in
             let stale = pending.map(\.identifier).filter { $0.hasPrefix(alarmPrefix) }

@@ -657,11 +657,17 @@ struct InsightsTabView: View {
             
             Spacer()
             
-            TempoWatchMascotView(
-                regime: calibrationScore >= 0.8 ? .calibBullseyeJump : .calibEstimating,
-                size: 116,
-                animated: true
-            )
+            // The clock itself stays on the desk behind this notebook, so no second clock here.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("ON TARGET")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundStyle(TempoMascotPalette.orange)
+                Text(calibrationScore >= 0.8 ? "Your guesses are sharp." : "Every logged block makes the next guess better.")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 20)

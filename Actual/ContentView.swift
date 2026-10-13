@@ -10,49 +10,10 @@ struct ContentView: View {
     @State private var calibrationScore: Double = 0.5
     @Bindable private var timeStore = TimeOSStore.shared
     
-    private var isRingingPresented: Binding<Bool> {
-        Binding(
-            get: { timeStore.activeRingingAlarmID != nil || timeStore.timerAlertActive },
-            set: { _ in }
-        )
-    }
-    
     var body: some View {
-        TabView(selection: $timeStore.selectedMainTab) {
-            FocusInstrumentView(sessions: sessions)
-                .tabItem {
-                    Label("Focus", systemImage: "timer")
-                }
-                .tag(0)
-            
-            AlarmsInstrumentView()
-                .tabItem {
-                    Label("Alarms", systemImage: "bell.badge.fill")
-                }
-                .tag(1)
-            
-            StopwatchInstrumentView()
-                .tabItem {
-                    Label("Stopwatch", systemImage: "stopwatch.fill")
-                }
-                .tag(2)
-            
-            WorldClockInstrumentView()
-                .tabItem {
-                    Label("World", systemImage: "globe")
-                }
-                .tag(3)
-            
-            LogbookInstrumentView(sessions: sessions, calibrationScore: calibrationScore)
-                .tabItem {
-                    Label("Logbook", systemImage: "chart.bar.doc.horizontal.fill")
-                }
-                .tag(4)
-        }
-        .tint(TempoMascotPalette.orange)
-        .fullScreenCover(isPresented: isRingingPresented) {
-            TempoRingingView()
-        }
+        // One room for everything: swipe the desk to change what the clock does.
+        TempoDeskScene(sessions: sessions, calibrationScore: calibrationScore)
+            .tint(TempoMascotPalette.orange)
         .task {
             timeStore.modelContext = context
             timeStore.closeOrphanedSessions(context: context)

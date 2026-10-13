@@ -367,6 +367,19 @@ public final class TimeOSStore {
     
     // --- 4. WORLD CLOCK & GMT STATE ---
     public var worldCities: [TempoWorldCity] = []
+    /// The city in the window on the wall (World mode). Nil means the first one.
+    public var focusedCityID: UUID? = nil
+    
+    public var focusedCity: TempoWorldCity? {
+        worldCities.first { $0.id == focusedCityID } ?? worldCities.first
+    }
+    
+    public func focusCity(_ city: TempoWorldCity) {
+        guard focusedCityID != city.id || focusedCityID == nil else { return }
+        focusedCityID = city.id
+        say(TempoVoice.cityLine(city))
+        TactileFeedback.selection()
+    }
     
     // --- 5. MASCOT STUDIO STATE ---
     public var selectedStudioRegime: TempoMascotRegime = .alarmRinging

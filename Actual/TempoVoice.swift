@@ -101,6 +101,21 @@ enum TempoVoice {
         ])
     }
 
+    static func cityLine(_ city: TempoWorldCity, now: Date = Date()) -> String {
+        let time = city.formattedLocalTime(at: now)
+        let hour = city.localComponents(at: now).hour ?? 12
+        switch hour {
+        case 22..<24, 0..<6:
+            return pick(["It's \(time) in \(city.cityName). They're probably asleep.", "\(city.cityName) is dark, \(time). Let them sleep."])
+        case 6..<9:
+            return pick(["Morning in \(city.cityName), \(time). Coffee time there.", "\(city.cityName) is just waking up, \(time)."])
+        case 9..<18:
+            return pick(["It's \(time) in \(city.cityName). Good time to reach them.", "\(city.cityName) is mid-day, \(time)."])
+        default:
+            return pick(["Evening in \(city.cityName), \(time). Lights are coming on.", "\(city.cityName) is winding down, \(time)."])
+        }
+    }
+
     static func worldTab(cities: [TempoWorldCity], now: Date = Date()) -> String {
         if let sleeping = cities.first(where: { $0.isMoodyNight(at: now) }) {
             return "It's \(sleeping.formattedLocalTime(at: now)) in \(sleeping.cityName). They're probably asleep."
