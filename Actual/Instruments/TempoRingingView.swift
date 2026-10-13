@@ -37,18 +37,22 @@ struct TempoRingingView: View {
                         TempoMascotLive(regime: store.activeRingingAlarmID != nil ? .alarmRinging : .timerComplete)
                     }
                 )
-                .frame(height: 270)
+                .standingOnDesk(mascotSize: 250, depth: 72)
+                .frame(height: 270, alignment: .bottom)
 
                 headline
                     .padding(.top, 8)
 
                 Spacer(minLength: 24)
 
-                if let alarm {
-                    alarmControls(alarm)
-                } else {
-                    timerControls
+                Group {
+                    if let alarm {
+                        alarmControls(alarm)
+                    } else {
+                        timerControls
+                    }
                 }
+                .deskFrontEdge(gap: 10)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 28)

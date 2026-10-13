@@ -89,7 +89,18 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         sendPayloadToWatch(payload)
     }
     
+    /// Quick tasks, alarms and world cities for the watch pages.
+    func syncLibrary(_ payload: [String: Any]) {
+        sendPayloadToWatch(payload)
+    }
+    
+    /// Everything the watch should know when it next wakes up. Payloads are merged into it,
+    /// because application context keeps only the latest dictionary and a stats update
+    /// used to wipe the running timer.
+    private var mergedContext: [String: Any] = [:]
+    
     private func sendPayloadToWatch(_ payload: [String: Any]) {
+        guard TempoFocusBridge.watchSyncEnabled else { return }
         guard let s = session, s.activationState == .activated else { return }
         
         // 1. Always transferUserInfo for guaranteed background delivery
@@ -102,9 +113,14 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
             }
         }
         
-        // 3. Application context for persistent sync
+        // 3. Application context for persistent sync (merged, minus one-shot actions)
+        mergedContext.merge(payload) { _, new in new }
+        mergedContext["action"] = nil
+        if payload["isRunning"] as? Bool == false {
+            for key in ["taskTitle", "estimatedMinutes", "startDate"] { mergedContext[key] = nil }
+        }
         do {
-            try s.updateApplicationContext(payload)
+            try s.updateApplicationContext(mergedContext)
             self.lastSyncedAt = Date()
         } catch {
             print("[WatchConnectivity] updateApplicationContext fallback error: \(error.localizedDescription)")
@@ -123,6 +139,90 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         lastProcessedActionKey = key
         lastProcessedActionDate = now
         return true
+    }
+}
+
+// MARK: - Commands from the watch (alarm edits, stopwatch runs)
+
+/// The watch sends each command three ways (message, user info, context) so it always arrives.
+/// `commandID` makes sure it only runs once.
+struct WatchCommand: Sendable {
+    var id: String
+    var action: String
+    var alarmID: String?
+    var enabled: Bool?
+    var hour: Int?
+    var minute: Int?
+    var label: String?
+    var seconds: Double?
+    var endDate: Double?
+
+    static let actions: Set<String> = ["alarmSetEnabled", "alarmSave", "alarmDelete", "logStopwatch"]
+
+    static func parse(_ dict: [String: Any]) -> WatchCommand? {
+        guard let action = dict["action"] as? String, actions.contains(action),
+              let id = dict["commandID"] as? String else { return nil }
+        return WatchCommand(
+            id: id,
+            action: action,
+            alarmID: dict["alarmID"] as? String,
+            enabled: dict["enabled"] as? Bool,
+            hour: dict["hour"] as? Int,
+            minute: dict["minute"] as? Int,
+            label: dict["label"] as? String ?? dict["taskTitle"] as? String,
+            seconds: dict["seconds"] as? Double,
+            endDate: dict["endDate"] as? Double
+        )
+    }
+}
+
+extension WatchConnectivityManager {
+    private static let handledKey = "tempo.watch.handledCommands"
+
+    func handleWatchCommand(_ command: WatchCommand?) {
+        guard let command else { return }
+        var handled = UserDefaults.standard.stringArray(forKey: Self.handledKey) ?? []
+        guard !handled.contains(command.id) else { return }
+        handled.append(command.id)
+        UserDefaults.standard.set(Array(handled.suffix(100)), forKey: Self.handledKey)
+
+        let store = TimeOSStore.shared
+        let uuid = command.alarmID.flatMap(UUID.init(uuidString:))
+        switch command.action {
+        case "alarmSetEnabled":
+            if let uuid, let enabled = command.enabled { store.setAlarmEnabled(uuid, enabled) }
+        case "alarmSave":
+            guard let hour = command.hour, let minute = command.minute else { return }
+            let label = (command.label ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if let uuid, var alarm = store.alarms.first(where: { $0.id == uuid }) {
+                alarm.hour = hour
+                alarm.minute = minute
+                if !label.isEmpty { alarm.label = label }
+                store.updateAlarm(alarm)
+            } else {
+                store.addAlarm(hour: hour, minute: minute, label: label, isBedtime: false, chainedTitle: nil, chainedMinutes: nil)
+            }
+        case "alarmDelete":
+            if let uuid { store.deleteAlarm(uuid) }
+        case "logStopwatch":
+            guard let seconds = command.seconds, seconds >= 1 else { return }
+            let end = command.endDate.map { Date(timeIntervalSince1970: $0) } ?? Date()
+            let minutes = max(1, Int((seconds / 60).rounded()))
+            // Same queue widgets and Siri use; the app turns it into a logbook entry even if it was
+            // only woken in the background, when the logbook itself isn't open yet.
+            var pending = WidgetDataStore.shared.loadPendingSessions()
+            pending.append(PendingSessionData(
+                rawText: (command.label?.isEmpty == false) ? command.label! : "Stopwatch run",
+                estimatedMinutes: minutes,
+                actualMinutes: minutes,
+                startedAt: end.addingTimeInterval(-seconds),
+                endedAt: end
+            ))
+            WidgetDataStore.shared.savePendingSessions(pending)
+            NotificationCenter.default.post(name: .syncWidgetSessionsNotification, object: nil)
+        default:
+            break
+        }
     }
 }
 
@@ -162,8 +262,10 @@ extension WatchConnectivityManager: WCSessionDelegate {
         let actual = message["actualMinutes"] as? Int
         let additional = message["additionalMinutes"] as? Int
         let startTimestamp = (message["startDate"] as? Double) ?? (message["timestamp"] as? Double)
+        let command = WatchCommand.parse(message)
         
         Task { @MainActor in
+            self.handleWatchCommand(command)
             self.handleIncomingAction(
                 action: action,
                 title: title,
@@ -182,8 +284,10 @@ extension WatchConnectivityManager: WCSessionDelegate {
         let actual = userInfo["actualMinutes"] as? Int
         let additional = userInfo["additionalMinutes"] as? Int
         let startTimestamp = (userInfo["startDate"] as? Double) ?? (userInfo["timestamp"] as? Double)
+        let command = WatchCommand.parse(userInfo)
         
         Task { @MainActor in
+            self.handleWatchCommand(command)
             self.handleIncomingAction(
                 action: action,
                 title: title,
@@ -202,8 +306,10 @@ extension WatchConnectivityManager: WCSessionDelegate {
         let actual = applicationContext["actualMinutes"] as? Int
         let additional = applicationContext["additionalMinutes"] as? Int
         let startTimestamp = (applicationContext["startDate"] as? Double) ?? (applicationContext["timestamp"] as? Double)
+        let command = WatchCommand.parse(applicationContext)
         
         Task { @MainActor in
+            self.handleWatchCommand(command)
             self.handleIncomingAction(
                 action: action,
                 title: title,
@@ -256,8 +362,8 @@ extension WatchConnectivityManager: WCSessionDelegate {
         case "extendFocus":
             let extra = additionalMinutes ?? 5
             WidgetDataStore.shared.extendActiveSession(by: extra)
-            let snapshot = WidgetDataStore.shared.loadSnapshot()
-            let newEst = (snapshot.activeTaskEstimatedMinutes ?? 25) + extra
+            // extendActiveSession already added the minutes; adding them again doubled the extension.
+            let newEst = WidgetDataStore.shared.loadSnapshot().activeTaskEstimatedMinutes ?? 25
             LiveActivityManager.shared.updateLiveActivity(estimatedMinutes: newEst, statusMessage: "+\(extra)m Extended")
             WidgetCenter.shared.reloadAllTimelines()
             WidgetCenter.shared.reloadTimelines(ofKind: "TempoFocusWidget")

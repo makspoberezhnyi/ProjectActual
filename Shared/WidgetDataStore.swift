@@ -34,6 +34,25 @@ public struct PendingSessionData: Codable {
     }
 }
 
+/// A task you run often, with how long it really takes you. Shown as one-tap starts on widgets and the watch.
+public struct QuickTaskData: Codable, Hashable, Sendable {
+    public var title: String
+    public var minutes: Int
+    public var runs: Int
+
+    public init(title: String, minutes: Int, runs: Int = 0) {
+        self.title = title
+        self.minutes = minutes
+        self.runs = runs
+    }
+
+    public static let starters: [QuickTaskData] = [
+        QuickTaskData(title: "Deep work", minutes: 45),
+        QuickTaskData(title: "Email", minutes: 15),
+        QuickTaskData(title: "Quick focus", minutes: 25)
+    ]
+}
+
 public struct WidgetSnapshotData: Codable {
     public var isRunning: Bool
     public var activeTaskTitle: String?
@@ -48,6 +67,17 @@ public struct WidgetSnapshotData: Codable {
     public var lastCompletedMinutes: Int?
     public var lastCompletedTitle: String?
     
+    // Optional so snapshots saved by older builds still decode.
+    public var quickTasks: [QuickTaskData]?
+    public var nextAlarmLabel: String?
+    public var nextAlarmDate: Date?
+    public var nextAlarmIsBedtime: Bool?
+    
+    public var effectiveQuickTasks: [QuickTaskData] {
+        let tasks = quickTasks ?? []
+        return tasks.isEmpty ? QuickTaskData.starters : tasks
+    }
+    
     public init(
         isRunning: Bool = false,
         activeTaskTitle: String? = nil,
@@ -58,7 +88,11 @@ public struct WidgetSnapshotData: Codable {
         calibrationScore: Double = 0.5,
         lastCompletedAt: Date? = nil,
         lastCompletedMinutes: Int? = nil,
-        lastCompletedTitle: String? = nil
+        lastCompletedTitle: String? = nil,
+        quickTasks: [QuickTaskData]? = nil,
+        nextAlarmLabel: String? = nil,
+        nextAlarmDate: Date? = nil,
+        nextAlarmIsBedtime: Bool? = nil
     ) {
         self.isRunning = isRunning
         self.activeTaskTitle = activeTaskTitle
@@ -70,6 +104,10 @@ public struct WidgetSnapshotData: Codable {
         self.lastCompletedAt = lastCompletedAt
         self.lastCompletedMinutes = lastCompletedMinutes
         self.lastCompletedTitle = lastCompletedTitle
+        self.quickTasks = quickTasks
+        self.nextAlarmLabel = nextAlarmLabel
+        self.nextAlarmDate = nextAlarmDate
+        self.nextAlarmIsBedtime = nextAlarmIsBedtime
     }
 }
 

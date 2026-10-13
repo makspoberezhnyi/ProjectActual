@@ -95,4 +95,26 @@ The market is currently fractured into **3 disconnected silos**—nobody unifies
 
 **Bug fixed:** routine reminders used to wipe every pending notification, alarms included, each time the app opened.
 
-**Next up:** a Live Activity for the bezel timer, and the commute alarm that adjusts itself from real prep time.
+**One timer everywhere.** The Focus timer is now the single source of truth. It shows on the widgets, the Live Activity and the Apple Watch. A block started from a widget, Siri or the watch turns into the Focus timer when you open the app, and a block finished there lands in the logbook. Stop and +5 min on the lock screen now move the real timer and its chime.
+
+**Focus chat understands more.** "What's on my calendar" lists your day, and today's events show up as one-tap chips. "Ride to my next meeting" finds the meeting. "I just did email 20m" logs the block instead of starting a timer. Timer titles drop the duration, so "Design review 30m" becomes "Design review".
+
+**Commute timers stop themselves.** Start a commute from a route answer and Tempo stops the clock when you arrive, so the real travel time gets logged.
+
+**Settings that do what they say.** Default Duration sets the first timer. Smart Routine Suggestions and Notifications switch routine reminders off, but alarms always ring. The watch switch really stops syncing. Switches with nothing behind them and the old Clean Chat History are gone. Reset All Data also clears the timer and stopwatch.
+
+**The mascot talks.** One chat bubble follows you across every tab. Tempo says hi when you open the app (it knows the time of day, what's running, your next meeting and how much you logged today), greets you on each tab, and answers every tap with a short line like "Let's go!" or "Let me check your day…". New lines appear after a quick typing beat, like a message. Tap the mascot itself and it chats back.
+
+**Your history drives the timer.** Type a task you've done before without a time, like "Design review", and Tempo sets the timer to your real average and tells you so. Guess too short and it warns you. Finish a block and it tells you your updated average. This is the original idea of the app, now front and center.
+
+**A clock on a desk.** The mascot no longer floats. It stands on two little feet on a zoomed-in oak desk (walnut in dark mode), with a contact shadow under it. Every squash, tilt and hop pivots on its feet, and held poses stand tall or slump instead of hovering. Only quick moves leave the desk: a hop when you tap it, rattling while it rings, a landing squash. When idle it fidgets now and then with a glance, a rock on its feet, a tiny hop or a double blink. On Focus, Stopwatch and the ringing screen the table's front edge and legs show under the controls; the Alarms tab ends its hero with the desk's front edge.
+
+**Outside the app, same desk clock.**
+- *Live Activity and Dynamic Island:* the clock sits in the island (on a tiny strip of desk when expanded). The countdown keeps counting up as honest overtime after zero, and +5 and Done work right there. The lock screen banner shows the clock standing on its desk next to the countdown.
+- *Widgets:* Focus shows the clock on the desk with your three most-run tasks and their real averages as one-tap starts, or the running block with +5 and Done. Next Alarm shows the twin-bell clock and when it rings. Stack the two and swipe between them. Lock screen widgets show the running timer or the next alarm.
+- *Notifications:* a new app icon (the clock standing on its desk) and a little picture of the mascot in the right mood on alarms, snoozes, timers and routine reminders, with text in the mascot's voice.
+- *Apple Watch:* rebuilt as four pages you scroll with the crown. Focus (your quick tasks, or the running block), Stopwatch (black and orange buttons like the ears), Alarms (next alarm and the list from your iPhone) and World (each city with a tiny clock showing its hour). Every page has the clock standing on a walnut desk.
+
+**Snooze, watch alarms, watch runs.** When you snooze (iOS 26), the lock screen and Dynamic Island show the sleepy twin-bell clock counting down to the next ring, with an "I'm up" button that ends the alarm. On the watch you can now add, edit, switch off and delete alarms (hour and minute on crown wheels), and the iPhone schedules the real alarm. A paused watch stopwatch has a Save button that sends the run to the iPhone logbook with its real start and end time.
+
+**Next up:** the commute alarm that adjusts itself from real prep time, and a pause state for the Live Activity.

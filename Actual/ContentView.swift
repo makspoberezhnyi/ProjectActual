@@ -10,10 +10,6 @@ struct ContentView: View {
     @State private var calibrationScore: Double = 0.5
     @Bindable private var timeStore = TimeOSStore.shared
     
-    var isRunning: Bool {
-        sessions.contains(where: { $0.isRunning }) || timeStore.timerIsRunning || timeStore.chronoIsRunning
-    }
-    
     private var isRingingPresented: Binding<Bool> {
         Binding(
             get: { timeStore.activeRingingAlarmID != nil || timeStore.timerAlertActive },
@@ -59,12 +55,26 @@ struct ContentView: View {
         }
         .task {
             timeStore.modelContext = context
+            timeStore.closeOrphanedSessions(context: context)
+            timeStore.reconcileExternalSessions(context: context)
+            await timeStore.refreshCalendarSuggestions()
+            timeStore.greet(force: true)
             await TempoAlarmScheduler.shared.requestPermissions()
             TempoAlarmScheduler.shared.sync(timeStore.alarms)
         }
+        // The watch and Live Activity buttons leave notes in the shared store; read them right away.
+        .onReceive(NotificationCenter.default.publisher(for: .syncWidgetSessionsNotification)) { _ in
+            timeStore.reconcileExternalSessions(context: context)
+        }
+        .onChange(of: timeStore.selectedMainTab) { _, tab in
+            timeStore.greetTab(tab)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sessionDestinationReached)) { _ in
+            timeStore.commuteArrived(context: context)
+        }
         .onOpenURL { url in
             if url.scheme == "tempo" || url.scheme == "actual" {
-                if url.host == "timers" || url.host == "timer" || url.host == "focus" || url.host == "log" || url.host == "chat" {
+                if url.host == "timers" || url.host == "timer" || url.host == "focus" || url.host == "log" || url.host == "chat" || url.host == "today" {
                     timeStore.selectedMainTab = 0
                 } else if url.host == "alarms" || url.host == "alarm" {
                     timeStore.selectedMainTab = 1
@@ -85,8 +95,13 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                NotificationCenter.default.post(name: .syncWidgetSessionsNotification, object: nil)
+                timeStore.reconcileExternalSessions(context: context)
                 updateCalibrationAndWidget()
+                Task {
+                    await timeStore.refreshCalendarSuggestions()
+                    // Says hi again only if you've been away a while.
+                    timeStore.greet()
+                }
                 // Roll the notification fallback forward so the next two days are always covered.
                 TempoAlarmScheduler.shared.sync(timeStore.alarms)
             } else if newPhase == .background {
@@ -95,70 +110,31 @@ struct ContentView: View {
         }
     }
     
+    /// Today's numbers and the calibration score come from the logbook only.
+    /// Whether something is running is published by TimeOSStore through TempoFocusBridge.
     private func updateCalibrationAndWidget() {
         let score = BiasEngine.calculateOverallCalibration(sessions: sessions)
         calibrationScore = score
         
-        let storeSnapshot = WidgetDataStore.shared.loadSnapshot()
-        
-        let todaySessions = sessions.filter {
-            guard let start = $0.startedAt else { return false }
-            return Calendar.current.isDateInToday(start)
+        let finishedToday = sessions.filter {
+            $0.isActualTask && $0.endedAt != nil && Calendar.current.isDateInToday($0.startedAt ?? .distantPast)
         }
-        let todayMins = todaySessions.compactMap { $0.actualMinutes ?? $0.estimatedMinutes }.reduce(0, +)
-        let doneCount = todaySessions.filter { $0.endedAt != nil }.count
-        let runningSession = sessions.last(where: { $0.isRunning })
-        let pending = WidgetDataStore.shared.loadPendingSessions()
-        let hasActivePending = pending.contains(where: { $0.endedAt == nil })
-        
-        let isActuallyRunning: Bool
-        if let running = runningSession {
-            if !storeSnapshot.isRunning && !hasActivePending {
-                // Stopped from Watch, Widget, or notification
-                running.endedAt = storeSnapshot.lastCompletedAt ?? Date()
-                running.actualMinutes = storeSnapshot.lastCompletedMinutes ?? running.estimatedMinutes ?? 25
-                try? context.save()
-                isActuallyRunning = false
-            } else if let pendingItem = pending.first(where: { abs($0.startedAt.timeIntervalSince(running.startedAt ?? Date.distantPast)) < 2.0 }) {
-                isActuallyRunning = pendingItem.endedAt == nil
-            } else {
-                isActuallyRunning = storeSnapshot.isRunning
-            }
-        } else {
-            isActuallyRunning = storeSnapshot.isRunning || hasActivePending
-        }
-        
-        let snapshot = WidgetSnapshotData(
-            isRunning: isActuallyRunning,
-            activeTaskTitle: isActuallyRunning ? (runningSession?.rawText ?? storeSnapshot.activeTaskTitle) : nil,
-            activeTaskEstimatedMinutes: isActuallyRunning ? (runningSession?.estimatedMinutes ?? storeSnapshot.activeTaskEstimatedMinutes) : nil,
-            activeTaskStartedAt: isActuallyRunning ? (runningSession?.startedAt ?? storeSnapshot.activeTaskStartedAt) : nil,
-            todayMinutes: max(todayMins, storeSnapshot.todayMinutes),
-            todayCompletedCount: max(doneCount, storeSnapshot.todayCompletedCount),
-            calibrationScore: score,
-            lastCompletedAt: storeSnapshot.lastCompletedAt,
-            lastCompletedMinutes: storeSnapshot.lastCompletedMinutes,
-            lastCompletedTitle: storeSnapshot.lastCompletedTitle
-        )
+        var snapshot = WidgetDataStore.shared.loadSnapshot()
+        snapshot.todayMinutes = finishedToday.reduce(0) { $0 + ($1.actualMinutes ?? $1.estimatedMinutes ?? 0) }
+        snapshot.todayCompletedCount = finishedToday.count
+        snapshot.calibrationScore = score
         WidgetDataStore.shared.saveSnapshot(snapshot)
         WidgetCenter.shared.reloadAllTimelines()
         
-        // Sync full updated state to Apple Watch
-        if isActuallyRunning {
-            WatchConnectivityManager.shared.syncActiveSession(
-                title: snapshot.activeTaskTitle ?? "Focus Session",
-                estimatedMinutes: snapshot.activeTaskEstimatedMinutes ?? 25,
-                startDate: snapshot.activeTaskStartedAt ?? Date()
+        if TempoFocusBridge.watchSyncEnabled {
+            WatchConnectivityManager.shared.syncDailySnapshot(
+                todayMinutes: snapshot.todayMinutes,
+                completedCount: snapshot.todayCompletedCount,
+                calibrationScore: score
             )
-        } else {
-            WatchConnectivityManager.shared.syncSessionStopped(actualMinutes: snapshot.lastCompletedMinutes ?? 0)
         }
-        WatchConnectivityManager.shared.syncDailySnapshot(
-            todayMinutes: snapshot.todayMinutes,
-            completedCount: snapshot.todayCompletedCount,
-            calibrationScore: score
-        )
         
         RoutineEngine.shared.scheduleRoutineNotifications(sessions: sessions)
+        timeStore.publishLibrary()
     }
 }

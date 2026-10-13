@@ -33,6 +33,16 @@ struct LogbookInstrumentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                MascotChatHeader(
+                    regime: calibrationScore >= 0.85 ? .calibBullseyeJump : .calibEstimating,
+                    text: store.mascotVoiceMessage,
+                    onTap: { store.greetTab(4) }
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 4)
+                .background(SharedBackground().opacity(0.96))
+            }
             .background(SharedBackground())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -36,14 +36,7 @@ public enum TempoUXCopy {
             "Ride to Airport?"
         ]
         
-        public static let identityHelpText = """
-        I'm **Tempo** — your ambient focus & time calibration companion.
-        
-        ⏱ **Focus Timers**: Type a task with a duration (e.g. *"Design mockups for 30m"*) to start a session.
-        📅 **Calendar & Tasks**: Type *"Check my schedule"* to see your upcoming events and to-dos.
-        🚗 **Travel Time**: Ask *"How long is the ride to the airport?"* for real-time traffic ETAs.
-        📊 **Calibration**: I learn your focus velocity over time to eliminate planning bias.
-        """
+        public static let identityHelpText = "I'm Tempo. Give me a task with a time, like \"Design 30m\", or ask \"What's on my calendar?\" or \"Ride to the airport\". I learn how long things really take you."
     }
     
     // MARK: - Session Configuration & Flow

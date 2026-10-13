@@ -375,6 +375,7 @@ final class MascotDynamics {
     private var sparkUntil: Double = 0
     private var lastTime: Double?
     private var primed = false
+    private var nextFidget: Double = 0
     
     // MARK: Impulses
     
@@ -432,6 +433,18 @@ final class MascotDynamics {
             shownMouth = goal.mouth
             fx = fxGoal
             nextBlink = t + 2.5
+            nextFidget = t + 6
+        }
+        
+        // Idle fidgets so it never looks frozen: a glance, a rock on its feet, a tiny hop, a double blink.
+        if idle && t > nextFidget && fx.ringWaves < 0.1 {
+            nextFidget = t + Double.random(in: 5...11)
+            switch Int.random(in: 0..<4) {
+            case 0: turnX.velocity += Bool.random() ? 70 : -70
+            case 1: tilt.velocity += Bool.random() ? 34 : -34
+            case 2: jump.velocity -= 80
+            default: blinkRequested = true
+            }
         }
         
         // Body physics — slightly under-damped so poses settle with life.
@@ -510,7 +523,24 @@ final class MascotDynamics {
         c.tiltDegrees = tilt.value
         c.scaleX = CGFloat(scaleX.value)
         c.scaleY = CGFloat(scaleY.value)
-        c.jumpY = CGFloat(jump.value)
+        // Standing on a table: held poses never hover. A raised pose stands tall on its feet,
+        // a lowered one slumps into the surface; only quick moves (taps, rings, hops) leave it.
+        let heldLift = Double(goal.jumpY)
+        let moving = jump.value - heldLift
+        if heldLift < 0 {
+            c.scaleY *= CGFloat(1 + (-heldLift) * 0.004)
+            c.scaleX *= CGFloat(1 - (-heldLift) * 0.002)
+        } else if heldLift > 0 {
+            c.scaleY *= CGFloat(1 - heldLift * 0.005)
+            c.scaleX *= CGFloat(1 + heldLift * 0.004)
+        }
+        if moving > 0 {
+            // Coming back down: squash on landing instead of sinking through the table.
+            let land = min(moving, 14)
+            c.scaleY *= CGFloat(1 - land * 0.006)
+            c.scaleX *= CGFloat(1 + land * 0.004)
+        }
+        c.jumpY = CGFloat(min(0, moving))
         c.leftEarClick = CGFloat(leftEar.value)
         c.rightEarClick = CGFloat(rightEar.value)
         c.minuteAngle = minute.value
@@ -530,8 +560,8 @@ final class MascotDynamics {
         c.jumpY += CGFloat(abs(sin(t * 13.0)) * -4.0 * amp)
         
         if idle {
+            // Breathes in place (scale only, pivoting on the feet) instead of bobbing in the air.
             let breath = sin(t * 2.2)
-            c.jumpY += CGFloat(breath * 2.0)
             c.scaleY *= CGFloat(1.0 + breath * 0.012)
             c.scaleX *= CGFloat(1.0 - breath * 0.008)
             c.turnX += CGFloat(sin(t * 0.7))
@@ -605,8 +635,26 @@ public struct TempoWatchMascotView: View {
             let target = config
             MascotStage(size: size, autoSweep: !hasLiveMinute, dynamics: dynamics, goal: { _ in target })
         } else {
-            MascotCanvasBody(config: config, size: size)
+            MascotCanvasBody(config: config.grounded(), size: size)
         }
+    }
+}
+
+extension TempoMascotConfig {
+    /// Static poses follow the same rule as animated ones: a clock on a table never hovers.
+    /// A raised pose stands tall on its feet, a lowered one slumps.
+    func grounded() -> TempoMascotConfig {
+        var c = self
+        let held = Double(jumpY)
+        if held < 0 {
+            c.scaleY *= CGFloat(1 + (-held) * 0.004)
+            c.scaleX *= CGFloat(1 - (-held) * 0.002)
+        } else if held > 0 {
+            c.scaleY *= CGFloat(1 - held * 0.005)
+            c.scaleX *= CGFloat(1 + held * 0.004)
+        }
+        c.jumpY = 0
+        return c
     }
 }
 
@@ -643,19 +691,32 @@ private struct MascotCanvasBody: View {
             
             let fx = config.effectiveFX
             
-            // 1. Ground Shadow
+            // 1. Contact Shadow: dark and tight on the surface, fades and shrinks as it hops
+            let footY = 238.0
             if config.showGroundShadow {
-                let shadowRatio = max(0.55, 1.0 - abs(config.jumpY) * 0.02)
-                let sRx = 58.0 * shadowRatio
-                let shadowRect = CGRect(x: 120.0 - sRx, y: 231.0, width: sRx * 2.0, height: 14.0)
-                ctx.fill(Path(ellipseIn: shadowRect), with: .color(TempoMascotPalette.groundShadow.opacity(0.65)))
+                let lift = max(0.0, -Double(config.jumpY))
+                let ratio = max(0.45, 1.0 - lift * 0.03)
+                let sRx = 74.0 * ratio
+                let shadowRect = CGRect(x: 120.0 - sRx, y: footY - 4.0, width: sRx * 2.0, height: 10.0)
+                ctx.fill(Path(ellipseIn: shadowRect), with: .color(Color.black.opacity(0.24 * ratio)))
             }
             
-            // 2. Main Body Transform (Jump, Tilt, Scale Squash/Stretch)
-            ctx.translateBy(x: 120.0, y: 128.0 + config.jumpY)
-            ctx.rotate(by: .degrees(config.tiltDegrees))
+            // 2. Main Body Transform: everything pivots on the feet, like a clock standing on a table
+            ctx.translateBy(x: 120.0, y: footY + config.jumpY)
+            ctx.rotate(by: .degrees(config.tiltDegrees * 0.6))
             ctx.scaleBy(x: config.scaleX, y: config.scaleY)
-            ctx.translateBy(x: -120.0, y: -128.0)
+            ctx.translateBy(x: -120.0, y: -footY)
+            
+            // Two little splayed feet, tucked behind the case
+            for (footX, splay) in [(84.0, 28.0), (156.0, -28.0)] {
+                var foot = ctx
+                foot.translateBy(x: footX, y: 212.0)
+                foot.rotate(by: .degrees(splay))
+                foot.fill(
+                    Path(roundedRect: CGRect(x: -7.5, y: 0, width: 15, height: 29), cornerRadius: 7.5),
+                    with: .color(TempoMascotPalette.carbon)
+                )
+            }
             
             // 3. Hardware Ears (Twin Bells vs. Chronograph Pushers)
             if config.twinBells {
@@ -827,10 +888,6 @@ private struct MascotCanvasBody: View {
     // MARK: - Sub-Drawers
     
     private func drawTwinBells(ctx: inout GraphicsContext) {
-        // Feet
-        strokeLine(&ctx, from: CGPoint(x: 88, y: 214), to: CGPoint(x: 74, y: 234), color: TempoMascotPalette.carbon, width: 10)
-        strokeLine(&ctx, from: CGPoint(x: 152, y: 214), to: CGPoint(x: 166, y: 234), color: TempoMascotPalette.carbon, width: 10)
-        
         // Left Bell (Black)
         ctx.drawLayer { lCtx in
             lCtx.translateBy(x: 58, y: 44)
