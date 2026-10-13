@@ -46,101 +46,92 @@ struct HistoryTabView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                SharedBackground()
+        ZStack {
+            SharedBackground()
+            
+            List {
+                // Summary Glass Card at Top
+                Section {
+                    summaryHeaderCard
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 12, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
                 
-                List {
-                    // Summary Glass Card at Top
+                if taskSessions.isEmpty {
                     Section {
-                        summaryHeaderCard
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 12, trailing: 16))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                    }
-                    
-                    if taskSessions.isEmpty {
-                        Section {
-                            VStack(spacing: 12) {
-                                Image(systemName: "hourglass.badge.plus")
-                                    .font(.system(size: 36))
-                                    .foregroundStyle(.primary.opacity(0.4))
-                                Text("No sessions yet")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(.primary.opacity(0.8))
-                                Text("Start a focus session in the Log tab to see your time calibration.")
-                                    .font(.system(size: 13, weight: .regular))
-                                    .foregroundStyle(.primary.opacity(0.5))
-                                    .multilineTextAlignment(.center)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 36)
-                            .padding(.horizontal, 20)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
-                            )
-                            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
+                        VStack(spacing: 10) {
+                            Image(systemName: "hourglass")
+                                .font(.system(size: 32, weight: .semibold))
+                                .foregroundStyle(TempoMascotPalette.orange)
+                            Text("No Sessions")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.7))
                         }
-                    } else {
-                        ForEach(groupedSessions, id: \.0) { (day, dailySessions) in
-                            Section {
-                                ForEach(dailySessions) { session in
-                                    sessionRow(session)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 14)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                                .fill(.ultraThinMaterial)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                                        .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
-                                                )
-                                        )
-                                        .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-                                        .listRowBackground(Color.clear)
-                                        .listRowSeparator(.hidden)
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            Button(role: .destructive) {
-                                                context.delete(session)
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
-                                            .tint(.red)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 36)
+                        .padding(.horizontal, 20)
+                        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+                        )
+                        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
+                } else {
+                    ForEach(groupedSessions, id: \.0) { (day, dailySessions) in
+                        Section {
+                            ForEach(dailySessions) { session in
+                                sessionRow(session)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 14)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                            .fill((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                                    .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
+                                            )
+                                    )
+                                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            context.delete(session)
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
                                         }
-                                }
-                            } header: {
-                                HStack {
-                                    Text(dayString(for: day))
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(.primary.opacity(0.7))
-                                    Spacer()
-                                    let dayTotal = dailySessions.reduce(0) { $0 + ($1.actualMinutes ?? $1.estimatedMinutes ?? 0) }
-                                    if dayTotal > 0 {
-                                        Text("\(dayTotal)m total")
-                                            .font(.system(size: 11, weight: .medium))
-                                            .monospacedDigit()
-                                            .foregroundStyle(.primary.opacity(0.45))
+                                        .tint(.red)
                                     }
-                                }
-                                .textCase(nil)
-                                .listRowInsets(EdgeInsets(top: 14, leading: 20, bottom: 6, trailing: 20))
                             }
+                        } header: {
+                            HStack {
+                                Text(dayString(for: day))
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.primary.opacity(0.7))
+                                Spacer()
+                                let dayTotal = dailySessions.reduce(0) { $0 + ($1.actualMinutes ?? $1.estimatedMinutes ?? 0) }
+                                if dayTotal > 0 {
+                                    Text("\(dayTotal)m total")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .monospacedDigit()
+                                        .foregroundStyle(.primary.opacity(0.45))
+                                }
+                            }
+                            .textCase(nil)
+                            .listRowInsets(EdgeInsets(top: 14, leading: 20, bottom: 6, trailing: 20))
                         }
                     }
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
             }
-            .navigationTitle("History")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .sheet(item: $sessionToEdit) { session in
-                EditSessionView(session: session)
-            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+        }
+        .sheet(item: $sessionToEdit) { session in
+            EditSessionView(session: session)
         }
     }
     
@@ -217,7 +208,7 @@ struct HistoryTabView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(18)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -609,100 +600,74 @@ struct InsightsTabView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                SharedBackground()
-                
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Segmented Control (Overview vs Patterns)
-                        Picker("Insights View", selection: $selectedSegment) {
-                            ForEach(InsightsSegment.allCases) { seg in
-                                Text(seg.rawValue).tag(seg)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.top, 8)
-                        
-                        if selectedSegment == .overview {
-                            // 1. Hero Gauge
-                            calibrationGaugeCard
-                            
-                            // 2. Metrics 3-Grid
-                            metricsGrid
-                            
-                            // 3. Focus Activity Chart
-                            focusTrendChartCard
-                        } else {
-                            // 4. Estimation Breakdown Donut
-                            biasDistributionChartCard
-                            
-                            // 5. Hourly Peak Distribution
-                            peakHoursChartCard
-                            
-                            // 6. Recent Logs
-                            recentLogsSection
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 36)
+        ZStack {
+            SharedBackground()
+            
+            ScrollView {
+                VStack(spacing: 16) {
+                    // 1. Hero Gauge + Mascot
+                    calibrationGaugeCard
+                    
+                    // 2. Metrics 3-Grid
+                    metricsGrid
+                    
+                    // 3. Focus Activity Chart
+                    focusTrendChartCard
+                    
+                    // 4. Estimation Breakdown Donut
+                    biasDistributionChartCard
                 }
-                .scrollIndicators(.hidden)
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 100)
             }
-            .navigationTitle("Insights")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
+            .scrollIndicators(.hidden)
         }
     }
     
     // MARK: - 1. Hero Calibration Gauge Card
     private var calibrationGaugeCard: some View {
-        VStack(spacing: 16) {
+        HStack(spacing: 24) {
             ZStack {
                 Circle()
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 12)
-                    .frame(width: 160, height: 160)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 10)
+                    .frame(width: 112, height: 112)
                 
                 Circle()
                     .trim(from: 0.0, to: CGFloat(min(1.0, max(0.02, calibrationScore))))
                     .stroke(
-                        AngularGradient(
-                            colors: [Theme.brandCoral, Theme.brandCyan, Theme.brandMint, Theme.brandMint],
-                            center: .center,
-                            startAngle: .degrees(-90),
-                            endAngle: .degrees(270)
-                        ),
-                        style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                        TempoMascotPalette.orange,
+                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
                     )
-                    .frame(width: 160, height: 160)
+                    .frame(width: 112, height: 112)
                     .rotationEffect(.degrees(-90))
                     .animation(AppMotion.smoothOut, value: calibrationScore)
                 
                 VStack(spacing: 2) {
                     Text("\(Int(calibrationScore * 100))%")
-                        .font(.system(size: 44, weight: .semibold))
-                        .monospacedDigit()
+                        .font(.system(size: 30, weight: .black, design: .monospaced))
                         .contentTransition(.numericText())
                         .foregroundStyle(.primary)
                     
-                    Text(calibrationScore >= 0.8 ? "Synchronized" : (calibrationScore >= 0.6 ? "Calibrating" : "Discrepancy"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(calibrationScore >= 0.8 ? Theme.brandMint : (calibrationScore >= 0.6 ? Theme.brandCyan : Theme.brandCoral))
+                    Image(systemName: calibrationScore >= 0.8 ? "checkmark.seal.fill" : "dial.medium.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(TempoMascotPalette.orange)
                 }
             }
-            .padding(.top, 4)
             
-            Text("Your perceived time vs actual reality. 100% represents zero estimation distortion.")
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(.primary.opacity(0.55))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
+            Spacer()
+            
+            TempoWatchMascotView(
+                regime: calibrationScore >= 0.8 ? .calibBullseyeJump : .calibEstimating,
+                size: 116,
+                animated: true
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(20)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(.horizontal, 24)
+        .padding(.vertical, 20)
+        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
         )
     }
@@ -711,7 +676,7 @@ struct InsightsTabView: View {
     private var metricsGrid: some View {
         HStack(spacing: 10) {
             metricTile(
-                title: "BIAS PATTERN",
+                title: "BIAS",
                 value: biasSummaryText,
                 icon: "arrow.left.and.right",
                 color: Theme.brandMint
@@ -719,43 +684,38 @@ struct InsightsTabView: View {
             
             let avgDelta = calculateAverageDelta()
             metricTile(
-                title: "AVG DRIFT",
+                title: "DRIFT",
                 value: avgDelta,
                 icon: "waveform.path.ecg",
-                color: Theme.brandIndigo
+                color: TempoMascotPalette.orange
             )
             
             let totalHours = completedSessions.reduce(0) { $0 + ($1.actualMinutes ?? 0) } / 60
             metricTile(
-                title: "TOTAL LOGGED",
+                title: "TOTAL",
                 value: "\(totalHours)h",
                 icon: "hourglass",
-                color: Theme.brandCyan
+                color: TempoMascotPalette.orange
             )
         }
     }
     
     @ViewBuilder
     private func metricTile(title: String, value: String, icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(color)
             
-            Text(title)
-                .font(.system(size: 9, weight: .semibold))
-                .tracking(0.4)
-                .foregroundStyle(.primary.opacity(0.45))
-            
             Text(value)
-                .font(.system(size: 15, weight: .semibold))
-                .monospacedDigit()
-                .foregroundStyle(.primary.opacity(0.9))
+                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                .foregroundStyle(.primary.opacity(0.95))
                 .lineLimit(1)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 10)
+        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -767,27 +727,17 @@ struct InsightsTabView: View {
         VStack(alignment: .leading, spacing: 14) {
             // Header & Timeframe Picker
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Focus Activity")
+                HStack(spacing: 6) {
+                    Image(systemName: "chart.bar.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.brandMint)
+                    Text("Activity")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.primary.opacity(0.95))
-                    
                     if let sel = selectedDayData {
-                        HStack(spacing: 6) {
-                            Text(TempoFormatters.chartDayFormatter.string(from: sel.date))
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Theme.brandMint)
-                            Text("•")
-                                .foregroundStyle(.secondary)
-                            Text("\(sel.minutes)m (\(sel.completedCount) tasks)")
-                                .font(.system(size: 12, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(.primary.opacity(0.7))
-                        }
-                    } else {
-                        Text("Daily average: \(dailyAverageMinutes)m")
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundStyle(.primary.opacity(0.5))
+                        Text("· \(sel.minutes)m")
+                            .font(.system(size: 13, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Theme.brandMint)
                     }
                 }
                 
@@ -869,19 +819,9 @@ struct InsightsTabView: View {
                 }
             }
             .frame(height: 170)
-            
-            // Interaction Hint
-            HStack {
-                Image(systemName: "hand.tap")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.primary.opacity(0.35))
-                Text("Touch and drag on the chart to inspect daily focus details.")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(.primary.opacity(0.45))
-            }
         }
         .padding(18)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -891,13 +831,13 @@ struct InsightsTabView: View {
     // MARK: - 4. Time Distortion & Bias Distribution (Swift Charts Donut)
     private var biasDistributionChartCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Estimation Accuracy Breakdown")
+            HStack(spacing: 6) {
+                Image(systemName: "chart.pie.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(TempoMascotPalette.orange)
+                Text("Accuracy")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.primary.opacity(0.95))
-                Text("How your planned estimates compare against elapsed reality.")
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(.primary.opacity(0.5))
             }
             
             HStack(spacing: 20) {
@@ -923,8 +863,8 @@ struct InsightsTabView: View {
                             .font(.system(size: 20, weight: .semibold))
                             .monospacedDigit()
                             .foregroundStyle(.primary)
-                        Text("Accurate")
-                            .font(.system(size: 9, weight: .medium))
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(Theme.brandMint)
                     }
                 }
@@ -937,24 +877,22 @@ struct InsightsTabView: View {
                                 .fill(slice.color)
                                 .frame(width: 8, height: 8)
                             
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(slice.category)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(.primary.opacity(0.9))
-                                Text("\(slice.count) tasks (\(Int(slice.percentage))%)")
-                                    .font(.system(size: 10, weight: .regular))
-                                    .monospacedDigit()
-                                    .foregroundStyle(.primary.opacity(0.5))
-                            }
+                            Text(slice.category)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.primary.opacity(0.9))
+                            
+                            Spacer()
+                            
+                            Text("\(Int(slice.percentage))%")
+                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.primary.opacity(0.6))
                         }
                     }
                 }
-                
-                Spacer()
             }
         }
         .padding(18)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -965,13 +903,13 @@ struct InsightsTabView: View {
     private var peakHoursChartCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Productivity Peak Hours")
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.brandCyan)
+                    Text("Peak Hours")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.primary.opacity(0.95))
-                    Text("Focus distribution across hours of the day.")
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(.primary.opacity(0.5))
                 }
                 
                 Spacer()
@@ -1019,7 +957,7 @@ struct InsightsTabView: View {
             .frame(height: 90)
         }
         .padding(18)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -1028,16 +966,14 @@ struct InsightsTabView: View {
     
     private var biasSummaryText: String {
         let ratios = completedSessions.compactMap { $0.biasRatio }
-        guard !ratios.isEmpty else { return "Neutral" }
+        guard !ratios.isEmpty else { return "1.0x" }
         let avg = ratios.reduce(0.0, +) / Double(ratios.count)
-        if avg > 1.2 { return "Over-est" }
-        if avg < 0.8 { return "Under-est" }
-        return "Calibrated"
+        return String(format: "%.1fx", avg)
     }
     
     private func calculateAverageDelta() -> String {
         let diffs = completedSessions.compactMap { s -> Int? in
-            guard let est = s.estimatedMinutes, let act = s.actualMinutes else { return nil }
+            guard let est = s.estimatedMinutes, let act = s.actualMinutes, act <= 720 else { return nil }
             return abs(act - est)
         }
         guard !diffs.isEmpty else { return "±0m" }
@@ -1048,28 +984,7 @@ struct InsightsTabView: View {
     // MARK: - 6. Recent Logs Section
     private var recentLogsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Calibration Logs")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.primary.opacity(0.9))
-                .padding(.leading, 2)
-            
-            if completedSessions.isEmpty {
-                VStack(spacing: 8) {
-                    Text("No calibration history")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.primary.opacity(0.6))
-                    Text("Complete a session with an estimate and actual duration.")
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(.primary.opacity(0.4))
-                }
-                .frame(maxWidth: .infinity)
-                .padding(24)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
-                )
-            } else {
+            if !completedSessions.isEmpty {
                 ForEach(Array(completedSessions.reversed().prefix(6))) { session in
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
@@ -1079,9 +994,7 @@ struct InsightsTabView: View {
                                 .lineLimit(1)
                             
                             HStack(spacing: 8) {
-                                Text("Est: \(session.estimatedMinutes ?? 0)m")
-                                Text("•")
-                                Text("Act: \(session.actualMinutes ?? 0)m")
+                                Text("\(session.estimatedMinutes ?? 0)m → \(session.actualMinutes ?? 0)m")
                             }
                             .font(.system(size: 11, weight: .regular))
                             .monospacedDigit()
@@ -1105,7 +1018,7 @@ struct InsightsTabView: View {
                         )
                     }
                     .padding(13)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -1138,7 +1051,7 @@ struct ProfileTabView: View {
     @State private var showImportResultAlert = false
     
     var completedSessions: [Session] {
-        sessions.filter { $0.isActualTask && $0.actualMinutes != nil }
+        sessions.filter { $0.isActualTask && ($0.actualMinutes ?? 0) > 0 && ($0.actualMinutes ?? 0) <= 720 }
     }
     
     var totalHours: Double {
@@ -1148,67 +1061,62 @@ struct ProfileTabView: View {
     
     var masteryTitle: (tier: String, description: String, icon: String, tint: Color) {
         if calibrationScore >= 0.85 {
-            return ("Synchronized Master", "Time perception matches reality within ±10%", "sparkles", Theme.brandMint)
+            return ("Synchronized", "±10%", "sparkles", Theme.brandMint)
         } else if calibrationScore >= 0.70 {
-            return ("Intuitive Focus", "Strong consistency with minor estimation variance", "gauge.with.dots.needle.bottom.50percent", Theme.brandCyan)
+            return ("Intuitive", "±20%", "gauge.with.dots.needle.bottom.50percent", Theme.brandCyan)
         } else if calibrationScore >= 0.50 {
-            return ("Adaptive Explorer", "Actively calibrating cognitive time distortion", "chart.line.uptrend.xyaxis", Theme.brandIndigo)
+            return ("Explorer", "±35%", "chart.line.uptrend.xyaxis", Theme.brandIndigo)
         } else {
-            return ("Calibrating", "Gathering focus patterns to reduce planning fallacy", "clock.arrow.circlepath", Theme.brandSlate)
+            return ("Calibrating", "New", "clock.arrow.circlepath", Theme.brandSlate)
         }
     }
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                SharedBackground()
-                
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // 1. Hero Card
-                        heroMasteryCard
-                            .padding(.top, 8)
-                        
-                        // 2. Preferences
-                        preferencesCard
-                        
-                        // 3. Discovered Habits & Routines
-                        habitsCard
-                        
-                        // 4. Connected Integrations Submenu Card
-                        integrationsCard
-                        
-                        // 5. Data Management & Backups Card
-                        dataTransferCard
-                        
-                        // 6. About Card
-                        aboutCard
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 36)
+        ZStack {
+            SharedBackground()
+            
+            ScrollView {
+                VStack(spacing: 20) {
+                    // 1. Hero Card
+                    heroMasteryCard
+                        .padding(.top, 8)
+                    
+                    // 2. Preferences
+                    preferencesCard
+                    
+                    // 3. Discovered Habits & Routines
+                    habitsCard
+                    
+                    // 4. Connected Integrations Submenu Card
+                    integrationsCard
+                    
+                    // 5. Data Management & Backups Card
+                    dataTransferCard
+                    
+                    // 6. About Card
+                    aboutCard
                 }
-                .scrollIndicators(.hidden)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 100)
             }
-            .navigationTitle("Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showShareSheet) {
-                if let exportURL {
-                    ActivityViewController(activityItems: [exportURL])
-                }
+            .scrollIndicators(.hidden)
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let exportURL {
+                ActivityViewController(activityItems: [exportURL])
             }
-            .fileImporter(
-                isPresented: $showFileImporter,
-                allowedContentTypes: [.json],
-                allowsMultipleSelection: false
-            ) { result in
-                handleImport(result: result)
-            }
-            .alert(importAlertTitle, isPresented: $showImportResultAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(importAlertMessage)
-            }
+        }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false
+        ) { result in
+            handleImport(result: result)
+        }
+        .alert(importAlertTitle, isPresented: $showImportResultAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(importAlertMessage)
         }
     }
     
@@ -1268,7 +1176,7 @@ struct ProfileTabView: View {
             }
         }
         .padding(18)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -1333,7 +1241,7 @@ struct ProfileTabView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -1370,7 +1278,7 @@ struct ProfileTabView: View {
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -1407,7 +1315,7 @@ struct ProfileTabView: View {
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -1456,7 +1364,7 @@ struct ProfileTabView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -1585,7 +1493,7 @@ struct ProfileTabView: View {
                     Text("Are you sure you want to reset everything? All tracked sessions, calibration scores, routine patterns, and widgets will be permanently erased. This action cannot be undone.")
                 }
             }
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -1628,7 +1536,7 @@ struct ProfileTabView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -1855,7 +1763,7 @@ struct IntegrationsView: View {
                                 isOn: $watchHealthSyncEnabled
                             )
                         }
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 20, style: .continuous)
                                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)
@@ -1932,7 +1840,7 @@ struct IntegrationsView: View {
                                 }
                             }
                         }
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .background((colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 20, style: .continuous)
                                 .strokeBorder(GlassStyles.borderGradient(colorScheme: colorScheme), lineWidth: 1.0)

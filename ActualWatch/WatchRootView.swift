@@ -382,37 +382,19 @@ struct FocusRingMetricView: View {
     let isLuminanceReduced: Bool
     
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.white.opacity(isLuminanceReduced ? 0.08 : 0.12), lineWidth: 4.5)
-                .frame(width: 84, height: 84)
+        HStack(spacing: 8) {
+            TempoWatchMascotView(
+                regime: isOvertime ? .calibOvertime : .timerActiveCountdown,
+                size: 56,
+                animated: !isLuminanceReduced,
+                overrideBezelProgress: isOvertime ? 1.0 : max(0.05, 1.0 - progress)
+            )
             
-            if isLuminanceReduced {
-                Circle()
-                    .trim(from: 0, to: CGFloat(progress))
-                    .stroke(Color.cyan.opacity(0.75), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 84, height: 84)
-            } else {
-                Circle()
-                    .trim(from: 0, to: CGFloat(progress))
-                    .stroke(
-                        LinearGradient(
-                            colors: isOvertime ? [.orange, .red] : [.cyan, Color(red: 0.2, green: 0.5, blue: 1.0)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        style: StrokeStyle(lineWidth: 4.5, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 84, height: 84)
-            }
-            
-            VStack(spacing: 1) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(formatTime(displaySeconds))
-                    .font(.system(size: 19, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundColor(isLuminanceReduced ? Color.cyan.opacity(0.9) : (isOvertime ? .orange : .white))
+                    .foregroundColor(isLuminanceReduced ? TempoMascotPalette.orange.opacity(0.9) : (isOvertime ? .orange : .white))
                 
                 Text(isOvertime ? "Overtime" : "Remaining")
                     .font(.system(size: 8, weight: .bold))

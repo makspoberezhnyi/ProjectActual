@@ -107,10 +107,11 @@ struct TempoLiveActivity: Widget {
                 // Expanded Island Leading
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
-                        Image(systemName: isComplete ? "checkmark.circle.fill" : "timer")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(isComplete ? WidgetTheme.success : WidgetTheme.blue)
-                            .symbolEffect(.bounce, value: isComplete)
+                        TempoWatchMascotView(
+                            regime: isComplete ? .calibBullseyeJump : .timerActiveCountdown,
+                            size: 28,
+                            animated: false
+                        )
                         
                         Text(context.attributes.taskTitle)
                             .font(.system(size: 14, weight: .semibold))

@@ -112,8 +112,9 @@ final class Session {
     }
     
     var biasRatio: Double? {
-        guard let actual = actualMinutes, let est = estimatedMinutes, est > 0 else { return nil }
-        return Double(actual) / Double(est)
+        guard let actual = actualMinutes, let est = estimatedMinutes, est > 0, actual > 0, actual <= 720 else { return nil }
+        let r = Double(actual) / Double(est)
+        return r <= 6.0 ? r : nil
     }
 }
 
@@ -121,11 +122,11 @@ final class Session {
 final class BiasEngine {
     static func calculateOverallCalibration(sessions: [Session]) -> Double {
         let closed = sessions.filter { $0.biasRatio != nil }
-        guard !closed.isEmpty else { return 0.5 } // Neutral start
+        guard !closed.isEmpty else { return 0.78 }
         
         let totalDeviation = closed.reduce(0.0) { sum, session in
             let ratio = session.biasRatio!
-            return sum + abs(1.0 - ratio)
+            return sum + min(1.0, abs(1.0 - ratio))
         }
         
         let avgDeviation = totalDeviation / Double(closed.count)

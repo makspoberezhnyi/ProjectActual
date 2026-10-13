@@ -4,20 +4,20 @@ public enum Theme {
     public static let text = Color.primary
     public static let textDim = Color.secondary
     
-    public static let auraCalibrated = Color(hex: 0x2A3E59)
-    public static let auraUncalibrated = Color(hex: 0x8C3A3A)
-    public static let auraLearning = Color(hex: 0x4A4A4A)
+    public static let auraCalibrated = Color(red: 0.118, green: 0.620, blue: 0.416)
+    public static let auraUncalibrated = TempoMascotPalette.orange
+    public static let auraLearning = TempoMascotPalette.moodyDuskBlue
     
-    // Unified Apple Design Palette
-    public static let brandPrimary = Color(red: 0.05, green: 0.52, blue: 1.0)
-    public static let brandCyan = Color(red: 0.0, green: 0.72, blue: 0.92)
-    public static let brandEmerald = Color(red: 0.18, green: 0.80, blue: 0.55)
-    public static let brandIndigo = Color(red: 0.40, green: 0.45, blue: 0.85)
-    public static let brandSlate = Color(red: 0.55, green: 0.60, blue: 0.70)
-    public static let brandCoral = Color(red: 0.95, green: 0.35, blue: 0.40)
-    public static let brandSuccess = Color(red: 0.18, green: 0.80, blue: 0.55)
-    public static let brandMint = Color(red: 0.05, green: 0.52, blue: 1.0)
-    public static let brandBackground = Color(UIColor.systemGroupedBackground)
+    // Unified Tactile Horological Palette (Braun / Dieter Rams + Moody Midnight Blue)
+    public static let brandPrimary = TempoMascotPalette.orange              // #FF4F00 International Orange
+    public static let brandCyan = TempoMascotPalette.moodyDuskBlue           // #283862 Moody Dusk Blue
+    public static let brandEmerald = Color(red: 0.118, green: 0.620, blue: 0.416) // #1E9E6A Calibrated Emerald
+    public static let brandIndigo = TempoMascotPalette.moodyMidnightBlue     // #1E2B4F Moody Midnight Blue
+    public static let brandSlate = Color(red: 0.45, green: 0.47, blue: 0.52)
+    public static let brandCoral = TempoMascotPalette.orange                 // #FF4F00 International Orange
+    public static let brandSuccess = Color(red: 0.118, green: 0.620, blue: 0.416)
+    public static let brandMint = Color(red: 0.118, green: 0.620, blue: 0.416)
+    public static let brandBackground = TempoMascotPalette.alabaster         // #F6F4F0 Warm Alabaster
 }
 
 extension Color {
@@ -32,60 +32,22 @@ extension Color {
     }
 }
 
-public struct LiquidEnvironment: View {
-    var calibrationScore: Double
-
-    public init(calibrationScore: Double) {
-        self.calibrationScore = calibrationScore
-    }
-
-    public var body: some View {
-        TimelineView(.animation) { timeline in
-            let now = timeline.date.timeIntervalSinceReferenceDate
-            let speed = 1.0 - (calibrationScore * 0.7)
-            let angle1 = now * 0.02 * speed
-            let angle2 = now * 0.03 * speed
-            
-            let baseColor = calibrationScore > 0.8 ? Theme.auraCalibrated : 
-                            (calibrationScore < 0.4 ? Theme.auraUncalibrated : Theme.auraLearning)
-
-            ZStack {
-                Color.black.ignoresSafeArea()
-                
-                AngularGradient(
-                    colors: [baseColor, .clear, baseColor.opacity(0.5), .clear, baseColor],
-                    center: .center,
-                    angle: .degrees(angle1 * 30)
-                )
-                .opacity(0.6)
-                .blur(radius: 60)
-                
-                RadialGradient(
-                    colors: [baseColor.opacity(0.8), .clear],
-                    center: UnitPoint(x: 0.5 + sin(angle2)*0.3, y: 0.5 + cos(angle2)*0.3),
-                    startRadius: 0,
-                    endRadius: 400
-                )
-                .blur(radius: 40)
-            }
-            .ignoresSafeArea()
-            .animation(.easeInOut(duration: 2.0), value: calibrationScore)
-        }
-    }
-}
-
 public struct GlassCard<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ViewBuilder var content: Content
 
     public var body: some View {
         content
             .padding(16)
             .background {
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(colorScheme == .dark ? TempoMascotPalette.moodyMidnightBlue : Color.white)
                     .overlay {
-                        RoundedRectangle(cornerRadius: 24)
-                            .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .strokeBorder(
+                                colorScheme == .dark ? Color.white.opacity(0.14) : TempoMascotPalette.carbon.opacity(0.08),
+                                lineWidth: 1
+                            )
                     }
             }
     }

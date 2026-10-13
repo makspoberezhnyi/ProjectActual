@@ -8,52 +8,57 @@ struct ContentView: View {
     @Query(sort: \Session.createdAt, order: .forward) private var sessions: [Session]
     
     @State private var calibrationScore: Double = 0.5
-    @State private var selectedTab: Int = 0
+    @Bindable private var timeStore = TimeOSStore.shared
     
     var isRunning: Bool {
-        sessions.contains(where: { $0.isRunning })
+        sessions.contains(where: { $0.isRunning }) || timeStore.timerIsRunning || timeStore.chronoIsRunning
     }
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            LogTabView(sessions: sessions, calibrationScore: $calibrationScore)
+        TabView(selection: $timeStore.selectedMainTab) {
+            FocusInstrumentView(sessions: sessions)
                 .tabItem {
-                    Label("Log", systemImage: "message.fill")
+                    Label("Focus", systemImage: "timer")
                 }
                 .tag(0)
             
-            HistoryTabView(sessions: sessions)
+            AlarmsInstrumentView()
                 .tabItem {
-                    Label("History", systemImage: "clock.fill")
+                    Label("Alarms", systemImage: "bell.badge.fill")
                 }
                 .tag(1)
             
-            InsightsTabView(sessions: sessions, calibrationScore: calibrationScore)
+            StopwatchInstrumentView()
                 .tabItem {
-                    Label("Insights", systemImage: "chart.pie.fill")
+                    Label("Stopwatch", systemImage: "stopwatch.fill")
                 }
                 .tag(2)
             
-            ProfileTabView(sessions: sessions, calibrationScore: calibrationScore)
+            WorldClockInstrumentView()
                 .tabItem {
-                    Label("Profile", systemImage: "person.crop.circle.fill")
+                    Label("World", systemImage: "globe")
                 }
                 .tag(3)
+            
+            LogbookInstrumentView(sessions: sessions, calibrationScore: calibrationScore)
+                .tabItem {
+                    Label("Logbook", systemImage: "chart.bar.doc.horizontal.fill")
+                }
+                .tag(4)
         }
-        .tint(.primary)
+        .tint(TempoMascotPalette.orange)
         .onOpenURL { url in
             if url.scheme == "tempo" || url.scheme == "actual" {
-                if url.host == "calendar" || url.host == "schedule" || url.host == "reminders" {
-                    selectedTab = 0
-                    NotificationCenter.default.post(name: .checkScheduleNotification, object: nil)
-                } else if url.host == "log" || url.host == "chat" {
-                    selectedTab = 0
-                } else if url.host == "history" {
-                    selectedTab = 1
-                } else if url.host == "insights" {
-                    selectedTab = 2
-                } else if url.host == "profile" {
-                    selectedTab = 3
+                if url.host == "timers" || url.host == "timer" || url.host == "focus" || url.host == "log" || url.host == "chat" {
+                    timeStore.selectedMainTab = 0
+                } else if url.host == "alarms" || url.host == "alarm" {
+                    timeStore.selectedMainTab = 1
+                } else if url.host == "chrono" || url.host == "stopwatch" {
+                    timeStore.selectedMainTab = 2
+                } else if url.host == "world" {
+                    timeStore.selectedMainTab = 3
+                } else if url.host == "history" || url.host == "insights" || url.host == "profile" || url.host == "logbook" {
+                    timeStore.selectedMainTab = 4
                 }
             }
         }

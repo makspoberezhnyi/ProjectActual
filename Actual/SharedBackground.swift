@@ -2,216 +2,114 @@
 //  SharedBackground.swift
 //  Actual
 //
-//  Metal Shader UI System:
-//  - Metal-powered Mesh Gradient & Grain Canvas
-//  - Moody Frosted Glass Card & Tactile Chip Modifiers (matching Shader Studio style)
+//  Adaptive Tactile Horological Surface System:
+//  - Light Mode: Warm Alabaster (#F6F4F0) background, Crisp White (#FFFFFF) cards, Carbon (#1A1A1A) ink
+//  - Dark Mode: Deep Midnight (#11182B) background, Moody Midnight Blue (#1E2B4F) cards, Alabaster (#F6F4F0) ink
 //
 
 import SwiftUI
 
-// MARK: - Metal-Powered Mesh Gradient Background
-struct SharedBackground: View {
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.accessibilityReduceMotion) var reduceMotion
-    
-    var body: some View {
-        ZStack {
-            // Base background
-            if colorScheme == .dark {
-                Color(red: 0.03, green: 0.04, blue: 0.06).ignoresSafeArea()
-            } else {
-                Color(red: 0.86, green: 0.89, blue: 0.94).ignoresSafeArea()
-            }
-            
-            // Metal Shader Mesh Gradient Canvas
-            if !reduceMotion {
-                let c0 = color0
-                let c1 = color1
-                let c2 = color2
-                let c3 = color3
-                let c4 = color4
-                let c5 = color5
-                
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-                    let time = Float(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1000.0))
-                    
-                    Rectangle()
-                        .fill(colorScheme == .dark ? Color.black : Color(red: 0.84, green: 0.87, blue: 0.92))
-                        .visualEffect { content, proxy in
-                            content.colorEffect(
-                                ShaderLibrary.meshGradientShader(
-                                    .float2(proxy.size),
-                                    .float(time * 0.35),
-                                    .float(0.85), // distortion
-                                    .float(0.60), // swirl
-                                    .float(0.30), // grainMixer
-                                    .float(0.18), // grainOverlay
-                                    .color(c0),
-                                    .color(c1),
-                                    .color(c2),
-                                    .color(c3),
-                                    .color(c4),
-                                    .color(c5)
-                                )
-                            )
-                        }
-                        .opacity(colorScheme == .dark ? 0.95 : 0.90)
-                        .ignoresSafeArea()
-                }
-            } else {
-                // Static elegant gradient when Reduce Motion is enabled
-                LinearGradient(
-                    colors: colorScheme == .dark
-                        ? [Color(red: 0.05, green: 0.08, blue: 0.14), Color(red: 0.08, green: 0.06, blue: 0.16)]
-                        : [Color(red: 0.82, green: 0.87, blue: 0.94), Color(red: 0.76, green: 0.80, blue: 0.92)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-            }
-        }
+public enum TempoSurface {
+    public static func background(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.067, green: 0.094, blue: 0.169) // #11182B Deep Midnight Blue
+            : TempoMascotPalette.alabaster                 // #F6F4F0 Warm Alabaster
     }
     
-    // MARK: - Vibrant Harmonic Mesh Color Palettes
-    private var color0: Color {
-        colorScheme == .dark
-            ? Color(red: 0.08, green: 0.18, blue: 0.42) // Deep electric sapphire
-            : Color(red: 0.52, green: 0.70, blue: 0.94)  // Vibrant Sky Azure
+    public static func card(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? TempoMascotPalette.moodyMidnightBlue         // #1E2B4F Moody Midnight Blue
+            : Color.white                                  // #FFFFFF Crisp White
     }
     
-    private var color1: Color {
-        colorScheme == .dark
-            ? Color(red: 0.14, green: 0.10, blue: 0.40) // Cosmic indigo
-            : Color(red: 0.65, green: 0.60, blue: 0.92)  // Soft Royal Lavender
+    public static func cardElevated(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? TempoMascotPalette.moodyDuskBlue             // #283862 Moody Dusk Blue
+            : TempoMascotPalette.alabaster                 // #F6F4F0 Subtle Recessed Alabaster
     }
     
-    private var color2: Color {
-        colorScheme == .dark
-            ? Color(red: 0.05, green: 0.22, blue: 0.32) // Dark cyan slate
-            : Color(red: 0.42, green: 0.76, blue: 0.84)  // Fresh Cyan Teal
+    public static func ink(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? TempoMascotPalette.alabaster                 // #F6F4F0 Crisp Light Ink
+            : TempoMascotPalette.carbon                    // #1A1A1A Matte Carbon Ink
     }
     
-    private var color3: Color {
-        colorScheme == .dark
-            ? Color(red: 0.03, green: 0.05, blue: 0.12) // Midnight abyssal
-            : Color(red: 0.82, green: 0.85, blue: 0.92)  // Cool Slate Mist
+    public static func inkSecondary(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.68, green: 0.74, blue: 0.88)    // Soft Moonlight Slate
+            : Color(red: 0.45, green: 0.44, blue: 0.41)    // Warm Braun Grey
     }
     
-    private var color4: Color {
-        colorScheme == .dark
-            ? Color(red: 0.10, green: 0.12, blue: 0.28) // Deep twilight blue
-            : Color(red: 0.58, green: 0.72, blue: 0.92)  // Deep Ocean Azure
-    }
-    
-    private var color5: Color {
-        colorScheme == .dark
-            ? Color(red: 0.04, green: 0.06, blue: 0.10) // Obsidian base
-            : Color(red: 0.78, green: 0.82, blue: 0.88)  // Platinum Steel Base
+    public static func border(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color.white.opacity(0.12)
+            : TempoMascotPalette.carbon.opacity(0.08)
     }
 }
 
-// MARK: - Moody Frosted Glass Card Modifier (Shader Studio Aesthetic)
+// MARK: - Tactile Flat Horological Background (No Shaders)
+struct SharedBackground: View {
+    @Environment(\.colorScheme) var colorScheme
+
+    var body: some View {
+        TempoSurface.background(colorScheme)
+            .ignoresSafeArea()
+    }
+}
+
+// MARK: - Tactile Horological Card Modifier
 struct MoodyGlassCardModifier: ViewModifier {
     var cornerRadius: CGFloat = 24
     var isProminent: Bool = false
-    
+
     @Environment(\.colorScheme) var colorScheme
-    
+
     func body(content: Content) -> some View {
         content
             .background {
-                ZStack {
-                    // Deep moody slate-cyan frosted base (matching rgba(15, 23, 42, 0.75))
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(
-                            colorScheme == .dark
-                                ? Color(red: 0.06, green: 0.09, blue: 0.165).opacity(0.82)
-                                : Color(red: 0.94, green: 0.96, blue: 0.99).opacity(0.88)
-                        )
-                    
-                    // Subtle specular gradient sheen
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: colorScheme == .dark
-                                    ? [Color.cyan.opacity(0.08), Color.blue.opacity(0.04), Color.clear]
-                                    : [Color.white.opacity(0.60), Color.blue.opacity(0.03), Color.clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                }
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(TempoSurface.card(colorScheme))
             }
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(
-                        LinearGradient(
-                            colors: colorScheme == .dark
-                                ? [Color.white.opacity(0.28), Color.cyan.opacity(0.22), Color.white.opacity(0.08)]
-                                : [Color.white.opacity(0.95), Color.blue.opacity(0.20), Color.white.opacity(0.40)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.0
+                        TempoSurface.border(colorScheme),
+                        lineWidth: isProminent ? 1.5 : 1.0
                     )
             )
             .shadow(
-                color: Color.black.opacity(colorScheme == .dark ? 0.45 : 0.08),
-                radius: isProminent ? 24 : 16,
+                color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.04),
+                radius: isProminent ? 14 : 8,
                 x: 0,
-                y: isProminent ? 10 : 6
+                y: isProminent ? 5 : 3
             )
     }
 }
 
-// MARK: - Tactile Frosted Glass Chip Modifier
+// MARK: - Tactile Horological Chip Modifier
 struct MoodyGlassChipModifier: ViewModifier {
     var isProminent: Bool = false
-    
+
     @Environment(\.colorScheme) var colorScheme
-    
+
     func body(content: Content) -> some View {
         content
             .background {
                 if isProminent {
-                    LinearGradient(
-                        colors: [Color(red: 0.05, green: 0.52, blue: 0.98), Color(red: 0.02, green: 0.38, blue: 0.88)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                    Capsule()
+                        .fill(TempoMascotPalette.orange)
                 } else {
-                    ZStack {
-                        Capsule()
-                            .fill(
-                                colorScheme == .dark
-                                    ? Color(red: 0.09, green: 0.13, blue: 0.22).opacity(0.85)
-                                    : Color(red: 0.93, green: 0.95, blue: 0.98).opacity(0.92)
-                            )
-                    }
-                    .background(.ultraThinMaterial, in: Capsule())
+                    Capsule()
+                        .fill(TempoSurface.cardElevated(colorScheme))
                 }
             }
             .clipShape(Capsule())
             .overlay(
                 Capsule()
                     .strokeBorder(
-                        isProminent
-                            ? LinearGradient(colors: [Color.white.opacity(0.45), Color.cyan.opacity(0.60)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                            : LinearGradient(
-                                colors: colorScheme == .dark
-                                    ? [Color.white.opacity(0.24), Color.cyan.opacity(0.18), Color.white.opacity(0.06)]
-                                    : [Color.white.opacity(0.90), Color.blue.opacity(0.18), Color.white.opacity(0.40)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
+                        isProminent ? TempoMascotPalette.orange : TempoSurface.border(colorScheme),
                         lineWidth: 1.0
                     )
-            )
-            .shadow(
-                color: isProminent ? Color.blue.opacity(0.35) : Color.black.opacity(colorScheme == .dark ? 0.25 : 0.04),
-                radius: isProminent ? 8 : 4,
-                y: isProminent ? 2 : 1
             )
     }
 }
@@ -221,28 +119,25 @@ extension View {
     func moodyGlassCard(cornerRadius: CGFloat = 24, isProminent: Bool = false) -> some View {
         modifier(MoodyGlassCardModifier(cornerRadius: cornerRadius, isProminent: isProminent))
     }
-    
+
     func moodyGlassChip(isProminent: Bool = false) -> some View {
         modifier(MoodyGlassChipModifier(isProminent: isProminent))
     }
-    
-    // Backwards compatibility alias
+
     func liquidMetalCard(cornerRadius: CGFloat = 24, isProminent: Bool = false) -> some View {
         modifier(MoodyGlassCardModifier(cornerRadius: cornerRadius, isProminent: isProminent))
     }
-    
+
     func liquidMetalChip(isProminent: Bool = false) -> some View {
         modifier(MoodyGlassChipModifier(isProminent: isProminent))
     }
 }
 
-// MARK: - Glassmorphism Constants
+// MARK: - Card Border Constants
 struct GlassStyles {
     static func borderGradient(colorScheme: ColorScheme) -> LinearGradient {
         LinearGradient(
-            colors: colorScheme == .dark 
-                ? [Color.white.opacity(0.28), Color.cyan.opacity(0.18), Color.white.opacity(0.08)]
-                : [Color.white.opacity(0.85), Color.blue.opacity(0.15), Color.white.opacity(0.40)],
+            colors: [TempoSurface.border(colorScheme), TempoSurface.border(colorScheme)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
