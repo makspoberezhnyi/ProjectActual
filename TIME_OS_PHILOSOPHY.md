@@ -121,4 +121,6 @@ The market is currently fractured into **3 disconnected silos**—nobody unifies
 
 **A window on the world.** In World mode the wall behind the clock becomes a window onto the city you pick, drawn live in that city's own light: the sun or a crescent moon where it is right now, stars and lit windows after dark, warm skies at dawn and dusk. Famous cities get their landmark (Eiffel Tower, Big Ben and the London Eye, Empire State and Chrysler, Tokyo Tower with Fuji, Golden Gate, Sydney Opera House, Burj Khalifa, Warsaw's Palace of Culture, Kyiv's golden domes, Berlin's TV tower, the Colosseum); others get their own skyline. Swipe the window to pan to the next city, with the near and far layers moving at different speeds. The clock's hands show that city's time.
 
+**Camera and mode dial.** Modes now switch with a dial under the Dynamic Island, like the camera app: five SF Symbols slide so the current one sits in the middle with its name in an orange capsule. The view sits near eye level, so the clock is big and the desk recedes steeply, with its front edge and legs in view. Each mode has its own camera height (low for Focus and Stopwatch, higher for Alarms, World and Logbook where cards need room), and the room glides between them when you switch.
+
 **Next up:** the commute alarm that adjusts itself from real prep time, and a pause state for the Live Activity.

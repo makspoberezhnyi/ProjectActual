@@ -95,16 +95,11 @@ struct SeededRandom {
 }
 
 /// The view through the window. `pan` (points) slides the layers at different speeds.
-struct CityPanorama: View, Animatable {
+struct CityPanorama: View {
     let name: String
     let landmark: CityLandmark
     let hour: Double
     var pan: CGFloat
-
-    var animatableData: CGFloat {
-        get { pan }
-        set { pan = newValue }
-    }
 
     var body: some View {
         Canvas { ctx, size in

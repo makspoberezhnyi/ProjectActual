@@ -20,7 +20,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>app.actual.Actual.reminder</string>
+			<string>com.mpob.Tempo.reminder</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>actual</string>
